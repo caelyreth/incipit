@@ -116,14 +116,17 @@ func (s *State) deskRest(w, h float32) stageRect {
 }
 
 // leanDesk stands the desk where the scene says. On the way it is only
-// scaled and moved as one image (Cache), never laid out or painted anew,
-// so it keeps its lines and costs a frame no more than an image does.
+// scaled and moved as one image (CacheScaled), never laid out or painted
+// anew, so it keeps its lines and costs a frame no more than an image
+// does: drawn again only as it shrinks under half the scale it was drawn
+// at, or grows past it, and never for the scale it comes to rest at, so
+// it settles in the lane as it moved there.
 // Away from the desk, the desk takes no input but a press, which brings
 // it up, or opens a sheet when empty.
 func (s *State) leanDesk(area ui.Element, look stageLook, upright float32) {
 	if upright < 1 {
 		k := s.Settings.UIFontSize / theme.DefaultUIFontSize
-		area.Cache().TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).
+		area.CacheScaled().TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).
 			Translate(look.Offset.X, look.Offset.Y).Radius(10 * k).Clip()
 	}
 	if s.OnDesk() {
