@@ -42,10 +42,13 @@ type AppearanceSettings struct {
 	UIFontSize    float32
 	ProseFontSize float32
 	LineSpacing   float32
-	// CJKFace is the downloadable face (app/fonts) chosen to draw Chinese
-	// and Japanese, drawn once it is kept; empty, the system's fonts draw
-	// them.
-	CJKFace string
+	// Typeface is the prose's style, Serif or Sans: the Latin face the app
+	// ships in it, and the face for Chinese and Japanese.
+	Typeface fonts.Style
+	// CJKForms is the language (app/fonts) whose glyph forms Chinese and
+	// Japanese are drawn in, by its face in Typeface once kept; empty, the
+	// system's fonts draw them.
+	CJKForms string
 }
 
 // ThemeNumber returns the stable one-based module representation used by the
@@ -70,8 +73,11 @@ func (s AppearanceSettings) Normalized() AppearanceSettings {
 	s.UIFontSize = clampFloat(s.UIFontSize, MinUIFontSize, MaxUIFontSize)
 	s.ProseFontSize = clampFloat(s.ProseFontSize, MinProseFontSize, MaxProseFontSize)
 	s.LineSpacing = clampFloat(s.LineSpacing, MinLineSpacing, MaxLineSpacing)
-	if _, ok := fonts.Lookup(s.CJKFace); !ok {
-		s.CJKFace = ""
+	if !s.Typeface.Valid() {
+		s.Typeface = fonts.Serif
+	}
+	if _, ok := fonts.Find(fonts.Serif, s.CJKForms); !ok {
+		s.CJKForms = ""
 	}
 	return s
 }
@@ -105,11 +111,16 @@ func (s *AppearanceSettings) Apply(change AppearanceChange) bool {
 		// Spacing moves in steps, kept exact as they add up.
 		steps := float32(math.Round(float64(change.Spacing / LineSpacingStep)))
 		s.LineSpacing = clampFloat(steps*LineSpacingStep, MinLineSpacing, MaxLineSpacing)
-	case SetCJKFace:
-		if _, ok := fonts.Lookup(change.Face); !ok && change.Face != "" {
+	case SetTypeface:
+		if !change.Typeface.Valid() {
 			return false
 		}
-		s.CJKFace = change.Face
+		s.Typeface = change.Typeface
+	case SetCJKForms:
+		if _, ok := fonts.Find(fonts.Serif, change.Forms); !ok && change.Forms != "" {
+			return false
+		}
+		s.CJKForms = change.Forms
 	default:
 		return false
 	}

@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"github.com/caelyreth/neverland/app/fonts"
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/editor/policy"
 )
@@ -164,7 +165,8 @@ const (
 	SetUIFontSize
 	SetProseFontSize
 	SetLineSpacing
-	SetCJKFace
+	SetTypeface
+	SetCJKForms
 )
 
 // AppearanceChange is one neutral theme or text-size request. The accent
@@ -174,8 +176,10 @@ type AppearanceChange struct {
 	Theme    uint8
 	FontSize float32
 	Spacing  float32
-	// Face is SetCJKFace's face id (app/fonts), empty for the system's.
-	Face string
+	// Typeface is SetTypeface's style, and Forms SetCJKForms' language
+	// (app/fonts), empty for the system's fonts.
+	Typeface fonts.Style
+	Forms    string
 }
 
 func NewAppearanceChange(change AppearanceChange) Change {

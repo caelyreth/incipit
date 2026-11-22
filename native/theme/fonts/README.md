@@ -22,11 +22,20 @@ NotoSerif[wdth,wght].ttf         SHA-256 4d8e6761424656867019081a1a01336f3cb0869
 NotoSerif-Italic[wdth,wght].ttf  SHA-256 e87acbc6c0efd0d9a20d6a8cbbda2b266c14be3a3a6f5af8ec9d7b2460570ad1
 ```
 
-Both are registered under Neverland's family name, `Noto Serif`, so
-document typography does not depend on fonts installed by the host
-operating system. They draw Latin, Greek and Cyrillic. The app ships no face
-for Chinese and Japanese: the settings' Writing Systems section offers
-Noto Serif SC, TC, HK and JP, and downloads the one the person chooses,
+`NotoSans-Variable.ttf` and `NotoSans-Italic-Variable.ttf` are Noto Sans,
+the same, from `ofl/notosans` at that commit:
+
+```text
+NotoSans[wdth,wght].ttf          SHA-256 bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d
+NotoSans-Italic[wdth,wght].ttf   SHA-256 58e6e0ebd1931b29a365aa2d3e2ee9a9e831a3af7cf3ad1462d4e72154f0b291
+```
+
+They are registered under their family names, `Noto Serif` and `Noto
+Sans`, so document typography does not depend on fonts installed by the
+host operating system; the settings' style chooses which sets the prose.
+They draw Latin, Greek and Cyrillic. The app ships no face for Chinese and
+Japanese: the settings' Typeface section offers Noto Serif and Noto Sans
+SC, TC, HK and JP, and downloads the one the person chooses,
 Google Fonts' static builds at weights 400 and 700 from `fonts.gstatic.com`,
 or its mirror `fonts.gstatic.cn` when that fails, verified by the SHA-256
 pinned in `app/fonts/catalog.go`, and keeps it on that machine. The catalog

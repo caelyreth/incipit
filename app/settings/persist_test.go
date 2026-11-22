@@ -4,6 +4,7 @@ import (
 	"maps"
 	"testing"
 
+	"github.com/caelyreth/neverland/app/fonts"
 	"github.com/caelyreth/neverland/app/keymap"
 )
 
@@ -15,7 +16,8 @@ func TestSettingsRoundTrip(t *testing.T) {
 		UIFontSize:    20,
 		ProseFontSize: 21,
 		LineSpacing:   2,
-		CJKFace:       "jp",
+		Typeface:      fonts.Sans,
+		CJKForms:      "jp",
 	}
 	keys, err := state.Keymap.Remap(keymap.Typewriter, keymap.NewChord("y", keymap.ModifiersPrimary|keymap.ModifiersShift), "")
 	if err != nil {

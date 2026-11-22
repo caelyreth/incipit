@@ -27,12 +27,10 @@ type State struct {
 	// asks to show it.
 	Find    func(words string)
 	Animate bool
-	// Fonts are the downloadable faces for Chinese and Japanese, CJKFace
-	// the one chosen (empty for the system's fonts), and Font does what
-	// the section asks of one.
-	Fonts   []FontRow
-	CJKFace string
-	Font    func(id string, act FontAct)
+	// Fonts are the downloadable faces for Chinese and Japanese, and Font
+	// does what the Typeface section asks of one.
+	Fonts []FontRow
+	Font  func(id string, act FontAct)
 
 	// The chord the keymap is searched by, as pressed. Then, in any
 	// section, the command whose shortcut is being recorded and the row or

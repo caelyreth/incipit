@@ -410,7 +410,7 @@ func (a *AppState) refreshSettingsData() {
 	a.Settings.Animate = a.Product.Presentation.Motion
 	a.Settings.Recording = a.setRecording
 	a.Settings.Reserved = a.reservedKey
-	a.Settings.Fonts, a.Settings.CJKFace, a.Settings.Font = a.fonts.rows(), a.Product.Appearance.CJKFace, a.fontAct
+	a.Settings.Fonts, a.Settings.Font = a.fonts.rows(), a.fontAct
 	a.Settings.Apply = func(change appsettings.Change) {
 		outcome, err := a.Product.Apply(change)
 		if err != nil {
@@ -512,7 +512,7 @@ func themeSource(settings theme.Settings) mygo.ThemeSource {
 func (a *AppState) appearanceSettings() theme.Settings {
 	values := a.Product.Appearance
 	settings := theme.DefaultSettings()
-	settings.ProseFamily = a.fonts.family(values.CJKFace)
+	settings.ProseFamily = a.fonts.family(values.Typeface, values.CJKForms)
 	settings.UIFontSize = values.UIFontSize
 	settings.ProseFontSize = values.ProseFontSize
 	settings.LineSpacing = values.LineSpacing

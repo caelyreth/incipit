@@ -16,6 +16,12 @@ var proseFont []byte
 //go:embed fonts/NotoSerif-Italic-Variable.ttf
 var proseItalic []byte
 
+//go:embed fonts/NotoSans-Variable.ttf
+var proseSans []byte
+
+//go:embed fonts/NotoSans-Italic-Variable.ttf
+var proseSansItalic []byte
+
 //go:embed fonts/NewCMMath-Book.otf
 var mathFont []byte
 
@@ -29,11 +35,13 @@ var (
 	registerErr  error
 )
 
-// RegisterFonts installs the prose face, upright and italic, under
-// Neverland's stable family name on every target platform.
+// RegisterFonts installs the prose faces, Serif and Sans, upright and
+// italic, under their stable family names on every target platform.
 func RegisterFonts() error {
 	registerOnce.Do(func() {
-		registerErr = errors.Join(ui.RegisterFont(proseFont, ProseFontFamily), ui.RegisterFont(proseItalic, ProseFontFamily))
+		registerErr = errors.Join(
+			ui.RegisterFont(proseFont, ProseFontFamily), ui.RegisterFont(proseItalic, ProseFontFamily),
+			ui.RegisterFont(proseSans, ProseSansFamily), ui.RegisterFont(proseSansItalic, ProseSansFamily))
 	})
 	return registerErr
 }

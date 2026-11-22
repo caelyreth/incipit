@@ -25,7 +25,7 @@ func (s *State) appearanceSections() []sectionInfo {
 	return []sectionInfo{
 		{"Theme", "Colors and chrome scale for every Neverland window.", "Theme Colors Starfield Daybreak Dark Light UI Font Size"},
 		{"Writing Environment", "Presentation choices shared across the workspace.", environment},
-		s.writingSystemsInfo(),
+		s.typefaceInfo(),
 	}
 }
 
@@ -66,8 +66,8 @@ func (s *State) appearanceSection(c *ui.Context, semantic theme.Theme, sec Secti
 				},
 			}.View(c, semantic)
 		})
-	case writingSystems:
-		s.writingSystemsSection(c, semantic, sec)
+	case typefaceTitle:
+		s.typefaceSection(c, semantic, sec)
 	case "Writing Environment":
 		s.section(c, semantic, sec, func() {
 			components.SettingRow{

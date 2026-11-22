@@ -195,13 +195,29 @@ func TestSweepKeepsTheCatalogsFaces(t *testing.T) {
 func TestCatalogIsPinned(t *testing.T) {
 	seen := map[string]bool{}
 	for _, f := range Catalog {
-		if seen[f.ID] || f.Family == "" || f.Sample == "" || len(f.Files) == 0 {
+		if seen[f.ID] || f.Family == "" || f.Forms == "" || f.Language == "" || len(f.Files) == 0 {
 			t.Errorf("face %+v", f)
 		}
 		seen[f.ID] = true
 		for _, file := range f.Files {
 			if len(file.SHA256) != 64 || file.Size <= 0 {
 				t.Errorf("%s: %+v is not pinned", f.ID, file)
+			}
+		}
+	}
+}
+
+// TestEachLanguageInEachStyle has a face of each language's forms in
+// Serif and in Sans.
+func TestEachLanguageInEachStyle(t *testing.T) {
+	langs := Languages()
+	if len(langs) == 0 {
+		t.Fatal("no languages")
+	}
+	for _, l := range langs {
+		for _, style := range []Style{Serif, Sans} {
+			if f, ok := Find(style, l.Forms); !ok || f.Style != style {
+				t.Errorf("no %v face for %s", style, l.Forms)
 			}
 		}
 	}

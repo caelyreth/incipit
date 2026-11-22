@@ -9,70 +9,86 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// TestWritingSystemsChooseAFace names the face chosen on the picker, which
-// offers the system's fonts and each face, the size of one not kept
-// beside it, lists under it the faces held with what can be done with
-// each, and tells the host what is asked.
-func TestWritingSystemsChooseAFace(t *testing.T) {
-	face := func(id string) fonts.Face { f, _ := fonts.Lookup(id); return f }
+// typefaceState is the section's state with every face of the catalog,
+// as rows says of some.
+func typefaceState(values appsettings.AppearanceSettings, rows map[string]FontRow) *State {
 	state := New()
 	state.Data = appsettings.DefaultState().Data()
-	state.Query = "writing systems"
-	state.CJKFace = "sc"
-	state.Fonts = []FontRow{
-		{Face: face("sc"), Kept: true},
-		{Face: face("tc"), Coming: true, Done: 1, Total: 4, Wanted: true},
-		{Face: face("hk")},
-		{Face: face("jp"), Partial: 3},
+	state.Data.AppearanceValues = values
+	state.Query = "typeface"
+	for _, f := range fonts.Catalog {
+		row := rows[f.ID]
+		row.Face = f
+		state.Fonts = append(state.Fonts, row)
 	}
-	type asked struct {
-		id  string
-		act FontAct
-	}
+	return state
+}
+
+type asked struct {
+	id  string
+	act FontAct
+}
+
+// TestTypefaceChoosesGlyphForms lists the system's fonts and each
+// language as options, each with its face's state in the style chosen,
+// the faces held of the other style after them, and tells the host what
+// is asked.
+func TestTypefaceChoosesGlyphForms(t *testing.T) {
+	state := typefaceState(appsettings.AppearanceSettings{Typeface: fonts.Serif, CJKForms: "sc"}, map[string]FontRow{
+		"serif-sc": {Kept: true},
+		"serif-tc": {Coming: true, Done: 1e6, Total: 4e6, Wanted: true},
+		"sans-jp":  {Partial: 3},
+	})
 	var acts []asked
 	state.Font = func(id string, act FontAct) { acts = append(acts, asked{id, act}) }
-	tester := ui.NewTester(state.cards(appsettings.Appearance), 600, 1600)
+	tester := ui.NewTester(state.cards(appsettings.Appearance), 700, 1600)
 	tester.Frame()
-	for _, text := range []string{"Chinese and Japanese", "Noto Serif SC", "Noto Serif TC", "Noto Serif JP"} {
+	for _, text := range []string{systemFont, "Chinese, Simplified", "Chinese, Hong Kong", "Japanese", "Also on This Computer",
+		"Noto Serif SC · 29.6 MB · Downloaded", "Noto Serif TC · 1.0 MB of 4.0 MB", "Noto Sans JP"} {
 		if !tester.HasText(text) {
 			t.Fatalf("no %q in %v", text, tester.Texts())
 		}
 	}
-	if tester.HasText("Noto Serif HK") {
-		t.Error("a face neither kept nor coming is listed under the picker")
-	}
-	if err := tester.Click("Noto Serif SC"); err != nil {
-		t.Fatal(err)
-	}
-	tester.Frame()
-	if menu := tester.Menu(); !slices.Equal(menu, []string{systemFont, "-", "Noto Serif SC", "Noto Serif TC", "Noto Serif HK", "Noto Serif JP"}) {
-		t.Fatalf("the picker offers %v", menu)
-	}
-	if err := tester.ChooseMenuItem("Noto Serif HK"); err != nil {
-		t.Fatal(err)
-	}
-	tester.Frame()
-	for _, label := range []string{"Stop", "Resume", "Remove"} {
+	for _, label := range []string{"Japanese", "Stop", "Remove"} {
 		if err := tester.Click(label); err != nil {
 			t.Fatalf("%s: %v in %v", label, err, tester.Texts())
 		}
 		tester.Frame()
 	}
-	want := []asked{{"hk", FontChoose}, {"tc", FontCancel}, {"jp", FontChoose}, {"sc", FontRemove}}
+	want := []asked{{"serif-jp", FontChoose}, {"serif-tc", FontCancel}, {"serif-sc", FontRemove}}
 	if !slices.Equal(acts, want) {
 		t.Errorf("asked %v, want %v", acts, want)
 	}
 }
 
-// TestWritingSystemsWithNoFace draws Chinese and Japanese in the system's
-// fonts, nothing held under the picker.
-func TestWritingSystemsWithNoFace(t *testing.T) {
-	state := New()
-	state.Data = appsettings.DefaultState().Data()
-	state.Query = "writing systems"
-	for _, f := range fonts.Catalog {
-		state.Fonts = append(state.Fonts, FontRow{Face: f})
+// TestTypefaceStyleCarriesTheForms sets the style and asks for the face of
+// the glyph forms chosen in it.
+func TestTypefaceStyleCarriesTheForms(t *testing.T) {
+	state := typefaceState(appsettings.AppearanceSettings{Typeface: fonts.Serif, CJKForms: "jp"}, map[string]FontRow{
+		"serif-jp": {Kept: true},
+	})
+	var acts []asked
+	state.Font = func(id string, act FontAct) { acts = append(acts, asked{id, act}) }
+	var changes []appsettings.Change
+	state.Apply = func(change appsettings.Change) { changes = append(changes, change) }
+	tester := ui.NewTester(state.cards(appsettings.Appearance), 600, 1600)
+	tester.Frame()
+	if err := tester.Click("Sans"); err != nil {
+		t.Fatal(err)
 	}
+	tester.Frame()
+	if len(changes) != 1 || changes[0].Appearance.Kind != appsettings.SetTypeface || changes[0].Appearance.Typeface != fonts.Sans {
+		t.Errorf("changed %+v", changes)
+	}
+	if !slices.Equal(acts, []asked{{"sans-jp", FontChoose}}) {
+		t.Errorf("asked %v", acts)
+	}
+}
+
+// TestTypefaceWithNoFace draws Chinese and Japanese in the system's fonts,
+// nothing held under the pickers.
+func TestTypefaceWithNoFace(t *testing.T) {
+	state := typefaceState(appsettings.AppearanceSettings{}, nil)
 	tester := ui.NewTester(state.cards(appsettings.Appearance), 600, 1600)
 	tester.Frame()
 	if !tester.HasText(systemFont) || tester.HasText("Remove") {

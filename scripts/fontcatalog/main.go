@@ -25,20 +25,32 @@ import (
 	"time"
 )
 
-// face is a face as the catalog lists it: what the settings call it, the
-// language it is for and a line in it, and its family.
+// face is a face as the catalog lists it: its style, Serif or Sans, the
+// language whose glyph forms it draws, as the settings name it, and its
+// family.
 type face struct {
-	id, language, sample, family string
+	style, forms, language, family string
 }
 
-// faces are the catalog's, in the order the settings list them: Noto
-// Serif for Chinese and Japanese, the languages the app is written for
-// beyond Latin.
-var faces = []face{
-	{"sc", "Chinese, Simplified", "永和九年，岁在癸丑，暮春之初", "Noto Serif SC"},
-	{"tc", "Chinese, Traditional", "永和九年，歲在癸丑，暮春之初", "Noto Serif TC"},
-	{"hk", "Chinese, Hong Kong", "維港兩岸，燈火通明", "Noto Serif HK"},
-	{"jp", "Japanese", "いろはにほへと　ちりぬるを", "Noto Serif JP"},
+// forms are the languages the faces draw, in the order the settings list
+// them: Chinese and Japanese, the languages the app is written for beyond
+// Latin.
+var forms = []struct{ id, language, suffix string }{
+	{"sc", "Chinese, Simplified", "SC"},
+	{"tc", "Chinese, Traditional", "TC"},
+	{"hk", "Chinese, Hong Kong", "HK"},
+	{"jp", "Japanese", "JP"},
+}
+
+// faces are the catalog's: Noto Serif, then Noto Sans, for each language.
+func faces() []face {
+	var out []face
+	for _, style := range []string{"Serif", "Sans"} {
+		for _, f := range forms {
+			out = append(out, face{style, f.id, f.language, "Noto " + style + " " + f.suffix})
+		}
+	}
+	return out
 }
 
 // weights are those the page draws: body text, and headings and strong
@@ -72,17 +84,18 @@ func main() {
 
 package fonts
 
-// Catalog is the faces the app offers for Chinese and Japanese, in the
-// order the settings list them. Each file is Google Fonts' static build at
-// a weight, at its path on each of Hosts.
+// Catalog is the faces the app offers for Chinese and Japanese: Noto
+// Serif, then Noto Sans, for each language's glyph forms. Each file is
+// Google Fonts' static build at a weight, at its path on each of Hosts.
 var Catalog = []Face{
 `)
-	for _, f := range faces {
+	for _, f := range faces() {
 		files, err := filesOf(f)
 		if err != nil {
 			log.Fatalf("%s: %v", f.family, err)
 		}
-		fmt.Fprintf(&b, "{ID: %q, Language: %q, Sample: %q, Family: %q, Files: []File{\n", f.id, f.language, f.sample, f.family)
+		fmt.Fprintf(&b, "{ID: %q, Style: %s, Forms: %q, Language: %q, Family: %q, Files: []File{\n",
+			strings.ToLower(f.style)+"-"+f.forms, f.style, f.forms, f.language, f.family)
 		for _, fl := range files {
 			fmt.Fprintf(&b, "{Path: %q, Name: %q, Weight: %d, Size: %d, SHA256: %q},\n", fl.path, fl.name, fl.weight, fl.size, fl.sha)
 		}

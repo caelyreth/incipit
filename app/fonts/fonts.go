@@ -1,10 +1,11 @@
 // Package fonts keeps the prose faces for Chinese and Japanese, which the
-// app does not ship: each is Google Fonts' Noto Serif for a language, its
-// static builds at the weights the page draws, downloaded only when the
-// person asks from Google Fonts' static hosts, verified against the
-// SHA-256 pinned in the catalog (scripts/fontcatalog), and kept on this
-// machine, not in the notebook. One of them, chosen, draws the text the
-// Latin face does not; with none chosen, the system's fonts draw it.
+// app does not ship: Google Fonts' Noto Serif and Noto Sans for each
+// language's glyph forms, their static builds at the weights the page
+// draws, downloaded only when the person chooses one, from Google Fonts'
+// static hosts, verified against the SHA-256 pinned in the catalog
+// (scripts/fontcatalog), and kept on this machine, not in the notebook.
+// The one chosen draws what the Latin face, Noto Serif or Noto Sans as the
+// style is, does not; with none, the system's fonts draw it.
 package fonts
 
 import (
@@ -14,13 +15,34 @@ import (
 	"slices"
 )
 
-// Face is one language's downloadable face.
+// Style is the prose's style: Serif or Sans, for the Latin face the app
+// ships and the face of each language alike.
+type Style uint8
+
+const (
+	Serif Style = iota
+	Sans
+)
+
+// Valid reports whether s is a style.
+func (s Style) Valid() bool { return s <= Sans }
+
+// String is the style as the settings keep and name it.
+func (s Style) String() string {
+	if s == Sans {
+		return "Sans"
+	}
+	return "Serif"
+}
+
+// Face is one language's downloadable face in a style.
 type Face struct {
-	// ID names it in the settings.
-	ID string
-	// Language is what it is drawn for, as the settings say, and Sample a
-	// line in it, shown in the face.
-	Language, Sample string
+	// ID names it, by its style and its forms.
+	ID    string
+	Style Style
+	// Forms names the language whose glyph forms it draws, which Language
+	// says as the settings do.
+	Forms, Language string
 	// Family is its name, the family its files are registered under and
 	// the prose family list names.
 	Family string
@@ -58,6 +80,27 @@ func Lookup(id string) (Face, bool) {
 		return Face{}, false
 	}
 	return Catalog[i], true
+}
+
+// Find is the catalog's face of forms in style.
+func Find(style Style, forms string) (Face, bool) {
+	i := slices.IndexFunc(Catalog, func(f Face) bool { return f.Style == style && f.Forms == forms })
+	if i < 0 {
+		return Face{}, false
+	}
+	return Catalog[i], true
+}
+
+// Languages are the glyph forms the catalog has faces for, each once, in
+// its order, as the faces of one style name them.
+func Languages() []Face {
+	var out []Face
+	for _, f := range Catalog {
+		if f.Style == Serif {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 // Family is the prose family list: base, the Latin face the app ships,

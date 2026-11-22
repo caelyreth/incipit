@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
+
+	"github.com/caelyreth/neverland/app/fonts"
 
 	"github.com/caelyreth/neverland/app/keymap"
 	"github.com/caelyreth/neverland/app/manifest"
@@ -25,7 +28,8 @@ type persisted struct {
 	UIFontSize   float32                    `json:"uiFontSize"`
 	ProseSize    float32                    `json:"proseFontSize"`
 	LineSpacing  float32                    `json:"lineSpacing"`
-	CJKFace      string                     `json:"cjkFace,omitempty"`
+	Typeface     string                     `json:"typeface,omitempty"`
+	CJKForms     string                     `json:"cjkForms,omitempty"`
 	Keymap       map[string]*persistedChord `json:"keymap,omitempty"`
 	PolicyValues map[string]json.RawMessage `json:"policy,omitempty"`
 }
@@ -53,7 +57,8 @@ func (s State) Encode() ([]byte, error) {
 		UIFontSize:   s.Appearance.UIFontSize,
 		ProseSize:    s.Appearance.ProseFontSize,
 		LineSpacing:  s.Appearance.LineSpacing,
-		CJKFace:      s.Appearance.CJKFace,
+		Typeface:     strings.ToLower(s.Appearance.Typeface.String()),
+		CJKForms:     s.Appearance.CJKForms,
 		Keymap:       persistedOverrides(s.Keymap),
 		PolicyValues: policyValues,
 	}
@@ -101,7 +106,8 @@ func (s *State) Decode(data []byte) error {
 			UIFontSize:    record.UIFontSize,
 			ProseFontSize: record.ProseSize,
 			LineSpacing:   record.LineSpacing,
-			CJKFace:       record.CJKFace,
+			Typeface:      parseTypeface(record.Typeface),
+			CJKForms:      record.CJKForms,
 		}.Normalized(),
 		Keymap:  keys,
 		Policy:  values,
@@ -109,6 +115,15 @@ func (s *State) Decode(data []byte) error {
 	}
 	*s = candidate
 	return nil
+}
+
+// parseTypeface is the style a record names, Serif for none or one not
+// known.
+func parseTypeface(name string) fonts.Style {
+	if name == "sans" {
+		return fonts.Sans
+	}
+	return fonts.Serif
 }
 
 func themeName(theme ThemeChoice) string {

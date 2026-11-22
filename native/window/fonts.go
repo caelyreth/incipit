@@ -14,9 +14,10 @@ import (
 
 // fontState is the faces for Chinese and Japanese (app/fonts): which are
 // kept, registered with the text engine this run, and coming. The prose
-// names the one chosen (appsettings.AppearanceSettings.CJKFace) while it
-// is kept, so one removed is no longer drawn at once, though its fonts
-// stay registered until the app quits.
+// names the one of the glyph forms and style chosen
+// (appsettings.AppearanceSettings) while it is kept, so one removed is no
+// longer drawn at once, though its fonts stay registered until the app
+// quits.
 type fontState struct {
 	store      *fonts.Store
 	kept       map[string]bool
@@ -77,12 +78,17 @@ func (fs *fontState) register(f fonts.Face, data [][]byte) error {
 	return nil
 }
 
-// family is the prose family list, the face chosen in it while kept.
-func (fs *fontState) family(chosen string) string {
-	if f, ok := fonts.Lookup(chosen); ok && fs.kept[chosen] {
-		return fonts.Family(theme.ProseFontFamily, &f)
+// family is the prose family list: the Latin face of style, then the
+// face of forms in it while kept.
+func (fs *fontState) family(style fonts.Style, forms string) string {
+	base := theme.ProseFontFamily
+	if style == fonts.Sans {
+		base = theme.ProseSansFamily
 	}
-	return fonts.Family(theme.ProseFontFamily, nil)
+	if f, ok := fonts.Find(style, forms); ok && fs.kept[f.ID] {
+		return fonts.Family(base, &f)
+	}
+	return fonts.Family(base, nil)
 }
 
 // rows are the faces as the settings list them.
@@ -109,15 +115,15 @@ func (a *AppState) useFonts(fs *fontState) {
 	a.refreshShell()
 }
 
-// chooseFont makes id the face that draws Chinese and Japanese, the
-// system's fonts for none.
-func (a *AppState) chooseFont(id string) {
-	a.Settings.Apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{Kind: appsettings.SetCJKFace, Face: id}))
+// chooseForms has Chinese and Japanese drawn in the glyph forms of forms,
+// by its face in the style chosen, the system's fonts for none.
+func (a *AppState) chooseForms(forms string) {
+	a.Settings.Apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{Kind: appsettings.SetCJKForms, Forms: forms}))
 }
 
 // fontAct does what the settings asked of a face, the system's fonts for
-// an empty id: chosen, a face kept is drawn at once and one that is not is
-// downloaded, to be drawn once kept.
+// an empty id: chosen, a face kept draws its forms at once and one that is
+// not is downloaded, to draw them once kept.
 func (a *AppState) fontAct(id string, act settings.FontAct) {
 	fs := a.fonts
 	if fs == nil {
@@ -127,12 +133,12 @@ func (a *AppState) fontAct(id string, act settings.FontAct) {
 	switch {
 	case act == settings.FontChoose && id == "":
 		fs.wanted = ""
-		a.chooseFont("")
+		a.chooseForms("")
 	case !ok || fs.store == nil:
 		return
 	case act == settings.FontChoose && fs.kept[id]:
 		fs.wanted = ""
-		a.chooseFont(id)
+		a.chooseForms(f.Forms)
 	case act == settings.FontChoose:
 		fs.wanted = id
 		if fs.coming[id] == nil {
@@ -156,8 +162,8 @@ func (a *AppState) fontAct(id string, act settings.FontAct) {
 			a.fail("Couldn't remove the font", err)
 		}
 		fs.kept[id] = false
-		if a.Product.Appearance.CJKFace == id {
-			a.chooseFont("")
+		if values := a.Product.Appearance; values.Typeface == f.Style && values.CJKForms == f.Forms {
+			a.chooseForms("")
 		}
 		a.applyAppearance()
 	}
@@ -208,7 +214,7 @@ func (a *AppState) downloadFont(f fonts.Face) {
 				fs.kept[f.ID] = true
 				if fs.wanted == f.ID {
 					fs.wanted = ""
-					a.chooseFont(f.ID)
+					a.chooseForms(f.Forms)
 				}
 				a.applyAppearance()
 			}
