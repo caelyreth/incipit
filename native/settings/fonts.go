@@ -58,6 +58,7 @@ func (s *State) typefaceInfo() sectionInfo {
 // Chinese and Japanese as a list of options, each with its face's state in
 // the style chosen, then the faces held of the other style.
 func (s *State) typefaceSection(c *ui.Context, semantic theme.Theme, sec Section) {
+	scale := s.Theme.UIFontSize
 	s.section(c, semantic, sec, func() {
 		style := s.Data.AppearanceValues.Typeface
 		var other []FontRow
@@ -72,7 +73,7 @@ func (s *State) typefaceSection(c *ui.Context, semantic theme.Theme, sec Section
 			Description: "The glyph forms they are drawn in. A face downloads when chosen.",
 			Last:        true,
 		}.View(c, semantic)
-		ui.Column(c).Key("forms").WidthPercent(100).Children(func() {
+		ui.Column(c).Key("forms").WidthPercent(100).Padding(0, 0, theme.Space08.DIPs(scale), 0).Children(func() {
 			s.formsOption(c, semantic, "", nil)
 			for _, lang := range fonts.Languages() {
 				if row := s.row(style, lang.Forms); row != nil {
@@ -175,7 +176,7 @@ func (s *State) formsOption(c *ui.Context, semantic theme.Theme, forms string, r
 	pad := theme.Space16.DIPs(scale)
 	ui.Column(c.Key("option-" + forms)).WidthPercent(100).Children(func() {
 		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-			Padding(0, pad, 0, pad+theme.Space08.DIPs(scale)).Children(func() {
+			Padding(0, pad-theme.Space08.DIPs(scale), 0, pad-theme.Space08.DIPs(scale)).Children(func() {
 			option := ui.ButtonBase(c.Key("choose")).Role(ui.RoleRadio).Label(label).Checked(chosen).
 				Grow(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Space12.DIPs(scale)).
 				Padding(theme.Space08.DIPs(scale), theme.Space08.DIPs(scale), theme.Space08.DIPs(scale), theme.Space08.DIPs(scale)).
