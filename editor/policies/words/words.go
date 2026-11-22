@@ -5,7 +5,6 @@
 package words
 
 import (
-	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -97,7 +96,7 @@ func targetIn(in *doc.Inline, flat string, off int, unit vocab.Unit, dir vocab.D
 	case vocab.ByWord:
 		return wordTarget(in, flat, off, dir)
 	case vocab.BySentence:
-		return sentenceTarget(flat, off, dir)
+		return sentenceTarget(in, flat, off, dir)
 	case vocab.ByParagraph:
 		return paragraphTarget(flat, off, dir)
 	}
@@ -108,7 +107,7 @@ func targetIn(in *doc.Inline, flat string, off int, unit vocab.Unit, dir vocab.D
 // From inside a word it lands at that word's end; backward it lands at the
 // current or previous word's start. Inline nodes are units of their own.
 func wordTarget(in *doc.Inline, flat string, off int, dir vocab.Direction) (int, bool) {
-	units := wordUnits(in, flat)
+	units := wordUnits(in)
 	if dir > 0 {
 		for _, u := range units {
 			if u.to > off {
@@ -125,32 +124,23 @@ func wordTarget(in *doc.Inline, flat string, off int, dir vocab.Direction) (int,
 	return vocab.GraphemeStep(flat, off, dir)
 }
 
-func wordUnits(in *doc.Inline, flat string) []span {
+// wordUnits are the slot's words, an inline node among them.
+func wordUnits(in *doc.Inline) []span {
 	var units []span
-	for segment := range vocab.WordSegments(maskNodes(flat)) {
-		if segment.WordLike && segment.Start < len(flat) {
-			units = append(units, span{segment.Start, segment.Start + len(segment.Text)})
+	for _, w := range vocab.Words(in) {
+		if w.Word {
+			units = append(units, span{w.From, w.To})
 		}
 	}
-	in.Nodes(func(at int, _ *doc.Node) bool {
-		units = append(units, span{at, at + 1})
-		return true
-	})
-	sort.Slice(units, func(i, j int) bool {
-		if units[i].from != units[j].from {
-			return units[i].from < units[j].from
-		}
-		return units[i].to < units[j].to
-	})
 	return units
 }
 
 // sentenceTarget lands at a sentence's end going forward, and at the
 // current or previous sentence's start going backward.
-func sentenceTarget(flat string, off int, dir vocab.Direction) (int, bool) {
+func sentenceTarget(in *doc.Inline, flat string, off int, dir vocab.Direction) (int, bool) {
 	var units []span
-	for segment := range vocab.SentenceSegments(maskNodes(flat)) {
-		units = append(units, span{segment.Start, segment.Start + len(segment.Text)})
+	for _, s := range vocab.Sentences(in) {
+		units = append(units, span{s.From, s.To})
 	}
 	if dir > 0 {
 		for _, u := range units {
@@ -206,21 +196,6 @@ func paragraphTarget(flat string, off int, dir vocab.Direction) (int, bool) {
 	return vocab.GraphemeStep(flat, off, dir)
 }
 
-// maskNodes keeps offsets aligned with the slot while making an inline
-// node a word and sentence boundary. Its own start and end remain units.
-func maskNodes(flat string) string {
-	if !strings.ContainsRune(flat, doc.NodeByte) {
-		return flat
-	}
-	b := []byte(flat)
-	for i := range b {
-		if b[i] == doc.NodeByte {
-			b[i] = ' '
-		}
-	}
-	return string(b)
-}
-
 // delete deletes one unit from the caret, through the same range
 // operation every other deletion reads.
 func delete(c *policy.Ctx, in vocab.Delete, _ policy.At[doc.SlotRef]) policy.Result {
@@ -256,8 +231,8 @@ func selectWord(c *policy.Ctx, in vocab.Place, nearby bool) policy.Result {
 func segmentAt(in *doc.Inline, off int, over vocab.Direction, nearby bool) (int, int) {
 	flat := in.Flat()
 	var units []span
-	for segment := range vocab.WordSegments(flat) {
-		units = append(units, span{segment.Start, segment.Start + len(segment.Text)})
+	for _, w := range vocab.Words(in) {
+		units = append(units, span{w.From, w.To})
 	}
 	if over == 0 {
 		over = vocab.Backward

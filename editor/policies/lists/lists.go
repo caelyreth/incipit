@@ -76,8 +76,7 @@ func nest(c *policy.Ctx, in profile.Nest, at policy.At[*doc.Node]) policy.Result
 // makeList makes each block the selection touches an item; lists of one
 // style meet as one list.
 func makeList(c *policy.Ctx, in profile.MakeList, _ policy.At[doc.SlotRef]) policy.Result {
-	from, to := c.Range()
-	blocks := vocab.SelectedBlocks(c.Doc(), from, to)
+	blocks := c.Span().Blocks
 	if len(blocks) == 0 {
 		return policy.Swallow
 	}

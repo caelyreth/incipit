@@ -23,6 +23,9 @@ type Ctx struct {
 
 	stopsFn StopsFunc
 	stops   Stops
+	// span is the selection's, read at spanOf (Span).
+	span   *SelectionSpan
+	spanOf doc.Selection
 	// seq is the sequence number of the transaction being processed.
 	seq uint64
 }

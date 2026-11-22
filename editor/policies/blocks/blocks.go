@@ -56,10 +56,9 @@ func headingAttrs(level int) doc.Attrs {
 // plain again.
 func retype(c *policy.Ctx, in profile.Retype, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
-	from, to := c.Range()
 	attrs := r.Schema().Canonical(in.To, in.Attrs)
 	var edits []vocab.Edit
-	for _, b := range vocab.SelectedBlocks(r, from, to) {
+	for _, b := range c.Span().Blocks {
 		if !r.Schema().IsTextBlock(b.Kind()) || !vocab.Accepts(r, b.ID(), in.To) {
 			continue
 		}
@@ -78,8 +77,7 @@ func retype(c *policy.Ctx, in profile.Retype, _ policy.At[doc.SlotRef]) policy.R
 // wrapQuote wraps the blocks the selection touches in a quote, lifted to
 // what the container holds.
 func wrapQuote(c *policy.Ctx, _ profile.WrapQuote, _ policy.At[doc.SlotRef]) policy.Result {
-	from, to := c.Range()
-	blocks := vocab.SelectedBlocks(c.Doc(), from, to)
+	blocks := c.Span().Blocks
 	ids := make([]doc.ID, len(blocks))
 	for i, b := range blocks {
 		ids[i] = b.ID()
@@ -110,9 +108,8 @@ func outdent(c *policy.Ctx, in profile.Nest, _ policy.At[doc.SlotRef]) policy.Re
 		return policy.Pass
 	}
 	r := c.Doc()
-	from, to := c.Range()
 	var ids []doc.ID
-	for _, b := range vocab.SelectedBlocks(r, from, to) {
+	for _, b := range c.Span().Blocks {
 		if !r.Schema().IsEntry(b.Kind()) && vocab.CanLift(r, b.ID()) {
 			ids = append(ids, b.ID())
 		}

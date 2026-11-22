@@ -2,8 +2,6 @@ package scopes
 
 import (
 	"slices"
-	"strings"
-	"unicode"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -71,7 +69,6 @@ func textRungs(c *policy.Ctx) []candidate {
 	if !ok {
 		return nil
 	}
-	flat := content.Flat()
 	from, to := sel.Anchor.Pos.Offset, sel.Head.Pos.Offset
 	if from > to {
 		from, to = to, from
@@ -81,39 +78,14 @@ func textRungs(c *policy.Ctx) []candidate {
 	}
 	var out []candidate
 	if from == to {
-		if f, t, ok := wordAt(flat, from); ok {
-			out = append(out, span(f, t))
+		if w, ok := vocab.WordAt(content, from); ok {
+			out = append(out, span(w.From, w.To))
 		}
 	}
-	for s := range vocab.SentenceSegments(flat) {
-		f, t := s.Start, s.Start+len(strings.TrimRightFunc(s.Text, unicode.IsSpace))
-		if f <= from && to <= t && f < t {
-			out = append(out, span(f, t))
-			break
-		}
+	if s, ok := vocab.SentenceAround(content, from, to); ok {
+		out = append(out, span(s.From, s.To))
 	}
 	return out
-}
-
-// wordAt is the word holding off, or ending or starting at it, the one
-// after it first where two meet there: only a word, never the space or
-// the punctuation between words.
-func wordAt(flat string, off int) (int, int, bool) {
-	var before [2]int
-	found := false
-	for w := range vocab.WordSegments(flat) {
-		f, t := w.Start, w.Start+len(w.Text)
-		if !w.WordLike {
-			continue
-		}
-		if f <= off && off < t {
-			return f, t, true
-		}
-		if t == off {
-			before, found = [2]int{f, t}, true
-		}
-	}
-	return before[0], before[1], found
 }
 
 // dedupe drops the rungs of an extent another before it has: a sentence
