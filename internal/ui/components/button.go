@@ -48,7 +48,7 @@ type Button struct {
 }
 
 func (b Button) View(c *ui.Context, semantic theme.Theme) ui.Element {
-	ink := buttonTextColor(semantic, b.Style)
+	ink := buttonTextColor(semantic, b.Style, b.Selected)
 	return buttonElement(c, semantic, buttonOptions{
 		key:      b.Key,
 		label:    b.Label,
@@ -103,7 +103,7 @@ func (b IconButton) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	}
 	iconColor := semantic.Icon.Default
 	if b.Selected {
-		iconColor = semantic.Icon.Accent
+		iconColor = semantic.Text.OnInverse
 	} else if b.IconColor != (ui.Color{}) {
 		iconColor = b.IconColor
 	}
@@ -163,11 +163,7 @@ func buttonElement(
 		rest = *options.fill
 		hover = blend(rest, semantic.Surface.Page, 0.15)
 	}
-	if options.selected && options.style != SubtleButton {
-		border = semantic.Border.Selected
-	} else if options.selected {
-		border = semantic.Border.Variant
-	}
+	inverse := rest == semantic.Surface.Inverse
 
 	// A press leaves the keyboard where it is, as a Mac's buttons do: the
 	// pill or the page keeps it (only Tab moves it here).
@@ -184,7 +180,13 @@ func buttonElement(
 	hoverAmount := HoverAmount(button, !options.disabled && button.Hovered(), options.animate)
 	background := blend(rest, hover, hoverAmount)
 	if !options.disabled && button.Pressed() {
-		background = blend(background, semantic.GhostElement.Selected, 1)
+		// A press is the ink laid over the ground, or, on the inverse, the
+		// ground let toward the muted ink.
+		if inverse {
+			background = blend(background, semantic.Text.Muted, 0.35)
+		} else {
+			background = blend(background, semantic.GhostElement.Selected, 1)
+		}
 	}
 	button.Background(background)
 	button.Children(options.children)
@@ -194,22 +196,23 @@ func buttonElement(
 	return button
 }
 
+// buttonColors are a button's fills at rest and under the pointer, and its
+// rim. What is chosen, and the primary action, stand on the inverse, as
+// the chosen option of a segmented choice does: Moonveil's ink as ground,
+// a step softer under the pointer, and no rim.
 func buttonColors(
 	semantic theme.Theme,
 	style ButtonStyle,
 	selected bool,
 ) (rest, hover, border ui.Color) {
+	if style == PrimaryButton || selected && style != DestructiveButton {
+		return semantic.Surface.Inverse, semantic.Text.Default, ui.Transparent
+	}
 	switch style {
-	case PrimaryButton:
-		return semantic.Accent.Foreground, semantic.Accent.Foreground, ui.Transparent
 	case DestructiveButton:
 		return semantic.Status.Danger.Foreground, semantic.Status.Danger.Foreground, ui.Transparent
 	case SubtleButton:
-		rest = semantic.GhostElement.Background
-		if selected {
-			rest = semantic.GhostElement.Selected
-		}
-		return rest, semantic.GhostElement.Hover, ui.Transparent
+		return semantic.GhostElement.Background, semantic.GhostElement.Hover, ui.Transparent
 	case OutlinedButton:
 		return semantic.GhostElement.Background, semantic.GhostElement.Hover, semantic.Border.Variant
 	case WarningButton:
@@ -219,8 +222,11 @@ func buttonColors(
 	}
 }
 
-func buttonTextColor(semantic theme.Theme, style ButtonStyle) ui.Color {
-	if style == PrimaryButton || style == DestructiveButton {
+func buttonTextColor(semantic theme.Theme, style ButtonStyle, selected bool) ui.Color {
+	if style == PrimaryButton || selected && style != DestructiveButton {
+		return semantic.Text.OnInverse
+	}
+	if style == DestructiveButton {
 		return semantic.Accent.OnAccent
 	}
 	if style == WarningButton {
