@@ -6,6 +6,7 @@ package main
 //go:generate go tool icon ../../assets/profile.icon ../../assets/icon.png
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 
@@ -14,11 +15,11 @@ import (
 	"github.com/egoist/mygo"
 )
 
-const version = "0.1.0-dev"
-
 func main() {
+	// The version is mygo.json's, which a packaged build carries; a build
+	// of go run has none.
 	if len(os.Args) == 2 && os.Args[1] == "version" {
-		fmt.Println(version)
+		fmt.Println(cmp.Or(mygo.App.Version(), "dev"))
 		return
 	}
 	// A development build checks what the editor's rewrites declare.

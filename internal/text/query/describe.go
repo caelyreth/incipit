@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/caelyreth/neverland/locales"
+	"github.com/egoist/mygo/i18n"
 )
 
 // Describe says a key's value in words, as a filter shows it: 7d as "in
@@ -29,12 +30,25 @@ func Describe(k *Key, v string) string {
 	return v
 }
 
-// datePresetWords are the named dates in words.
-var datePresetWords = map[string]func() string{
-	"today": locales.DateTodayWord, "yesterday": locales.DateYesterday,
-	"this-week": locales.DateThisWeekWord, "last-week": locales.DateLastWeek,
-	"this-month": locales.DateThisMonthWord, "last-month": locales.DateLastMonth,
-	"this-year": locales.DateThisYearWord, "last-year": locales.DateLastYear,
+// datePresets are the named dates as CLDR says them: this one, or the one
+// before, of a unit.
+var datePresets = map[string]struct {
+	ago  float64
+	unit i18n.RelativeTimeUnit
+}{
+	"today": {0, i18n.RelativeDay}, "yesterday": {-1, i18n.RelativeDay},
+	"this-week": {0, i18n.RelativeWeek}, "last-week": {-1, i18n.RelativeWeek},
+	"this-month": {0, i18n.RelativeMonth}, "last-month": {-1, i18n.RelativeMonth},
+	"this-year": {0, i18n.RelativeYear}, "last-year": {-1, i18n.RelativeYear},
+}
+
+// datePresetWords is the named date v in words, false if v names none.
+func datePresetWords(v string) (string, bool) {
+	p, ok := datePresets[v]
+	if !ok {
+		return "", false
+	}
+	return i18n.FormatRelativeTime(i18n.Locale(), p.ago, p.unit, i18n.RelativeTimeOptions{Auto: true}), true
 }
 
 func describeDates(v string) string {
@@ -73,7 +87,7 @@ func describeDates(v string) string {
 	case "<=":
 		return locales.UpTo(point)
 	}
-	if _, named := datePresetWords[v]; named {
+	if _, named := datePresets[v]; named {
 		return point
 	}
 	if len(v) == len("2006-01-02") {
@@ -84,8 +98,8 @@ func describeDates(v string) string {
 
 // datePointWords is a day, month, year or named date in words.
 func datePointWords(v string) string {
-	if w, ok := datePresetWords[v]; ok {
-		return w()
+	if w, ok := datePresetWords(v); ok {
+		return w
 	}
 	if n, unit, ok := age(v); ok {
 		return locales.SpanAgo(span(n, unit))

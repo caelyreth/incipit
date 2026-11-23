@@ -2476,38 +2476,6 @@
   "@takesKind": {
     "description": "What a filter takes, beside it in the search's suggestions: a kind."
   },
-  "dateTodayWord": "today",
-  "@dateTodayWord": {
-    "description": "A date of a filter, in a sentence: Updated today."
-  },
-  "dateYesterday": "yesterday",
-  "@dateYesterday": {
-    "description": "A date of a filter, in a sentence."
-  },
-  "dateThisWeekWord": "this week",
-  "@dateThisWeekWord": {
-    "description": "A date of a filter, in a sentence."
-  },
-  "dateLastWeek": "last week",
-  "@dateLastWeek": {
-    "description": "A date of a filter, in a sentence."
-  },
-  "dateThisMonthWord": "this month",
-  "@dateThisMonthWord": {
-    "description": "A date of a filter, in a sentence."
-  },
-  "dateLastMonth": "last month",
-  "@dateLastMonth": {
-    "description": "A date of a filter, in a sentence."
-  },
-  "dateThisYearWord": "this year",
-  "@dateThisYearWord": {
-    "description": "A date of a filter, in a sentence."
-  },
-  "dateLastYear": "last year",
-  "@dateLastYear": {
-    "description": "A date of a filter, in a sentence."
-  },
   "spanDays": "{n, plural, one {# day} other {# days}}",
   "@spanDays": {
     "description": "A span of time in a filter's sentence."
