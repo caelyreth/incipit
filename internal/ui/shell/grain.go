@@ -10,15 +10,13 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// Grain is the material of the planes the app stands things on: the
-// ground of the field and of the desk, and the stock of the cards on it.
-// Each is a tile baked once, a seamless mask of sparse specks, thicker and
-// thinner as a slow cloud has them, drawn a pixel of the screen to a pixel
-// of the tile, in the surface's own place, so it moves with what it is the
-// material of. Its tone is only in how many specks there are, never in a
-// faint fill, which eight bits of alpha would band. The theme gives it its
-// ink: light specks in Starfield, dark in Daybreak. Nothing is drawn under
-// the page's words.
+// Grain is the material of the desk's ground: a tile baked once, a
+// seamless mask of sparse specks, thicker and thinner as a slow cloud has
+// them, drawn a pixel of the screen to a pixel of the tile, moving with the
+// desk. The field's ground stays flat: grain under it, with its cards
+// moving over, made the field lag. Its tone is only in how many specks
+// there are, never in a faint fill, which eight bits of alpha would band.
+// The theme gives it its ink: light specks in Starfield, dark in Daybreak.
 type grain struct {
 	// size is the tile's side, in pixels.
 	size int
@@ -30,19 +28,11 @@ type grain struct {
 	seed          uint32
 }
 
-var (
-	// groundGrain is the field's and the desk's: sparse, drifting in a slow
-	// cloud, on a tile large enough that its repeat does not show.
-	groundGrain = grain{size: 512, specks: 0.05, cloud: 0.8, cells: 5, seed: 0x6e766c64}
-	// stockGrain is the cards': denser and near even, so a card reads as a
-	// stock apart from the ground it lies on.
-	stockGrain = grain{size: 256, specks: 0.08, cloud: 0.25, cells: 4, seed: 0x73746f63}
-)
+// groundGrain is sparse, drifting in a slow cloud, on a tile large enough
+// that its repeat does not show.
+var groundGrain = grain{size: 512, specks: 0.05, cloud: 0.8, cells: 5, seed: 0x6e766c64}
 
-var (
-	groundTile = sync.OnceValue(func() *ui.Bitmap { return groundGrain.bake() })
-	stockTile  = sync.OnceValue(func() *ui.Bitmap { return stockGrain.bake() })
-)
+var groundTile = sync.OnceValue(func() *ui.Bitmap { return groundGrain.bake() })
 
 // bake draws g's tile: white, its alpha the grain, so the ink it is drawn
 // in colors it.
@@ -90,21 +80,17 @@ func hash(x, y, seed uint32) uint32 {
 	return pcg(x ^ pcg(y^pcg(seed)))
 }
 
-// grainInk is the ink a tile is drawn in on semantic's planes, strong as
-// for the ground or, weaker, the stock.
-func grainInk(semantic theme.Theme, stock bool) ui.Color {
+// grainInk is the ink the ground's grain is drawn in.
+func grainInk(semantic theme.Theme) ui.Color {
 	strength := float32(0.16)
 	if semantic.Appearance == theme.Daybreak {
 		strength = 0.2
-	}
-	if stock {
-		strength *= 0.6
 	}
 	return semantic.Text.Default.Alpha(strength)
 }
 
 // paintGrain tiles r, rounded by radius, with tile in ink, a tile's corner
-// standing at at, so a surface that moves takes its grain along.
+// standing at at.
 func paintGrain(p *ui.Painter, r ui.Rect, radius float32, tile *ui.Bitmap, ink ui.Color, at ui.Point) {
 	if r.W <= 0 || r.H <= 0 || ink.A == 0 {
 		return
@@ -124,21 +110,4 @@ func paintGrain(p *ui.Painter, r ui.Rect, radius float32, tile *ui.Bitmap, ink u
 			}
 		}
 	})
-}
-
-// paintGrainFade lays the ground's grain over a band of r faded in the
-// ground as EdgeFade fades it, top at r's top or else at its foot, so the
-// fade is of the ground, grain and all, and no band of it shows bare.
-func paintGrainFade(p *ui.Painter, r ui.Rect, band float32, top bool, tile *ui.Bitmap, ink ui.Color, at ui.Point) {
-	const slices = 6
-	step := band / slices
-	for i := range slices {
-		u := (float32(i) + 0.5) / slices
-		cover := 1 - u*u*(3-2*u)
-		y := r.Y + float32(i)*step
-		if !top {
-			y = r.Y + r.H - float32(i+1)*step
-		}
-		paintGrain(p, ui.Rect{X: r.X, Y: y, W: r.W, H: step}, 0, tile, ink.Alpha(cover), at)
-	}
 }

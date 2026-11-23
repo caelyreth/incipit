@@ -289,10 +289,8 @@ func (s *State) cardView(c *ui.Context, semantic theme.Theme, fr stageFrame, cd 
 		if !slices.Contains(cd.rows, fr.ID) {
 			arriving = s.arrivalAt(fr.ID, c.Now())
 		}
-		ink, radius := grainInk(semantic, true), 12*m.k
 		frame.Background(components.Blend(semantic.Surface.Page, semantic.Accent.Tint, arriving)).
-			Border(rim, semantic.Border.Variant).
-			Draw(func(p *ui.Painter, r ui.Rect) { paintGrain(p, r, radius, stockTile(), ink, ui.Point{X: r.X, Y: r.Y}) })
+			Border(rim, semantic.Border.Variant)
 	}
 	s.field.drawing = cardPlace{rect: fr.Rect, scale: scale, box: frame.LayoutBounds()}
 	frame.Children(func() {

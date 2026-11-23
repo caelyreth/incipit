@@ -410,7 +410,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			at = stagePoint{X: w/2 + poise.X, Y: s.field.base - (s.field.scroll - s.field.over.Offset())}
 		}
 		s.field.origin = at
-		s.field.ground = ui.Point{X: x + at.X, Y: at.Y}
 		s.bandNames(c, semantic, f, marks, at, m, animate)
 		// Cards stand aside only while a sheet is dragged in a list, and as
 		// they come back after.
@@ -446,16 +445,10 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			s.field.parts = nil
 		}
 		if topFade > 0 || bottomFade > 0 {
-			ground, ink := semantic.Surface.Background, grainInk(semantic, false)
+			ground := semantic.Surface.Background
 			ui.Box(c).Key("field-edges").Absolute().Top(0).Left(0).Size(w, h).IgnoreInput(true).
 				Draw(func(p *ui.Painter, r ui.Rect) {
 					s.field.edges.Paint(p, r, ground, topFade, bottomFade)
-					if topFade > 0 {
-						paintGrainFade(p, r, topFade, true, groundTile(), ink, s.field.ground)
-					}
-					if bottomFade > 0 {
-						paintGrainFade(p, r, bottomFade, false, groundTile(), ink, s.field.ground)
-					}
 				})
 		}
 		if s.field.stuck > 0 {

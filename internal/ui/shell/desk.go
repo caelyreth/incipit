@@ -106,7 +106,7 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 	s.keepDesk()
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	gutter := layout.ContentGutter * k
-	ink := grainInk(semantic, false)
+	ink := grainInk(semantic)
 	area := ui.Column(c).Key("desk").Absolute().Top(0).Left(0).Size(w, h).Background(semantic.Surface.Background).
 		Draw(func(p *ui.Painter, r ui.Rect) { paintGrain(p, r, 0, groundTile(), ink, ui.Point{X: r.X, Y: r.Y}) })
 	s.leanDesk(area, scene.Desk, scene.Upright)

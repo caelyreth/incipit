@@ -31,9 +31,7 @@ func (s *State) View(c *ui.Context) {
 	}
 	w, h := c.Size()
 	layout := theme.DefaultLayout
-	ink := grainInk(semantic, false)
-	root := ui.Box(c).Fill().Background(semantic.Surface.Background).Clip().Bind(&s.root).
-		Draw(func(p *ui.Painter, r ui.Rect) { paintGrain(p, r, 0, groundTile(), ink, s.field.ground) })
+	root := ui.Box(c).Fill().Background(semantic.Surface.Background).Clip().Bind(&s.root)
 	animate := s.animate(c)
 	s.deskEscape(c)
 	s.field.drag, s.field.dragNext = s.field.dragNext, nil

@@ -224,9 +224,6 @@ type fieldState struct {
 	// origin is where the field drew its origin, scrolled as it was.
 	base, viewTop, viewBottom float32
 	origin                    stagePoint
-	// ground is where a tile of the ground's grain stands in the window:
-	// at the origin, so the grain scrolls with what the field holds.
-	ground ui.Point
 	// place is the view and query the field shows; places are where each
 	// it showed lately was scrolled to as it was left (scrolls).
 	place  string
