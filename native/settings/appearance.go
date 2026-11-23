@@ -18,7 +18,7 @@ type sectionInfo struct {
 
 // The Appearance sections' keys.
 const (
-	themeKey       = "theme"
+	interfaceKey   = "interface"
 	environmentKey = "environment"
 )
 
@@ -30,17 +30,16 @@ func (s *State) appearanceSections() []sectionInfo {
 		environment += " " + setting.Label + " " + setting.Description
 	}
 	return []sectionInfo{
-		{themeKey, locales.Theme(), locales.ThemeSectionDescription(), locales.Theme() + " " + locales.ThemeKeywords()},
+		s.interfaceInfo(),
 		{environmentKey, locales.WritingEnvironment(), locales.WritingEnvironmentDescription(), environment},
 		s.typefaceInfo(),
-		s.languageInfo(),
 	}
 }
 
 // appearanceSection draws the Appearance section sec.
 func (s *State) appearanceSection(c *ui.Context, semantic theme.Theme, sec Section) {
 	switch sec.Key {
-	case themeKey:
+	case interfaceKey:
 		s.section(c, semantic, sec, func() {
 			components.SettingRow{
 				Label:       locales.Theme(),
@@ -72,16 +71,14 @@ func (s *State) appearanceSection(c *ui.Context, semantic theme.Theme, sec Secti
 			components.SettingRow{
 				Label:       locales.UiFontSize(),
 				Description: locales.UiFontSizeDescription(),
-				Last:        true,
 				Control: func() {
 					s.fontStepper(c, semantic, true)
 				},
 			}.View(c, semantic)
+			s.languageRows(c, semantic)
 		})
 	case typefaceKey:
 		s.typefaceSection(c, semantic, sec)
-	case languageKey:
-		s.languageSection(c, semantic, sec)
 	case environmentKey:
 		s.section(c, semantic, sec, func() {
 			components.SettingRow{

@@ -226,7 +226,7 @@ func TestTheSettingsCommandShowsTheSettingsInTheField(t *testing.T) {
 	}
 	tester.Frame()
 	tester.Advance(2 * time.Second)
-	if !app.Shell.InSettings() || !tester.HasText("Appearance") || !tester.HasText("Editor") || !tester.HasText("Keymap") || !tester.HasText("Theme") {
+	if !app.Shell.InSettings() || !tester.HasText("Appearance") || !tester.HasText("Editor") || !tester.HasText("Keymap") || !tester.HasText("Interface") {
 		t.Fatalf("settings categories not in the field: %#v", tester.Texts())
 	}
 	if err := tester.Click("Writing Environment"); err != nil {

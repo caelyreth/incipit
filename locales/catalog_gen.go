@@ -1243,44 +1243,60 @@ func (msgs Messages) Downloading(family string, percent string) string {
 	return Catalog.Format(msgs.locale, "downloading", map[string]any{"family": family, "percent": percent})
 }
 
+// Interface says "Interface"
+// in the language the app shows.
+//
+// A section of Settings: how Neverland's own windows look and read, apart
+// from the sheets.
+func Interface() string { return In(i18n.Locale()).Interface() }
+
+// Interface says "Interface"
+// in the language of msgs.
+//
+// A section of Settings: how Neverland's own windows look and read, apart
+// from the sheets.
+func (msgs Messages) Interface() string {
+	return Catalog.Format(msgs.locale, "interface", nil)
+}
+
+// InterfaceDescription says "The colors, size and language of Neverland's own windows; sheets keep theirs."
+// in the language the app shows.
+func InterfaceDescription() string { return In(i18n.Locale()).InterfaceDescription() }
+
+// InterfaceDescription says "The colors, size and language of Neverland's own windows; sheets keep theirs."
+// in the language of msgs.
+func (msgs Messages) InterfaceDescription() string {
+	return Catalog.Format(msgs.locale, "interfaceDescription", nil)
+}
+
+// InterfaceKeywords says "Theme Colors Starfield Daybreak Dark Light UI Font Size Language Translation Locale"
+// in the language the app shows.
+//
+// Words Settings' search finds the Interface section by, beside its title
+// and description: add the language's own, and keep these.
+func InterfaceKeywords() string { return In(i18n.Locale()).InterfaceKeywords() }
+
+// InterfaceKeywords says "Theme Colors Starfield Daybreak Dark Light UI Font Size Language Translation Locale"
+// in the language of msgs.
+//
+// Words Settings' search finds the Interface section by, beside its title
+// and description: add the language's own, and keep these.
+func (msgs Messages) InterfaceKeywords() string {
+	return Catalog.Format(msgs.locale, "interfaceKeywords", nil)
+}
+
 // Theme says "Theme"
 // in the language the app shows.
 //
-// A section and setting of Settings: the colors.
+// A setting: the colors.
 func Theme() string { return In(i18n.Locale()).Theme() }
 
 // Theme says "Theme"
 // in the language of msgs.
 //
-// A section and setting of Settings: the colors.
+// A setting: the colors.
 func (msgs Messages) Theme() string {
 	return Catalog.Format(msgs.locale, "theme", nil)
-}
-
-// ThemeSectionDescription says "Colors and chrome scale for every Neverland window."
-// in the language the app shows.
-func ThemeSectionDescription() string { return In(i18n.Locale()).ThemeSectionDescription() }
-
-// ThemeSectionDescription says "Colors and chrome scale for every Neverland window."
-// in the language of msgs.
-func (msgs Messages) ThemeSectionDescription() string {
-	return Catalog.Format(msgs.locale, "themeSectionDescription", nil)
-}
-
-// ThemeKeywords says "Colors Starfield Daybreak Dark Light UI Font Size"
-// in the language the app shows.
-//
-// Words Settings' search finds the Theme section by, beside its title and
-// description: add the language's own.
-func ThemeKeywords() string { return In(i18n.Locale()).ThemeKeywords() }
-
-// ThemeKeywords says "Colors Starfield Daybreak Dark Light UI Font Size"
-// in the language of msgs.
-//
-// Words Settings' search finds the Theme section by, beside its title and
-// description: add the language's own.
-func (msgs Messages) ThemeKeywords() string {
-	return Catalog.Format(msgs.locale, "themeKeywords", nil)
 }
 
 // ThemeDescription says "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart."
@@ -5096,41 +5112,25 @@ func (msgs Messages) WordsCount(count int, total string) string {
 // Language says "Language"
 // in the language the app shows.
 //
-// A section of Settings: the language the app is shown in.
+// A setting: the language the app is shown in.
 func Language() string { return In(i18n.Locale()).Language() }
 
 // Language says "Language"
 // in the language of msgs.
 //
-// A section of Settings: the language the app is shown in.
+// A setting: the language the app is shown in.
 func (msgs Messages) Language() string {
 	return Catalog.Format(msgs.locale, "language", nil)
 }
 
-// LanguageDescription says "The language Neverland is shown in: its menus, settings and notices. Sheets keep the words they are written in."
+// LanguageDescription says "Menus, settings and notices. Sheets keep the words they are written in."
 // in the language the app shows.
 func LanguageDescription() string { return In(i18n.Locale()).LanguageDescription() }
 
-// LanguageDescription says "The language Neverland is shown in: its menus, settings and notices. Sheets keep the words they are written in."
+// LanguageDescription says "Menus, settings and notices. Sheets keep the words they are written in."
 // in the language of msgs.
 func (msgs Messages) LanguageDescription() string {
 	return Catalog.Format(msgs.locale, "languageDescription", nil)
-}
-
-// LanguageKeywords says "Language Translation Locale"
-// in the language the app shows.
-//
-// Words Settings' search finds the Language section by, beside its title
-// and description: add the language's own, and keep these.
-func LanguageKeywords() string { return In(i18n.Locale()).LanguageKeywords() }
-
-// LanguageKeywords says "Language Translation Locale"
-// in the language of msgs.
-//
-// Words Settings' search finds the Language section by, beside its title
-// and description: add the language's own, and keep these.
-func (msgs Messages) LanguageKeywords() string {
-	return Catalog.Format(msgs.locale, "languageKeywords", nil)
 }
 
 // LanguageSystem says "System"

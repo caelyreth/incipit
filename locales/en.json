@@ -314,14 +314,18 @@
   "@downloading": {
     "description": "Assistive technology: how far a font's download has come."
   },
+  "interface": "Interface",
+  "@interface": {
+    "description": "A section of Settings: how Neverland's own windows look and read, apart from the sheets."
+  },
+  "interfaceDescription": "The colors, size and language of Neverland's own windows; sheets keep theirs.",
+  "interfaceKeywords": "Theme Colors Starfield Daybreak Dark Light UI Font Size Language Translation Locale",
+  "@interfaceKeywords": {
+    "description": "Words Settings' search finds the Interface section by, beside its title and description: add the language's own, and keep these."
+  },
   "theme": "Theme",
   "@theme": {
-    "description": "A section and setting of Settings: the colors."
-  },
-  "themeSectionDescription": "Colors and chrome scale for every Neverland window.",
-  "themeKeywords": "Colors Starfield Daybreak Dark Light UI Font Size",
-  "@themeKeywords": {
-    "description": "Words Settings' search finds the Theme section by, beside its title and description: add the language's own."
+    "description": "A setting: the colors."
   },
   "themeDescription": "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart.",
   "@themeDescription": {
@@ -1389,13 +1393,9 @@
   },
   "language": "Language",
   "@language": {
-    "description": "A section of Settings: the language the app is shown in."
+    "description": "A setting: the language the app is shown in."
   },
-  "languageDescription": "The language Neverland is shown in: its menus, settings and notices. Sheets keep the words they are written in.",
-  "languageKeywords": "Language Translation Locale",
-  "@languageKeywords": {
-    "description": "Words Settings' search finds the Language section by, beside its title and description: add the language's own, and keep these."
-  },
+  "languageDescription": "Menus, settings and notices. Sheets keep the words they are written in.",
   "languageSystem": "System",
   "@languageSystem": {
     "description": "The choice of the system's languages."

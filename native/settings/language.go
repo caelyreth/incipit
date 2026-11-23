@@ -2,36 +2,35 @@ package settings
 
 import (
 	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
-// languageKey names the Language section.
-const languageKey = "language"
-
-// languageInfo is the Language section as it is found: by its words in
-// the language shown, and by each language's own name.
-func (s *State) languageInfo() sectionInfo {
-	words := locales.Language() + " " + locales.LanguageKeywords() + " " + locales.LanguageSystem()
+// interfaceInfo is the Interface section as it is found: its theme, the
+// size of its text and its language, the languages by their own names.
+func (s *State) interfaceInfo() sectionInfo {
+	words := locales.Interface() + " " + locales.InterfaceKeywords() + " " + locales.Theme() + " " +
+		locales.UiFontSize() + " " + locales.Language() + " " + locales.LanguageSystem()
 	for _, tag := range s.Languages {
 		words += " " + i18n.Autonym(tag)
 	}
-	return sectionInfo{languageKey, locales.Language(), locales.LanguageDescription(), words}
+	return sectionInfo{interfaceKey, locales.Interface(), locales.InterfaceDescription(), words}
 }
 
-// languageSection draws the section: the system's languages, then each
-// the app is written in, by its own name, the one chosen marked.
-// Pressed, one is shown at once and kept for the next launches.
-func (s *State) languageSection(c *ui.Context, semantic theme.Theme, sec Section) {
+// languageRows are the Interface section's last rows: the language, the
+// system's languages then each the app is written in, by its own name,
+// the one chosen marked. Pressed, one is shown at once and kept for the
+// next launches.
+func (s *State) languageRows(c *ui.Context, semantic theme.Theme) {
 	scale := s.Theme.UIFontSize
-	s.section(c, semantic, sec, func() {
-		ui.Column(c).Key("languages").WidthPercent(100).Padding(theme.Space08.DIPs(scale), 0, theme.Space08.DIPs(scale), 0).Children(func() {
-			s.choiceView(c, semantic, s.languageOption("", locales.LanguageSystem(), locales.LanguageSystemNote()))
-			for _, tag := range s.Languages {
-				s.choiceView(c, semantic, s.languageOption(tag, i18n.Autonym(tag), ""))
-			}
-		})
+	components.SettingRow{Label: locales.Language(), Description: locales.LanguageDescription(), Last: true}.View(c, semantic)
+	ui.Column(c).Key("languages").WidthPercent(100).Padding(0, 0, theme.Space08.DIPs(scale), 0).Children(func() {
+		s.choiceView(c, semantic, s.languageOption("", locales.LanguageSystem(), locales.LanguageSystemNote()))
+		for _, tag := range s.Languages {
+			s.choiceView(c, semantic, s.languageOption(tag, i18n.Autonym(tag), ""))
+		}
 	})
 }
 
