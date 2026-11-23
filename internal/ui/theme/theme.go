@@ -64,9 +64,9 @@ type Family struct {
 // another. Under the pointer, pressed, chosen: each louder than the last.
 // They are Cosmofi's states, kept here by hand.
 const (
-	StateHover   float32 = 0.05
-	StatePressed float32 = 0.09
-	StateChosen  float32 = 0.13
+	StateHover   float32 = 0.08
+	StatePressed float32 = 0.12
+	StateChosen  float32 = 0.16
 )
 
 // The accent comes in as few steps, one meaning each: a hint under the
