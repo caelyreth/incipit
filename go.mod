@@ -60,4 +60,10 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-tool github.com/egoist/mygo/cmd/mygo
+tool (
+	github.com/caelyreth/neverland/tools/brandicon
+	github.com/caelyreth/neverland/tools/cjkdict
+	github.com/caelyreth/neverland/tools/fontcatalog
+	github.com/caelyreth/neverland/tools/localesync
+	github.com/egoist/mygo/cmd/mygo
+)

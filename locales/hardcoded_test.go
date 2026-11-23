@@ -21,7 +21,7 @@ import (
 
 // shownFrom are the folders whose code shows things, from the repository's
 // root.
-var shownFrom = []string{"native", "app/keymap", "app/settings", "app/workspace", "app/fonts", "app/phrases", "internal/query", "app/export"}
+var shownFrom = []string{"internal/ui", "internal/app/keymap", "internal/app/settings", "internal/app/workspace", "internal/app/fonts", "internal/app/phrases", "internal/text/query", "internal/app/export"}
 
 // sameInEveryLanguage are the strings shown as they are in every language.
 var sameInEveryLanguage = map[string]string{

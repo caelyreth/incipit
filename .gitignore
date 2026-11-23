@@ -6,12 +6,12 @@
 /result-*
 
 # Locally fetched development assets
-/native/theme/fonts/NotoSerif-Variable.ttf
-/native/theme/fonts/NotoSerif-Italic-Variable.ttf
-/native/theme/fonts/NotoSans-Variable.ttf
-/native/theme/fonts/NotoSans-Italic-Variable.ttf
-/native/theme/fonts/NewCMMath-Book.otf
-/internal/wordseg/cjk_dictionary.bin
+/internal/ui/theme/fonts/NotoSerif-Variable.ttf
+/internal/ui/theme/fonts/NotoSerif-Italic-Variable.ttf
+/internal/ui/theme/fonts/NotoSans-Variable.ttf
+/internal/ui/theme/fonts/NotoSans-Italic-Variable.ttf
+/internal/ui/theme/fonts/NewCMMath-Book.otf
+/internal/text/wordseg/cjk_dictionary.bin
 /assets/icon.png
 
 # Go
