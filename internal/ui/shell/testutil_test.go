@@ -215,7 +215,19 @@ func (f *fakeLibrary) TrashedGroups() []GroupItem {
 	return []GroupItem{{ID: "3", Name: "Old", Count: 2}}
 }
 func (f *fakeLibrary) Targets() []MoveTarget {
-	return []MoveTarget{{ID: "1", Name: "Inbox"}, {ID: "2", Name: "Novel"}}
+	if f.groupTree != nil {
+		var targets []MoveTarget
+		var walk func(parent string, depth int)
+		walk = func(parent string, depth int) {
+			for _, g := range f.groupTree[parent] {
+				targets = append(targets, MoveTarget{ID: g.ID, Group: g, Depth: depth})
+				walk(g.ID, depth+1)
+			}
+		}
+		walk("", 0)
+		return targets
+	}
+	return []MoveTarget{{ID: "1", Group: GroupItem{ID: "1", Name: "Inbox", Inbox: true}}, {ID: "2", Group: GroupItem{ID: "2", Name: "Novel"}}}
 }
 func (f *fakeLibrary) SheetGroup(id string) string {
 	if g, ok := f.homes[id]; ok {

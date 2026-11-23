@@ -352,7 +352,7 @@ func (a *AppState) Targets() []shell.MoveTarget {
 			if group.Smart() {
 				continue
 			}
-			targets = append(targets, shell.MoveTarget{ID: groupName(group.ID), Name: group.Name, Depth: depth, Inbox: group.ID == library.Inbox})
+			targets = append(targets, shell.MoveTarget{ID: groupName(group.ID), Group: a.groupItem(group), Depth: depth})
 			walk(group.ID, depth+1)
 		}
 	}

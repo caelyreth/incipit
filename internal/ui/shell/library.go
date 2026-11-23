@@ -2,7 +2,6 @@ package shell
 
 import (
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/text/query"
@@ -133,15 +132,12 @@ type FoundSheet struct {
 
 // MoveTarget is a group a sheet or group can be moved into.
 type MoveTarget struct {
-	ID    string
-	Name  string
+	ID string
+	// Group is the group, as its name, icon and tint show it, and Depth
+	// how deep it stands, 0 at the top level.
+	Group GroupItem
 	Depth int
-	// Inbox marks the Inbox, shown by its Title.
-	Inbox bool
 }
-
-// Title is the target's name as it is shown.
-func (t MoveTarget) Title() string { return GroupItem{Name: t.Name, Inbox: t.Inbox}.Title() }
 
 // Library is what the field shows and changes: the notebook's sheets and
 // the groups that hold them. Groups are named by ID; "" is the top level.
@@ -273,6 +269,8 @@ func (s *State) moveMenu(m *ui.Menu, move func(group string), exclude ...string)
 
 // moveTargets is a menu of the groups to move into, the top level where
 // groups are moved, leaving out the groups exclude and what is in them.
+// A group holding groups opens a submenu of its own, the group first, then
+// those it holds, each in its icon and tint.
 func (s *State) moveTargets(move func(group string), exclude ...string) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if s.Library == nil {
@@ -281,6 +279,7 @@ func (s *State) moveTargets(move func(group string), exclude ...string) func(*ui
 		if len(exclude) > 0 && m.Item(locales.TopLevel()).Chosen() {
 			move("")
 		}
+		var targets []MoveTarget
 		skipDepth := -1
 		for _, target := range s.Library.Targets() {
 			if skipDepth >= 0 && target.Depth > skipDepth {
@@ -291,11 +290,51 @@ func (s *State) moveTargets(move func(group string), exclude ...string) func(*ui
 				skipDepth = target.Depth
 				continue
 			}
-			if m.Item(strings.Repeat("    ", target.Depth) + target.Title()).Chosen() {
+			targets = append(targets, target)
+		}
+		s.moveLevel(m, targets, move)
+	}
+}
+
+// moveLevel adds targets, the groups of one level and those under them,
+// to m: each group the level holds, as an item, or as a submenu of the
+// group and what it holds.
+func (s *State) moveLevel(m *ui.Menu, targets []MoveTarget, move func(group string)) {
+	semantic := s.Settings.Semantic()
+	for i := 0; i < len(targets); {
+		target := targets[i]
+		end := i + 1
+		for end < len(targets) && targets[end].Depth > target.Depth {
+			end++
+		}
+		icon := s.moveIcon(semantic, target.Group)
+		title := target.Group.Title()
+		if end == i+1 {
+			if m.Item(title).ID(target.ID).Icon(icon).Chosen() {
 				move(target.ID)
 			}
+		} else {
+			inside := targets[i+1 : end]
+			m.Submenu(title, func(m *ui.Menu) {
+				if m.Item(title).ID(target.ID).Icon(icon).Chosen() {
+					move(target.ID)
+				}
+				m.Separator()
+				s.moveLevel(m, inside, move)
+			}).Icon(icon)
 		}
+		i = end
 	}
+}
+
+// moveIcon is a group's icon as a menu shows it: in its tint, unless it
+// has none of its own, as the Inbox and Moonveil, which follow the words.
+func (s *State) moveIcon(semantic theme.Theme, group GroupItem) ui.MenuIcon {
+	name := groupIcon(group)
+	if group.Inbox || group.Color < TintHalo {
+		return name.MenuIcon()
+	}
+	return name.TintedMenuIcon(tintInk(semantic, group.Color))
 }
 
 func trashGroupLabel(group GroupItem) string {
