@@ -59,6 +59,7 @@ func (a *AppState) exportView(c *ui.Context) {
 	// view does: its UI size, its face and its colors, through a change.
 	semantic, changing := a.colors.At(a.Shell.Settings, c.Now())
 	c.SetTheme(a.Shell.Settings.MyGoThemeFor(semantic))
+	components.Menus(c, semantic)
 	if changing {
 		c.AnimationFrame()
 	}
