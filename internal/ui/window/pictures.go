@@ -40,11 +40,7 @@ const thumbnailSide = 192
 // its photos whole.
 func (a *AppState) thumbnail(media string, now time.Time) (*ui.Bitmap, bool) {
 	if a.cardPictures == nil {
-		a.cardPictures = &page.Pictures{Read: a.readPicture, MaxSide: thumbnailSide, Wake: func() {
-			if w := a.mainWindow; w != nil && !w.IsDestroyed() {
-				w.Invalidate()
-			}
-		}}
+		a.cardPictures = &page.Pictures{Read: a.readPicture, MaxSide: thumbnailSide, Wake: a.wake}
 	}
 	bitmap, state := a.cardPictures.Picture(media, now)
 	return bitmap, state != page.PictureMissing
@@ -72,7 +68,7 @@ func (a *AppState) keep(pictures []page.Incoming, then func([]profile.Picture)) 
 		then(make([]profile.Picture, len(pictures)))
 		return
 	}
-	store, window := a.notebook.store, a.mainWindow
+	store := a.notebook.store
 	go func() {
 		kept := make([]profile.Picture, len(pictures))
 		var failed error
@@ -93,7 +89,7 @@ func (a *AppState) keep(pictures []page.Incoming, then func([]profile.Picture)) 
 			}
 			kept[i] = profile.Picture{Media: m.Hash, Width: m.Width, Height: m.Height}
 		}
-		onUI(window, func() {
+		a.onUI(func() {
 			then(kept)
 			if failed != nil {
 				a.fail(locales.CouldntAddPicture(), failed)
@@ -138,7 +134,7 @@ func (a *AppState) pickPictures(title string, multiple bool, then func([]page.In
 		for i, p := range paths {
 			pictures[i] = page.Incoming{Path: p, Name: filepath.Base(p)}
 		}
-		onUI(window, func() { then(pictures) })
+		a.onUI(func() { then(pictures) })
 	}()
 }
 
@@ -190,16 +186,7 @@ func (a *AppState) usePicture(ask profile.PictureAsk) {
 	}
 	go func() {
 		if err := do(); err != nil {
-			onUI(window, func() { a.fail(title, err) })
+			a.onUI(func() { a.fail(title, err) })
 		}
 	}()
-}
-
-// onUI runs f on window's UI thread, at once without one, as in tests.
-func onUI(window *mygo.Window, f func()) {
-	if window != nil {
-		window.Update(f)
-		return
-	}
-	f()
 }

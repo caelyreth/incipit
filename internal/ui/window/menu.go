@@ -147,15 +147,17 @@ func (a *AppState) MainMenu() *mygo.Menu {
 	return menu
 }
 
-// menuClick runs fn for a menu item. MyGo runs a click without a frame
-// after it, so the window is redrawn here, or the change would wait for
-// the next event.
+// menuClick runs fn for a menu item, in the main window, which opens
+// again if it was closed (macOS keeps the app running without it). MyGo
+// runs a click without a frame after it, so the windows are redrawn here,
+// or the change would wait for the next event.
 func (a *AppState) menuClick(fn func()) func(*mygo.MenuItem, *mygo.Window) {
-	return func(_ *mygo.MenuItem, window *mygo.Window) {
-		fn()
-		if window != nil && !window.IsDestroyed() {
-			window.Invalidate()
+	return func(*mygo.MenuItem, *mygo.Window) {
+		if w := a.mainWindow; w != nil && w.IsDestroyed() {
+			a.showMain()
 		}
+		fn()
+		a.redraw()
 	}
 }
 

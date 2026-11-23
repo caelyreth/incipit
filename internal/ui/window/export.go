@@ -172,7 +172,7 @@ func (a *AppState) planExport() {
 		return
 	}
 	job.planned++
-	planned, dir, window := job.planned, job.dir, a.exportWindow
+	planned, dir := job.planned, job.dir
 	job.plan, job.planErr = nil, nil
 	pictures := a.exportPictures()
 	go func() {
@@ -183,7 +183,7 @@ func (a *AppState) planExport() {
 		} else {
 			plan, err = export.PlanSheet(dir, job.sheet, pictures)
 		}
-		onUI(window, func() {
+		a.onUI(func() {
 			if a.exporting != job || job.planned != planned {
 				return
 			}
@@ -323,7 +323,7 @@ func (a *AppState) chooseExportDir() {
 		if err != nil || len(paths) == 0 {
 			return
 		}
-		onUI(window, func() { a.exportInto(paths[0]) })
+		a.onUI(func() { a.exportInto(paths[0]) })
 	}()
 }
 
@@ -331,7 +331,7 @@ func (a *AppState) chooseExportDir() {
 // are written. Done, the window closes and a notice tells where the files
 // are; failed, it stays open saying why, planned anew to try again.
 func (a *AppState) runExport() {
-	job, window := a.exporting, a.exportWindow
+	job := a.exporting
 	if job == nil || job.writing || job.plan == nil || job.planErr != nil {
 		return
 	}
@@ -339,12 +339,12 @@ func (a *AppState) runExport() {
 	job.writing, job.written, job.writeErr = true, 0, nil
 	go func() {
 		top, err := plan.Write(func(n int) {
-			onUI(window, func() {
+			a.onUI(func() {
 				job.written = n
 				a.invalidateExport()
 			})
 		})
-		onUI(window, func() {
+		a.onUI(func() {
 			job.writing = false
 			if err != nil {
 				job.writeErr = err

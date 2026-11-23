@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 
 	"github.com/caelyreth/neverland/internal/app/fonts"
 	"github.com/caelyreth/neverland/internal/app/storage"
@@ -60,38 +61,82 @@ func Run() error {
 		app.refreshSettingsData()
 		mygo.App.OnLocaleChanged(func(string) { app.localeChanged() })
 		mygo.App.SetMenu(app.MainMenu())
-		window := mygo.NewWindow(mygo.WindowOptions{
-			Title:                "Neverland",
-			Width:                1260,
-			Height:               850,
-			MinWidth:             760,
-			MinHeight:            420,
-			TitleBarStyle:        mygo.TitleBarHidden,
-			TrafficLightPosition: trafficLights(),
-			StateKey:             "neverland.main",
-			Content:              ui.View(app.View),
-			BackgroundColor:      colorHex(app.Shell.Settings.Semantic().Surface.Background),
-		})
-		window.OnFocus(func() {
-			app.refreshShell()
-		})
-		window.OnBlur(func() {
-			// A shortcut is recorded in the field: leaving the window ends
-			// the recording, which gives the menu its keys back.
-			app.Settings.StopRecording()
-			window.Invalidate()
-		})
-		app.mainWindow = window
-		mygo.App.OnSecondInstance(func([]string, string) {
-			window.Restore()
-			window.Focus()
-		})
-		app.Notices.SetWake(window.Invalidate)
+		app.Notices.SetWake(app.wake)
 		if app.finder != nil {
-			app.finder.SetWake(window.Invalidate)
+			app.finder.SetWake(app.wake)
+		}
+		app.showMain()
+		mygo.App.OnSecondInstance(func([]string, string) { app.showMain() })
+		// On macOS Neverland keeps running with its window closed, as Mac
+		// apps do, and opens it again from the Dock; elsewhere closing it
+		// quits.
+		if runtime.GOOS == "darwin" {
+			mygo.App.OnWindowAllClosed(func() {})
+			mygo.App.OnActivate(func(visible bool) {
+				if !visible {
+					app.showMain()
+				}
+			})
 		}
 	})
 	return mygo.App.Run()
+}
+
+// showMain brings the main window forward, opening it again when it was
+// closed.
+func (a *AppState) showMain() {
+	if w := a.mainWindow; w != nil && !w.IsDestroyed() {
+		w.Restore()
+		w.Focus()
+		return
+	}
+	window := mygo.NewWindow(mygo.WindowOptions{
+		Title:                "Neverland",
+		Width:                1260,
+		Height:               850,
+		MinWidth:             760,
+		MinHeight:            420,
+		TitleBarStyle:        mygo.TitleBarHidden,
+		TrafficLightPosition: trafficLights(),
+		StateKey:             "neverland.main",
+		Content:              ui.View(a.View),
+		BackgroundColor:      colorHex(a.Shell.Settings.Semantic().Surface.Background),
+	})
+	window.OnFocus(func() {
+		a.refreshShell()
+	})
+	window.OnBlur(func() {
+		// A shortcut is recorded in the field: leaving the window ends
+		// the recording, which gives the menu its keys back.
+		a.Settings.StopRecording()
+		window.Invalidate()
+	})
+	a.mainWindow = window
+}
+
+// redraw asks the app's open windows for a frame built anew. Main thread
+// only: wake asks it from anywhere.
+func (a *AppState) redraw() {
+	for _, w := range []*mygo.Window{a.mainWindow, a.exportWindow} {
+		if w != nil && !w.IsDestroyed() {
+			w.Invalidate()
+		}
+	}
+}
+
+func (a *AppState) wake() { mygo.RunOnMain(a.redraw) }
+
+// onUI runs f on the UI thread and redraws the windows open then, at once
+// without a window, as in tests.
+func (a *AppState) onUI(f func()) {
+	if a.mainWindow == nil {
+		f()
+		return
+	}
+	mygo.RunOnMain(func() {
+		f()
+		a.redraw()
+	})
 }
 
 // trafficLights places the close button's leading edge on the chrome gutter

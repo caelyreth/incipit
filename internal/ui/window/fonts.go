@@ -198,7 +198,7 @@ func (a *AppState) fontAct(id string, act settings.FontAct) {
 // it has come, and registers it once it is kept, the choice then if it is
 // still the one wanted.
 func (a *AppState) downloadFont(f fonts.Face) {
-	fs, window := a.fonts, a.mainWindow
+	fs := a.fonts
 	ctx, cancel := context.WithCancel(context.Background())
 	d := &fontDownload{done: fs.store.Partial(f), total: f.Size(), cancel: cancel}
 	fs.coming[f.ID] = d
@@ -213,7 +213,7 @@ func (a *AppState) downloadFont(f fonts.Face) {
 				return
 			}
 			told = done
-			onUI(window, func() {
+			a.onUI(func() {
 				d.done, d.total = done, total
 				a.refreshSettingsData()
 			})
@@ -222,7 +222,7 @@ func (a *AppState) downloadFont(f fonts.Face) {
 		if err == nil {
 			data, err = fs.store.Read(f)
 		}
-		onUI(window, func() {
+		a.onUI(func() {
 			delete(fs.coming, f.ID)
 			switch {
 			case errors.Is(err, context.Canceled):
