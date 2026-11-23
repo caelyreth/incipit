@@ -27,6 +27,9 @@ const (
 	VerbForward    = "go.forward"
 	VerbHome       = "go.home"
 	VerbShowTrash  = "go.trash"
+	// verbExport is the window's, not the field's: a menu only shows its
+	// key.
+	verbExport = "page.export"
 )
 
 // VerbState is how a verb stands now: what it is called, whether it can

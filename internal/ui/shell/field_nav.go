@@ -163,12 +163,8 @@ func (s *State) fieldMenu(m *ui.Menu) {
 	if len(acts) > 0 {
 		m.Separator()
 	}
-	if m.Item(map[bool]string{true: locales.LeaveTrash(), false: locales.ShowTrash()}[s.inTrash()]).Chosen() {
-		s.toggleTrash()
-	}
-	if m.Item(s.listLabel()).Chosen() {
-		s.toggleList()
-	}
+	s.verbItem(m, VerbShowTrash, map[bool]string{true: locales.LeaveTrash(), false: locales.ShowTrash()}[s.inTrash()], true, s.toggleTrash)
+	s.verbItem(m, VerbViewList, s.listLabel(), true, s.toggleList)
 	if g, ok := s.scopeGroup(); ok && !s.inTrash() {
 		s.keepItem(m, g)
 	}

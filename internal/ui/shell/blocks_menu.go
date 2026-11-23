@@ -52,9 +52,7 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 				s.ShowDesk()
 			}
 		}
-		if m.Item(locales.ExportEllipsis()).Chosen() {
-			s.Library.Export("group:" + g.ID)
-		}
+		s.verbItem(m, verbExport, locales.ExportEllipsis(), true, func() { s.Library.Export("group:" + g.ID) })
 		if g.Inbox {
 			return
 		}
@@ -113,9 +111,7 @@ func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 		s.verbItem(m, VerbDuplicate, locales.Duplicate(), true, func() { s.duplicate([]string{sh.ID}) })
 		s.pinItem(m, "sheet:"+sh.ID, sh.Pinned)
 		s.moveMenu(m, func(group string) { s.moveSheets([]string{sh.ID}, group) }, "")
-		if m.Item(locales.ExportEllipsis()).Chosen() {
-			s.Library.Export("sheet:" + sh.ID)
-		}
+		s.verbItem(m, verbExport, locales.ExportEllipsis(), true, func() { s.Library.Export("sheet:" + sh.ID) })
 		m.Separator()
 		s.verbItem(m, VerbTrash, locales.MoveToTrash(), true, func() { s.trashSheets([]string{sh.ID}) })
 	}
@@ -167,7 +163,13 @@ func (s *State) deskMenu(page Page) func(*ui.Menu) {
 			if m.Item(locales.Duplicate()).Chosen() {
 				s.duplicate([]string{page.ID})
 			}
-			if m.Item(locales.ExportEllipsis()).Chosen() {
+			// Its key exports the sheet in front, so only that one's
+			// menu shows it.
+			export := m.Item(locales.ExportEllipsis())
+			if page.Column == s.ActiveColumn {
+				key(export, verbExport)
+			}
+			if export.Chosen() {
 				s.Library.Export("sheet:" + page.ID)
 			}
 			m.Separator()
