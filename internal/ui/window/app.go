@@ -3,6 +3,7 @@ package window
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/caelyreth/neverland/internal/app/fonts"
 	"github.com/caelyreth/neverland/internal/app/storage"
@@ -13,6 +14,12 @@ import (
 )
 
 func Run() error {
+	// Neverland runs once: launched again, it brings the running window
+	// forward. A notebook moved elsewhere (NEVERLAND_HOME) runs apart, as
+	// the notebook's own lock keeps each to one process.
+	if os.Getenv(storage.HomeVariable) == "" && !mygo.App.RequestSingleInstanceLock() {
+		return nil
+	}
 	if err := theme.RegisterFonts(); err != nil {
 		return err
 	}
@@ -73,6 +80,10 @@ func Run() error {
 			window.Invalidate()
 		})
 		app.mainWindow = window
+		mygo.App.OnSecondInstance(func([]string, string) {
+			window.Restore()
+			window.Focus()
+		})
 		app.Notices.SetWake(window.Invalidate)
 		if app.finder != nil {
 			app.finder.SetWake(window.Invalidate)
