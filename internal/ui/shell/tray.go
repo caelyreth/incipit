@@ -184,6 +184,8 @@ func (s *State) trayCard(c *ui.Context, semantic theme.Theme, sh SheetItem, widt
 	hover := components.HoverAmount(btn, btn.Hovered(), animate)
 	btn.Background(components.Blend(semantic.Surface.Page, semantic.GhostElement.Hover, hover)).
 		Border(1, components.Blend(semantic.Border.Variant, semantic.Border.Default, hover))
+	ink := grainInk(semantic, true)
+	btn.Draw(func(p *ui.Painter, r ui.Rect) { paintGrain(p, r, 8*k, stockTile(), ink, ui.Point{X: r.X, Y: r.Y}) })
 	// Dragged, it shows its words, though the tray goes back under it.
 	if s.dragFrom(btn, sheetDrag{id: sh.ID, tray: true}) {
 		shown = 1
