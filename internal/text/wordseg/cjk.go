@@ -19,10 +19,10 @@ import (
 // count of words, their offsets, a cost for each, and the words, sorted.
 // Lookup borrows its embedded bytes; it builds no map on the input loop.
 //
-// The dictionary is not stored in Git: ../../../scripts/fetch-assets.sh
+// The dictionary is not stored in Git: go tool fetchassets
 // builds it, verified.
 //
-//go:generate ../../../scripts/fetch-assets.sh
+//go:generate go tool fetchassets
 //go:embed cjk_dictionary.bin
 var cjkDictionary string
 

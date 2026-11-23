@@ -3,10 +3,10 @@
 No font is stored in Git. Fetch them with:
 
 ```sh
-./scripts/fetch-assets.sh
+go tool fetchassets
 ```
 
-The same command is wired as `go generate ./native/theme`. It downloads each
+The same command is wired as `go generate ./internal/ui/theme`. It downloads each
 font to its ignored path here, verifies its checksum, and installs it
 atomically.
 

@@ -16,7 +16,7 @@ adapter.
 
 The dictionary is no longer PiG's: `tools/cjkdict` builds it from ICU's
 own word list, in Neverland's format (described in that command), and
-`scripts/fetch-assets.sh` runs it. The index's words and costs are those of
+`go tool fetchassets` runs it. The index's words and costs are those of
 PiG's former `cjk_dictionary.bin`, byte for byte, after the format's
 header.
 

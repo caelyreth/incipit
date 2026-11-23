@@ -3,8 +3,8 @@
 // it downloads cjdict.txt at the ICU release pinned below, verifies it,
 // and indexes it in Neverland's format, which it verifies too, so that
 // every build holds the same bytes. A dictionary already written and
-// verified is kept. Run it from the repository's root, as
-// scripts/fetch-assets.sh does:
+// verified is kept. Run it from the repository's root, as fetchassets
+// does:
 //
 //	go tool cjkdict
 //

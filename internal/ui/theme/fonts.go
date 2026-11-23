@@ -8,7 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-//go:generate ../../../scripts/fetch-assets.sh
+//go:generate go tool fetchassets
 
 //go:embed fonts/NotoSerif-Variable.ttf
 var proseFont []byte

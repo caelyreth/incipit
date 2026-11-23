@@ -136,6 +136,6 @@ func BenchmarkSegments(b *testing.B) {
 // cjk.go reads (tools/cjkdict).
 func TestDictionaryIsNeverlands(t *testing.T) {
 	if !dictionaryValid() {
-		t.Fatalf("the dictionary embedded is not Neverland's, version %d: run scripts/fetch-assets.sh", dictionaryVersion)
+		t.Fatalf("the dictionary embedded is not Neverland's, version %d: run go tool fetchassets", dictionaryVersion)
 	}
 }
