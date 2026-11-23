@@ -180,13 +180,13 @@ func (s *State) formsOption(c *ui.Context, semantic theme.Theme, forms string, r
 		label = formsLanguage(f.Forms)
 		switch {
 		case row.Coming:
-			note = locales.FontNoteComing(f.Family, megabytes(row.Done), megabytes(row.Total))
+			note = locales.FontNoteComing(f.Family, components.Megabytes(row.Done), components.Megabytes(row.Total))
 		case row.Kept:
-			note = locales.FontNoteKept(f.Family, megabytes(f.Size()))
+			note = locales.FontNoteKept(f.Family, components.Megabytes(f.Size()))
 		case row.Partial > 0:
-			note = locales.FontNotePartial(f.Family, megabytes(row.Partial), megabytes(f.Size()))
+			note = locales.FontNotePartial(f.Family, components.Megabytes(row.Partial), components.Megabytes(f.Size()))
 		default:
-			note = locales.FontNote(f.Family, megabytes(f.Size()))
+			note = locales.FontNote(f.Family, components.Megabytes(f.Size()))
 		}
 		chosen = chosen && row.Kept || row.Wanted
 	}
@@ -231,12 +231,12 @@ func (s *State) heldRow(c *ui.Context, semantic theme.Theme, row FontRow, last b
 	f := row.Face
 	scale := s.Theme.UIFontSize
 	language := formsLanguage(f.Forms)
-	note := locales.FontNote(language, megabytes(f.Size()))
+	note := locales.FontNote(language, components.Megabytes(f.Size()))
 	switch {
 	case row.Coming:
-		note = locales.FontNoteComing(language, megabytes(row.Done), megabytes(row.Total))
+		note = locales.FontNoteComing(language, components.Megabytes(row.Done), components.Megabytes(row.Total))
 	case !row.Kept:
-		note = locales.FontNotePartial(language, megabytes(row.Partial), megabytes(f.Size()))
+		note = locales.FontNotePartial(language, components.Megabytes(row.Partial), components.Megabytes(f.Size()))
 	}
 	components.SettingRow{
 		Label:       f.Family,
@@ -301,9 +301,4 @@ func (s *State) failure(c *ui.Context, semantic theme.Theme, why string) {
 	scale := s.Theme.UIFontSize
 	components.Label(c, why, theme.TextSmall, semantic.Status.Danger.Foreground).
 		Padding(0, theme.Space16.DIPs(scale), theme.Space12.DIPs(scale), theme.Space16.DIPs(scale))
-}
-
-// megabytes is n bytes in megabytes, to a tenth.
-func megabytes(n int64) string {
-	return locales.Megabytes(strconv.FormatFloat(float64(n)/1e6, 'f', 1, 64))
 }

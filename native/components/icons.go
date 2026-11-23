@@ -28,6 +28,7 @@ const (
 	IconDesk            IconName = "lamp-desk"
 	IconError           IconName = "circle-alert"
 	IconFolder          IconName = "folder"
+	IconFileText        IconName = "file-text"
 	IconExpandSelection IconName = "expand-selection"
 	IconShrinkSelection IconName = "shrink-selection"
 	IconFolderSearch    IconName = "folder-search"
@@ -75,6 +76,7 @@ var AllIcons = [...]IconName{
 	IconDesk,
 	IconError,
 	IconExpandSelection,
+	IconFileText,
 	IconFolder,
 	IconFolderSearch,
 	IconGrip,

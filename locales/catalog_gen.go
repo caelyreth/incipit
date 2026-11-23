@@ -10609,50 +10609,6 @@ func (msgs Messages) ExportTitle(name string) string {
 	return Catalog.Format(msgs.locale, "exportTitle", map[string]any{"name": name})
 }
 
-// ExportSheetSummary says "A Markdown file, with its pictures copied into an assets folder beside it."
-// in the language the app shows.
-//
-// What exporting a sheet writes
-func ExportSheetSummary() string { return In(i18n.Locale()).ExportSheetSummary() }
-
-// ExportSheetSummary says "A Markdown file, with its pictures copied into an assets folder beside it."
-// in the language of msgs.
-//
-// What exporting a sheet writes
-func (msgs Messages) ExportSheetSummary() string {
-	return Catalog.Format(msgs.locale, "exportSheetSummary", nil)
-}
-
-// ExportGroupSummary says "A folder of Markdown files for its {sheets, plural, one {# sheet} other {# sheets}}, its groups as folders inside."
-// in the language the app shows.
-//
-// What exporting a group writes; sheets counts every sheet in it and its
-// groups
-func ExportGroupSummary(sheets int) string { return In(i18n.Locale()).ExportGroupSummary(sheets) }
-
-// ExportGroupSummary says "A folder of Markdown files for its {sheets, plural, one {# sheet} other {# sheets}}, its groups as folders inside."
-// in the language of msgs.
-//
-// What exporting a group writes; sheets counts every sheet in it and its
-// groups
-func (msgs Messages) ExportGroupSummary(sheets int) string {
-	return Catalog.Format(msgs.locale, "exportGroupSummary", map[string]any{"sheets": sheets})
-}
-
-// ExportFormat says "Format"
-// in the language the app shows.
-//
-// Export window: the row choosing the file format
-func ExportFormat() string { return In(i18n.Locale()).ExportFormat() }
-
-// ExportFormat says "Format"
-// in the language of msgs.
-//
-// Export window: the row choosing the file format
-func (msgs Messages) ExportFormat() string {
-	return Catalog.Format(msgs.locale, "exportFormat", nil)
-}
-
 // ExportMarkdown says "Markdown"
 // in the language the app shows.
 //
@@ -10665,34 +10621,6 @@ func ExportMarkdown() string { return In(i18n.Locale()).ExportMarkdown() }
 // The Markdown file format
 func (msgs Messages) ExportMarkdown() string {
 	return Catalog.Format(msgs.locale, "exportMarkdown", nil)
-}
-
-// ExportDestination says "Save To"
-// in the language the app shows.
-//
-// Export window: the row choosing the folder written into
-func ExportDestination() string { return In(i18n.Locale()).ExportDestination() }
-
-// ExportDestination says "Save To"
-// in the language of msgs.
-//
-// Export window: the row choosing the folder written into
-func (msgs Messages) ExportDestination() string {
-	return Catalog.Format(msgs.locale, "exportDestination", nil)
-}
-
-// ChooseEllipsis says "Choose…"
-// in the language the app shows.
-//
-// Button that opens a folder picker
-func ChooseEllipsis() string { return In(i18n.Locale()).ChooseEllipsis() }
-
-// ChooseEllipsis says "Choose…"
-// in the language of msgs.
-//
-// Button that opens a folder picker
-func (msgs Messages) ChooseEllipsis() string {
-	return Catalog.Format(msgs.locale, "chooseEllipsis", nil)
 }
 
 // Export says "Export"
@@ -10749,4 +10677,282 @@ func CouldntExport(name string) string { return In(i18n.Locale()).CouldntExport(
 // Notice title when an export fails
 func (msgs Messages) CouldntExport(name string) string {
 	return Catalog.Format(msgs.locale, "couldntExport", map[string]any{"name": name})
+}
+
+// Bytes says "{size} B"
+// in the language the app shows.
+//
+// A size under a kilobyte, as 512 B
+func Bytes(size string) string { return In(i18n.Locale()).Bytes(size) }
+
+// Bytes says "{size} B"
+// in the language of msgs.
+//
+// A size under a kilobyte, as 512 B
+func (msgs Messages) Bytes(size string) string {
+	return Catalog.Format(msgs.locale, "bytes", map[string]any{"size": size})
+}
+
+// Kilobytes says "{size} KB"
+// in the language the app shows.
+//
+// A size in kilobytes, as 18 KB
+func Kilobytes(size string) string { return In(i18n.Locale()).Kilobytes(size) }
+
+// Kilobytes says "{size} KB"
+// in the language of msgs.
+//
+// A size in kilobytes, as 18 KB
+func (msgs Messages) Kilobytes(size string) string {
+	return Catalog.Format(msgs.locale, "kilobytes", map[string]any{"size": size})
+}
+
+// PicturesCount says "{count, plural, one {# picture} other {# pictures}}"
+// in the language the app shows.
+//
+// How many pictures, as 3 pictures
+func PicturesCount(count int) string { return In(i18n.Locale()).PicturesCount(count) }
+
+// PicturesCount says "{count, plural, one {# picture} other {# pictures}}"
+// in the language of msgs.
+//
+// How many pictures, as 3 pictures
+func (msgs Messages) PicturesCount(count int) string {
+	return Catalog.Format(msgs.locale, "picturesCount", map[string]any{"count": count})
+}
+
+// ExportReading says "Reading {count, plural, one {# sheet} other {# sheets}}…"
+// in the language the app shows.
+//
+// Export window: while the sheets are read to show what will be written
+func ExportReading(count int) string { return In(i18n.Locale()).ExportReading(count) }
+
+// ExportReading says "Reading {count, plural, one {# sheet} other {# sheets}}…"
+// in the language of msgs.
+//
+// Export window: while the sheets are read to show what will be written
+func (msgs Messages) ExportReading(count int) string {
+	return Catalog.Format(msgs.locale, "exportReading", map[string]any{"count": count})
+}
+
+// ExportFiles says "Files"
+// in the language the app shows.
+//
+// Export window: heading of the list of what will be written
+func ExportFiles() string { return In(i18n.Locale()).ExportFiles() }
+
+// ExportFiles says "Files"
+// in the language of msgs.
+//
+// Export window: heading of the list of what will be written
+func (msgs Messages) ExportFiles() string {
+	return Catalog.Format(msgs.locale, "exportFiles", nil)
+}
+
+// ExportPlace says "Where to Export"
+// in the language the app shows.
+//
+// Export window: the button choosing the folder written into, for assistive
+// technology and its tooltip
+func ExportPlace() string { return In(i18n.Locale()).ExportPlace() }
+
+// ExportPlace says "Where to Export"
+// in the language of msgs.
+//
+// Export window: the button choosing the folder written into, for assistive
+// technology and its tooltip
+func (msgs Messages) ExportPlace() string {
+	return Catalog.Format(msgs.locale, "exportPlace", nil)
+}
+
+// ChooseFolderEllipsis says "Choose Folder…"
+// in the language the app shows.
+//
+// Menu item and button: pick another folder
+func ChooseFolderEllipsis() string { return In(i18n.Locale()).ChooseFolderEllipsis() }
+
+// ChooseFolderEllipsis says "Choose Folder…"
+// in the language of msgs.
+//
+// Menu item and button: pick another folder
+func (msgs Messages) ChooseFolderEllipsis() string {
+	return Catalog.Format(msgs.locale, "chooseFolderEllipsis", nil)
+}
+
+// ExportRenamed says "Renamed"
+// in the language the app shows.
+//
+// Export window: a badge on a file or folder given a number because its
+// name is taken there
+func ExportRenamed() string { return In(i18n.Locale()).ExportRenamed() }
+
+// ExportRenamed says "Renamed"
+// in the language of msgs.
+//
+// Export window: a badge on a file or folder given a number because its
+// name is taken there
+func (msgs Messages) ExportRenamed() string {
+	return Catalog.Format(msgs.locale, "exportRenamed", nil)
+}
+
+// ExportRenamedHint says "“{name}” is already there, so this is written beside it"
+// in the language the app shows.
+//
+// Export window: why a file is renamed; name is the name it would have had
+func ExportRenamedHint(name string) string { return In(i18n.Locale()).ExportRenamedHint(name) }
+
+// ExportRenamedHint says "“{name}” is already there, so this is written beside it"
+// in the language of msgs.
+//
+// Export window: why a file is renamed; name is the name it would have had
+func (msgs Messages) ExportRenamedHint(name string) string {
+	return Catalog.Format(msgs.locale, "exportRenamedHint", map[string]any{"name": name})
+}
+
+// ExportOptions says "Options"
+// in the language the app shows.
+//
+// Export window: heading of the export's options
+func ExportOptions() string { return In(i18n.Locale()).ExportOptions() }
+
+// ExportOptions says "Options"
+// in the language of msgs.
+//
+// Export window: heading of the export's options
+func (msgs Messages) ExportOptions() string {
+	return Catalog.Format(msgs.locale, "exportOptions", nil)
+}
+
+// ExportFrontMatter says "Front Matter"
+// in the language the app shows.
+//
+// Export option: a YAML header on each file
+func ExportFrontMatter() string { return In(i18n.Locale()).ExportFrontMatter() }
+
+// ExportFrontMatter says "Front Matter"
+// in the language of msgs.
+//
+// Export option: a YAML header on each file
+func (msgs Messages) ExportFrontMatter() string {
+	return Catalog.Format(msgs.locale, "exportFrontMatter", nil)
+}
+
+// ExportFrontMatterNote says "Each sheet’s title, dates and tags as YAML at the head of its file, as Obsidian and static site generators read them."
+// in the language the app shows.
+//
+// Export option's description
+func ExportFrontMatterNote() string { return In(i18n.Locale()).ExportFrontMatterNote() }
+
+// ExportFrontMatterNote says "Each sheet’s title, dates and tags as YAML at the head of its file, as Obsidian and static site generators read them."
+// in the language of msgs.
+//
+// Export option's description
+func (msgs Messages) ExportFrontMatterNote() string {
+	return Catalog.Format(msgs.locale, "exportFrontMatterNote", nil)
+}
+
+// ExportEmptyFile says "This file is empty."
+// in the language the app shows.
+//
+// Export window: preview of a sheet with no content
+func ExportEmptyFile() string { return In(i18n.Locale()).ExportEmptyFile() }
+
+// ExportEmptyFile says "This file is empty."
+// in the language of msgs.
+//
+// Export window: preview of a sheet with no content
+func (msgs Messages) ExportEmptyFile() string {
+	return Catalog.Format(msgs.locale, "exportEmptyFile", nil)
+}
+
+// ExportMoreLines says "{count, plural, one {# more line} other {# more lines}}"
+// in the language the app shows.
+//
+// Export window: the preview's end, when the file is longer than it shows
+func ExportMoreLines(count int) string { return In(i18n.Locale()).ExportMoreLines(count) }
+
+// ExportMoreLines says "{count, plural, one {# more line} other {# more lines}}"
+// in the language of msgs.
+//
+// Export window: the preview's end, when the file is longer than it shows
+func (msgs Messages) ExportMoreLines(count int) string {
+	return Catalog.Format(msgs.locale, "exportMoreLines", map[string]any{"count": count})
+}
+
+// ExportPictureNote says "{width} × {height} · {size}"
+// in the language the app shows.
+//
+// Export window: a picture's size in pixels and on disk, as 1600 × 1200 ·
+// 240 KB
+func ExportPictureNote(width string, height string, size string) string {
+	return In(i18n.Locale()).ExportPictureNote(width, height, size)
+}
+
+// ExportPictureNote says "{width} × {height} · {size}"
+// in the language of msgs.
+//
+// Export window: a picture's size in pixels and on disk, as 1600 × 1200 ·
+// 240 KB
+func (msgs Messages) ExportPictureNote(width string, height string, size string) string {
+	return Catalog.Format(msgs.locale, "exportPictureNote", map[string]any{"width": width, "height": height, "size": size})
+}
+
+// ExportWriting says "Writing {done} of {total}…"
+// in the language the app shows.
+//
+// Export window: progress while writing files
+func ExportWriting(done string, total string) string {
+	return In(i18n.Locale()).ExportWriting(done, total)
+}
+
+// ExportWriting says "Writing {done} of {total}…"
+// in the language of msgs.
+//
+// Export window: progress while writing files
+func (msgs Messages) ExportWriting(done string, total string) string {
+	return Catalog.Format(msgs.locale, "exportWriting", map[string]any{"done": done, "total": total})
+}
+
+// ExportInto says "{count, plural, one {# item} other {# items}} into {place}"
+// in the language the app shows.
+//
+// Export window footer: how many files and folders will be written, and
+// where
+func ExportInto(count int, place string) string { return In(i18n.Locale()).ExportInto(count, place) }
+
+// ExportInto says "{count, plural, one {# item} other {# items}} into {place}"
+// in the language of msgs.
+//
+// Export window footer: how many files and folders will be written, and
+// where
+func (msgs Messages) ExportInto(count int, place string) string {
+	return Catalog.Format(msgs.locale, "exportInto", map[string]any{"count": count, "place": place})
+}
+
+// ChooseFolder says "Choose Folder"
+// in the language the app shows.
+//
+// The confirm button of a folder picker
+func ChooseFolder() string { return In(i18n.Locale()).ChooseFolder() }
+
+// ChooseFolder says "Choose Folder"
+// in the language of msgs.
+//
+// The confirm button of a folder picker
+func (msgs Messages) ChooseFolder() string {
+	return Catalog.Format(msgs.locale, "chooseFolder", nil)
+}
+
+// ErrorExportTaken says "Something was saved where the export would write while it was open. Its files are planned again with free names; expo…"
+// in the language the app shows.
+//
+// Why an export stopped: a name it planned was taken meanwhile
+func ErrorExportTaken() string { return In(i18n.Locale()).ErrorExportTaken() }
+
+// ErrorExportTaken says "Something was saved where the export would write while it was open. Its files are planned again with free names; expo…"
+// in the language of msgs.
+//
+// Why an export stopped: a name it planned was taken meanwhile
+func (msgs Messages) ErrorExportTaken() string {
+	return Catalog.Format(msgs.locale, "errorExportTaken", nil)
 }

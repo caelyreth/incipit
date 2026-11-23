@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"syscall"
 
+	"github.com/caelyreth/neverland/app/export"
 	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/app/storage"
 	"github.com/caelyreth/neverland/locales"
@@ -25,6 +26,7 @@ var failures = []struct {
 	{storage.ErrMediaFormat, locales.ErrorMediaFormat},
 	{storage.ErrMediaSize, locales.ErrorMediaSize},
 	{library.ErrInbox, locales.ErrorInbox},
+	{export.ErrTaken, locales.ErrorExportTaken},
 	{library.ErrCycle, locales.ErrorCycle},
 	{library.ErrTrashed, locales.ErrorTrashed},
 	{library.ErrUnknown, locales.ErrorUnknownItem},

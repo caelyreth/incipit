@@ -27,16 +27,23 @@ func TestExportingAGroupWritesItsSheetsAndGroups(t *testing.T) {
 	nameActivePage(t, app, "")
 
 	job, ok := app.exportJob("group:" + work)
-	if !ok || job.name != "Work" || job.count != 2 {
+	if !ok || job.name != "Work" || job.sheets != 2 {
 		t.Fatalf("job = %+v, %v", job, ok)
 	}
+	if plan := job.folder.Sheets[0]; plan.Title != "Plan" || plan.Created.IsZero() || plan.Updated.IsZero() {
+		t.Fatalf("the sheet goes without its times: %+v", plan)
+	}
 	dir := t.TempDir()
-	written, err := export.WriteFolder(dir, *job.folder, nil)
+	plan, err := export.PlanFolder(dir, job.folder, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	top, err := plan.Write(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var files []string
-	filepath.WalkDir(written.Path, func(path string, d os.DirEntry, _ error) error {
+	filepath.WalkDir(top, func(path string, d os.DirEntry, _ error) error {
 		if !d.IsDir() {
 			rel, _ := filepath.Rel(dir, path)
 			files = append(files, filepath.ToSlash(rel))

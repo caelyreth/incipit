@@ -2,55 +2,82 @@ package window
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/caelyreth/neverland/app/export"
-	"github.com/caelyreth/neverland/app/storage"
+	"github.com/caelyreth/neverland/app/library"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/locales"
-	"github.com/caelyreth/neverland/native/components"
+	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/shell"
 	"github.com/caelyreth/neverland/native/theme"
 )
 
 // Export writes a sheet or a group out of the notebook as files (package
-// export). The window only gathers what to write: each sheet's title and a
-// way to read its document, from its engine when it is open and else from
-// the notebook, and each picture's file. The export window, modal to the
-// main one, says what will be written and where, and writes it there off
-// the UI thread.
+// export). The window only gathers what to write: each sheet's title,
+// times and tags and a way to read its document, from its engine when it
+// is open and else from the notebook, and each picture's file. The export
+// window, modal to the main one, shows the plan of it, every file by the
+// name it will have and what it holds, and writes exactly that, off the UI
+// thread (export_view.go).
 
 // exportJob is one export as its window shows it.
 type exportJob struct {
-	// name is what is exported, as the app names it.
-	name string
-	// sheet or folder is what to write: a group's when folder is set.
+	// name is what is exported, as the app names it; group tells a group
+	// from a sheet.
+	name  string
+	group bool
+	// sheet or folder is what to write: a group's when group is set.
 	sheet  export.Sheet
-	folder *export.Folder
-	count  int
-	// dir is the folder written into, chosen in the window; it starts at
-	// the last one chosen this session, else the Desktop.
-	dir     string
-	writing bool
+	folder export.Folder
+	sheets int
+	// dir is the folder written into.
+	dir string
+	// plan is what will be written into dir, nil while it is read;
+	// planned counts the plans asked for, so one made for an earlier dir
+	// is dropped.
+	plan    *export.Plan
+	planErr error
+	planned int
+	// shown is the planned file the preview shows, by its path.
+	shown string
+	// written counts the files written while writing; writeErr is why
+	// writing last stopped.
+	writing  bool
+	written  int
+	writeErr error
+	// pictures are the previews of pictures, read as they are shown.
+	pictures *page.Pictures
 }
+
+// exportPreviewSide is the longest side a picture's preview is read at.
+const exportPreviewSide = 720
 
 // Export is part of shell.Library: it opens the export window for an
 // object, "sheet:" or "group:" and its ID.
 func (a *AppState) Export(id string) {
+	if a.exporting != nil {
+		if a.exportWindow != nil {
+			a.exportWindow.Focus()
+		}
+		return
+	}
 	job, ok := a.exportJob(id)
-	if !ok || a.exporting != nil {
+	if !ok {
 		return
 	}
 	job.dir = a.exportDir
-	if job.dir == "" {
+	if job.dir == "" || !isDir(job.dir) {
 		job.dir, _ = mygo.App.Path(mygo.PathDesktop)
 	}
 	a.exporting = job
 	a.openExportWindow()
+	a.planExport()
 }
 
 // exportJob is what exporting the object id writes.
@@ -61,7 +88,7 @@ func (a *AppState) exportJob(id string) (*exportJob, bool) {
 			return nil, false
 		}
 		sheet := a.exportSheet(session)
-		return &exportJob{name: sheet.Title, sheet: sheet, count: 1}, true
+		return &exportJob{name: sheet.Title, sheet: sheet, sheets: 1}, true
 	}
 	if name, ok := strings.CutPrefix(id, "group:"); ok {
 		group, ok := a.Group(name)
@@ -69,7 +96,7 @@ func (a *AppState) exportJob(id string) (*exportJob, bool) {
 			return nil, false
 		}
 		folder, count := a.exportFolder(group)
-		return &exportJob{name: folder.Name, folder: &folder, count: count}, true
+		return &exportJob{name: folder.Name, group: true, folder: folder, sheets: count}, true
 	}
 	return nil, false
 }
@@ -95,51 +122,165 @@ func (a *AppState) exportFolder(group shell.GroupItem) (export.Folder, int) {
 	return folder, count
 }
 
-// exportSheet is a sheet to write: its document read from the snapshot it
-// has now if it is open, which the notebook may not hold yet, and else
-// from the notebook.
+// exportSheet is a sheet to write: its title, times and tags, and its
+// document read from the snapshot it has now if it is open, which the
+// notebook may not hold yet, and else from the notebook.
 func (a *AppState) exportSheet(session *sheetSession) export.Sheet {
 	title := strings.TrimSpace(session.Title())
 	if title == "" {
 		title = locales.Untitled()
 	}
-	if session.engine != nil {
+	sheet := export.Sheet{Title: title, Tags: tagNames(session.summary.Tags)}
+	if s, ok := a.library.Sheet(library.SheetID(session.key)); ok {
+		sheet.Created, sheet.Updated = s.Created, s.Updated
+	}
+	switch {
+	case session.engine != nil:
 		snap := session.engine.Snapshot()
-		return export.Sheet{Title: title, Read: func() (*doc.Snapshot, error) { return snap, nil }}
+		sheet.Read = func() (*doc.Snapshot, error) { return snap, nil }
+	case a.notebook != nil:
+		store, key := a.notebook.store, session.key
+		sheet.Read = func() (*doc.Snapshot, error) {
+			return store.LoadPage(key, profile.Schema(), doc.NewInterner())
+		}
 	}
-	if a.notebook == nil {
-		return export.Sheet{Title: title}
-	}
-	store, key := a.notebook.store, session.key
-	return export.Sheet{Title: title, Read: func() (*doc.Snapshot, error) {
-		return store.LoadPage(key, profile.Schema(), doc.NewInterner())
-	}}
+	return sheet
 }
 
 // exportPictures finds a picture's file in the notebook, saved under the
 // name it came with.
-func exportPictures(store *storage.Store) export.Pictures {
-	if store == nil {
+func (a *AppState) exportPictures() export.Pictures {
+	if a.notebook == nil {
 		return nil
 	}
+	store := a.notebook.store
 	return func(media string) (export.Picture, bool) {
 		m, ok := store.Media(media)
 		if !ok {
 			return export.Picture{}, false
 		}
-		return export.Picture{Path: store.MediaFile(m), Name: m.FileName()}, true
+		return export.Picture{Path: store.MediaFile(m), Name: m.FileName(), Type: m.Type, Width: m.Width, Height: m.Height}, true
 	}
+}
+
+// planExport plans the export into its folder off the UI thread: the
+// sheets are read and written out in memory, and the folder looked at for
+// names taken. A plan for a folder since left is dropped.
+func (a *AppState) planExport() {
+	job := a.exporting
+	if job == nil {
+		return
+	}
+	job.planned++
+	planned, dir, window := job.planned, job.dir, a.exportWindow
+	job.plan, job.planErr = nil, nil
+	pictures := a.exportPictures()
+	go func() {
+		var plan export.Plan
+		var err error
+		if job.group {
+			plan, err = export.PlanFolder(dir, job.folder, pictures)
+		} else {
+			plan, err = export.PlanSheet(dir, job.sheet, pictures)
+		}
+		onUI(window, func() {
+			if a.exporting != job || job.planned != planned {
+				return
+			}
+			plan.FrontMatter = a.exportFrontMatter
+			job.plan, job.planErr = &plan, err
+			if !planHas(plan, job.shown) {
+				job.shown = firstSheet(plan)
+			}
+			a.invalidateExport()
+		})
+	}()
+}
+
+// planHas reports whether a plan makes the file at rel.
+func planHas(p export.Plan, rel string) bool {
+	for _, f := range p.Files {
+		if f.Path == rel {
+			return true
+		}
+	}
+	return false
+}
+
+// firstSheet is the first sheet's file a plan makes, which the preview
+// shows first.
+func firstSheet(p export.Plan) string {
+	for _, f := range p.Files {
+		if f.Kind == export.KindSheet {
+			return f.Path
+		}
+	}
+	return ""
+}
+
+// setExportFrontMatter turns front matter on or off for this export and
+// those after it this session.
+func (a *AppState) setExportFrontMatter(on bool) {
+	a.exportFrontMatter = on
+	if job := a.exporting; job != nil && job.plan != nil {
+		job.plan.FrontMatter = on
+	}
+	a.invalidateExport()
+}
+
+// exportInto has the export written into dir, planned there anew.
+func (a *AppState) exportInto(dir string) {
+	job := a.exporting
+	if job == nil || job.writing || dir == "" {
+		return
+	}
+	job.dir, job.writeErr = dir, nil
+	a.exportDir = dir
+	a.planExport()
+	a.invalidateExport()
+}
+
+// exportPlaces are the folders offered to export into: the Desktop,
+// Documents and Downloads, and the last chosen this session where it is
+// another.
+func (a *AppState) exportPlaces() []string {
+	var places []string
+	for _, name := range []mygo.PathName{mygo.PathDesktop, mygo.PathDocuments, mygo.PathDownloads} {
+		if dir, err := mygo.App.Path(name); err == nil && isDir(dir) {
+			places = append(places, dir)
+		}
+	}
+	if dir := a.exportDir; dir != "" && isDir(dir) && !containsPath(places, dir) {
+		places = append(places, dir)
+	}
+	return places
+}
+
+func containsPath(paths []string, p string) bool {
+	for _, q := range paths {
+		if filepath.Clean(q) == filepath.Clean(p) {
+			return true
+		}
+	}
+	return false
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 // openExportWindow shows the export window, modal to the main window, as
 // a sheet of it on macOS.
 func (a *AppState) openExportWindow() {
 	scale := a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
+	a.exporting.pictures = &page.Pictures{Read: a.readPicture, MaxSide: exportPreviewSide, Wake: a.invalidateExport}
 	window := mygo.NewWindow(mygo.WindowOptions{
 		Title:           locales.ExportTitle(a.exporting.name),
-		Width:           int(480 * scale),
-		Height:          int(260 * scale),
-		DisableResize:   true,
+		Width:           int(880 * scale),
+		Height:          int(640 * scale),
+		MinWidth:        int(720 * scale),
+		MinHeight:       int(520 * scale),
 		Parent:          a.mainWindow,
 		Modal:           true,
 		Content:         ui.View(a.exportView),
@@ -151,117 +292,73 @@ func (a *AppState) openExportWindow() {
 	a.exportWindow = window
 }
 
-// closeExport closes the export window.
+// invalidateExport redraws the export window.
+func (a *AppState) invalidateExport() {
+	if w := a.exportWindow; w != nil && !w.IsDestroyed() {
+		w.Invalidate()
+	}
+}
+
+// closeExport closes the export window, unless it is writing.
 func (a *AppState) closeExport() {
+	if job := a.exporting; job != nil && job.writing {
+		return
+	}
 	if a.exportWindow != nil {
 		a.exportWindow.Close()
 	}
 }
 
-// chooseExportDir asks for the folder to export into.
+// chooseExportDir asks for another folder to export into.
 func (a *AppState) chooseExportDir() {
 	job, window := a.exporting, a.exportWindow
+	if job == nil || job.writing {
+		return
+	}
 	go func() {
 		paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
 			Parent: window, Title: locales.ChooseExportFolder(), DefaultPath: job.dir,
-			Directory: true, CreateDirectories: true, ButtonLabel: locales.ChooseEllipsis(),
+			Directory: true, CreateDirectories: true, ButtonLabel: locales.ChooseFolder(),
 		})
 		if err != nil || len(paths) == 0 {
 			return
 		}
-		onUI(window, func() {
-			job.dir = paths[0]
-			a.exportDir = paths[0]
-			if window != nil {
-				window.Invalidate()
-			}
-		})
+		onUI(window, func() { a.exportInto(paths[0]) })
 	}()
 }
 
-// runExport writes the job off the UI thread, then closes the window and
-// tells what was written, with a way to it in Finder.
+// runExport writes the plan off the UI thread, counting the files as they
+// are written. Done, the window closes and a notice tells where the files
+// are; failed, it stays open saying why, planned anew to try again.
 func (a *AppState) runExport() {
-	job, main := a.exporting, a.mainWindow
-	if job == nil || job.writing || job.dir == "" {
+	job, window := a.exporting, a.exportWindow
+	if job == nil || job.writing || job.plan == nil || job.planErr != nil {
 		return
 	}
-	job.writing = true
-	a.exportDir = job.dir
-	var store *storage.Store
-	if a.notebook != nil {
-		store = a.notebook.store
-	}
-	pictures := exportPictures(store)
+	plan := *job.plan
+	job.writing, job.written, job.writeErr = true, 0, nil
 	go func() {
-		var written export.Written
-		var err error
-		if job.folder != nil {
-			written, err = export.WriteFolder(job.dir, *job.folder, pictures)
-		} else {
-			written, err = export.WriteSheet(job.dir, job.sheet, pictures)
-		}
-		onUI(main, func() {
-			a.closeExport()
+		top, err := plan.Write(func(n int) {
+			onUI(window, func() {
+				job.written = n
+				a.invalidateExport()
+			})
+		})
+		onUI(window, func() {
+			job.writing = false
 			if err != nil {
-				a.fail(locales.CouldntExport(job.name), err)
+				job.writeErr = err
+				a.planExport()
 				return
 			}
-			path := written.Path
-			a.Notices.Post(Notice{Kind: NoticeSuccess, Title: locales.Exported(job.name),
-				Action: locales.ShowInFinder(), OnAction: func() { mygo.Shell.ShowItemInFolder(path) }})
+			a.closeExport()
+			a.Notices.Post(Notice{Kind: NoticeSuccess, Title: locales.Exported(job.name), Description: shownPath(top),
+				Action: locales.ShowInFinder(), OnAction: func() { mygo.Shell.ShowItemInFolder(top) }})
 		})
 	}()
 }
 
-// exportView is the export window: what will be written, in which
-// format, where, and the buttons that cancel or write it.
-func (a *AppState) exportView(c *ui.Context) {
-	job := a.exporting
-	if job == nil || a.Shell == nil {
-		return
-	}
-	// Escape cancels and Return exports, as a sheet's buttons answer.
-	if c.Shortcut(0, ui.KeyEscape) && !job.writing {
-		a.closeExport()
-	}
-	if c.Shortcut(0, ui.KeyEnter) {
-		a.runExport()
-	}
-	semantic := a.Shell.Settings.Semantic()
-	scale := components.UIFontSize(c)
-	pad := theme.Space24.DIPs(scale)
-	summary := locales.ExportSheetSummary()
-	if job.folder != nil {
-		summary = locales.ExportGroupSummary(job.count)
-	}
-	ui.Column(c).WidthPercent(100).HeightPercent(100).Background(semantic.Surface.Background).
-		Padding(pad, pad, pad, pad).Gap(theme.Space16.DIPs(scale)).Children(func() {
-		ui.Column(c).Gap(theme.Space04.DIPs(scale)).Children(func() {
-			components.Headline(c, locales.ExportTitle(job.name), theme.HeadlineSmall, semantic.Text.Default).
-				Role(ui.RoleHeading)
-			components.Label(c, summary, theme.TextSmall, semantic.Text.Muted)
-		})
-		components.SettingGroup{Key: "export-options", Label: locales.ExportTitle(job.name), Children: func() {
-			components.SettingRow{Label: locales.ExportFormat(), Control: func() {
-				components.Label(c, locales.ExportMarkdown(), theme.TextDefault, semantic.Text.Muted)
-			}}.View(c, semantic)
-			components.SettingRow{Label: locales.ExportDestination(), Description: shownPath(job.dir), Last: true, Control: func() {
-				components.Button{Key: "choose", Label: locales.ChooseEllipsis(), Style: components.OutlinedButton,
-					Size: components.CompactButton, Disabled: job.writing, Action: a.chooseExportDir}.View(c, semantic)
-			}}.View(c, semantic)
-		}}.View(c, semantic)
-		ui.Box(c).Grow(1)
-		ui.Row(c).Justify(ui.End).Gap(theme.Space08.DIPs(scale)).Children(func() {
-			components.Button{Key: "cancel", Label: locales.Cancel(), Style: components.SubtleButton,
-				Size: components.MediumButton, Disabled: job.writing, Action: a.closeExport}.View(c, semantic)
-			components.Button{Key: "export", Label: locales.Export(), Style: components.PrimaryButton,
-				Size: components.MediumButton, Disabled: job.writing || job.dir == "", Action: a.runExport}.View(c, semantic)
-		})
-	})
-}
-
-// shownPath is a folder as people read it: the home folder as ~.
+// shownPath is a path as people read it: the home folder as ~.
 func shownPath(path string) string {
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		if rest, ok := strings.CutPrefix(path, home); ok && (rest == "" || rest[0] == os.PathSeparator) {

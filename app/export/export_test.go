@@ -1,6 +1,7 @@
 package export
 
 import (
+	"errors"
 	"go/parser"
 	"go/token"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
@@ -44,10 +46,22 @@ func read(t *testing.T, path string) string {
 	return string(data)
 }
 
+func paths(p Plan) []string {
+	var out []string
+	for _, f := range p.Files {
+		out = append(out, f.Path)
+	}
+	return out
+}
+
 // A sheet is its Markdown in a file named by its title; its pictures are
-// copied beside it, a picture used twice once, and its figures link them.
-func TestWriteSheetCopiesItsPicturesBesideIt(t *testing.T) {
+// copied beside it, a picture used twice once, and its figures link them,
+// to the assets folder it gets where one is there already.
+func TestPlanSheetLinksItsPicturesWhereTheyGo(t *testing.T) {
 	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	src := filepath.Join(t.TempDir(), "ab12.png")
 	if err := os.WriteFile(src, []byte("png"), 0o644); err != nil {
 		t.Fatal(err)
@@ -60,27 +74,37 @@ func TestWriteSheetCopiesItsPicturesBesideIt(t *testing.T) {
 		profile.NewFigure(s, profile.Picture{Media: "gone", Width: 4, Height: 3}, "Lost"),
 	)}
 	pictures := func(media string) (Picture, bool) {
-		return Picture{Path: src, Name: "bay at dawn.png"}, media == "ab12"
+		return Picture{Path: src, Name: "bay at dawn.png", Width: 4, Height: 3}, media == "ab12"
 	}
-	got, err := WriteSheet(dir, sheet, pictures)
+	plan, err := PlanSheet(dir, sheet, pictures)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(dir, "Tides high low.md"); got.Path != want || got.Pictures != 1 {
-		t.Fatalf("wrote %+v, want %s with one picture", got, want)
+	if got, want := paths(plan), []string{"Tides high low.md", "assets 2", "assets 2/bay at dawn.png"}; !slices.Equal(got, want) {
+		t.Fatalf("files = %v, want %v", got, want)
 	}
-	want := "# Tides\n\n![Bay](<assets/bay at dawn.png>)\n\n![Again](<assets/bay at dawn.png>)\n\n![Lost](gone)\n"
-	if text := read(t, got.Path); text != want {
+	if plan.Files[1].Wanted != "assets" || !plan.Files[1].Assets || plan.Files[1].Pictures != 1 || plan.Files[2].Bytes != 3 {
+		t.Fatalf("assets = %+v, picture = %+v", plan.Files[1], plan.Files[2])
+	}
+	want := "# Tides\n\n![Bay](<assets 2/bay at dawn.png>)\n\n![Again](<assets 2/bay at dawn.png>)\n\n![Lost](gone)\n"
+	if text := plan.Text(plan.Files[0]); text != want {
 		t.Fatalf("text = %q, want %q", text, want)
 	}
-	if read(t, filepath.Join(dir, "assets", "bay at dawn.png")) != "png" {
+	top, err := plan.Write(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if top != filepath.Join(dir, "Tides high low.md") || read(t, top) != want {
+		t.Fatalf("wrote %s: %q", top, read(t, top))
+	}
+	if read(t, filepath.Join(dir, "assets 2", "bay at dawn.png")) != "png" {
 		t.Fatal("the picture was not copied")
 	}
 }
 
-// A group is a folder of its sheets, its groups folders within; nothing at
-// the destination is overwritten, a name taken there numbered.
-func TestWriteFolderMirrorsGroupsAndOverwritesNothing(t *testing.T) {
+// A group is a folder of its sheets, its groups folders within; a name
+// taken at the destination or in the plan is numbered, and says so.
+func TestPlanFolderMirrorsGroupsAndNumbersWhatIsTaken(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.Mkdir(filepath.Join(dir, "Work"), 0o755); err != nil {
 		t.Fatal(err)
@@ -90,24 +114,60 @@ func TestWriteFolderMirrorsGroupsAndOverwritesNothing(t *testing.T) {
 		{Title: "Plan", Read: page(t, heading("Plan"))},
 		{Title: "...", Read: nil},
 	}, Folders: []Folder{{Name: "Specs", Sheets: []Sheet{{Title: "API", Read: page(t, heading("API"))}}}}}
-	got, err := WriteFolder(dir, folder, nil)
+	plan, err := PlanFolder(dir, folder, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Path != filepath.Join(dir, "Work 2") || got.Sheets != 4 {
-		t.Fatalf("wrote %+v", got)
+	want := []string{"Work 2", "Work 2/Plan.md", "Work 2/Plan 2.md", "Work 2/_.md", "Work 2/Specs", "Work 2/Specs/API.md"}
+	if got := paths(plan); !slices.Equal(got, want) {
+		t.Fatalf("files = %v, want %v", got, want)
 	}
-	var files []string
-	filepath.WalkDir(got.Path, func(path string, d os.DirEntry, _ error) error {
-		if !d.IsDir() {
-			rel, _ := filepath.Rel(got.Path, path)
-			files = append(files, filepath.ToSlash(rel))
-		}
-		return nil
-	})
-	slices.Sort(files)
-	if want := []string{"Plan 2.md", "Plan.md", "Specs/API.md", "_.md"}; !slices.Equal(files, want) {
-		t.Fatalf("files = %v, want %v", files, want)
+	top := plan.Files[0]
+	if top.Wanted != "Work" || top.Sheets != 4 || top.Folders != 1 || plan.Files[2].Wanted != "Plan.md" {
+		t.Fatalf("folder = %+v, second plan = %+v", top, plan.Files[2])
+	}
+	if sheets, pictures, groups, _ := plan.Totals(); sheets != 4 || pictures != 0 || groups != 2 {
+		t.Fatalf("totals = %d sheets, %d pictures, %d groups", sheets, pictures, groups)
+	}
+	var steps []int
+	written, err := plan.Write(func(n int) { steps = append(steps, n) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if written != filepath.Join(dir, "Work 2") || len(steps) != len(plan.Files) {
+		t.Fatalf("wrote %s in %v", written, steps)
+	}
+	if read(t, filepath.Join(dir, "Work 2", "Specs", "API.md")) != "# API\n" {
+		t.Fatal("the group's group was not written")
+	}
+	// Written again, a plan whose names were taken since overwrites
+	// nothing.
+	if _, err := plan.Write(nil); !errors.Is(err, ErrTaken) {
+		t.Fatalf("writing over what is there = %v, want ErrTaken", err)
+	}
+}
+
+// Front matter heads a sheet's file with its title, times and tags, as
+// YAML reads them back, only where the plan says.
+func TestFrontMatterSaysTheSheet(t *testing.T) {
+	at := time.Date(2026, 11, 20, 9, 14, 0, 0, time.UTC)
+	sheet := Sheet{Title: "Plan: Q4", Created: at, Updated: at.Add(time.Hour), Tags: []string{"work", "two words", "yes"},
+		Read: page(t, heading("Plan"))}
+	plan, err := PlanSheet(t.TempDir(), sheet, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text := plan.Text(plan.Files[0]); text != "# Plan\n" {
+		t.Fatalf("without front matter = %q", text)
+	}
+	plan.FrontMatter = true
+	want := "---\ntitle: \"Plan: Q4\"\ncreated: 2026-11-20T09:14:00Z\nupdated: 2026-11-20T10:14:00Z\n" +
+		"tags:\n  - work\n  - two words\n  - \"yes\"\n---\n\n# Plan\n"
+	if text := plan.Text(plan.Files[0]); text != want {
+		t.Fatalf("front matter = %q, want %q", text, want)
+	}
+	if plan.Size(plan.Files[0]) != int64(len(want)) {
+		t.Fatal("the size is not the text's")
 	}
 }
 

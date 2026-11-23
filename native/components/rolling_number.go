@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
@@ -139,4 +140,23 @@ func AnimatedText(c *ui.Context, key, text string, size, lineH float32, ink ui.C
 // shows groups them: 1,204.
 func Thousands(n int) string {
 	return i18n.FormatNumber(i18n.Locale(), n, i18n.NumberOptions{})
+}
+
+// Bytes says a size as people read one, in the language the app shows:
+// bytes under a thousand, then kilobytes, then megabytes to a tenth, as
+// Finder counts them (a thousand to a kilobyte).
+func Bytes(n int64) string {
+	switch {
+	case n < 1000:
+		return locales.Bytes(i18n.FormatNumber(i18n.Locale(), n, i18n.NumberOptions{}))
+	case n < 1_000_000:
+		return locales.Kilobytes(i18n.FormatNumber(i18n.Locale(), (n+500)/1000, i18n.NumberOptions{}))
+	}
+	return Megabytes(n)
+}
+
+// Megabytes says a size in megabytes, to a tenth: 29.6 MB.
+func Megabytes(n int64) string {
+	return locales.Megabytes(i18n.FormatNumber(i18n.Locale(), float64(n)/1e6,
+		i18n.NumberOptions{MinFractionDigits: 1, MaxFractionDigits: 1}))
 }

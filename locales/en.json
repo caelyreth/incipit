@@ -2920,29 +2920,9 @@
   "@exportTitle": {
     "description": "Title of the export window; name is the sheet's or the group's"
   },
-  "exportSheetSummary": "A Markdown file, with its pictures copied into an assets folder beside it.",
-  "@exportSheetSummary": {
-    "description": "What exporting a sheet writes"
-  },
-  "exportGroupSummary": "A folder of Markdown files for its {sheets, plural, one {# sheet} other {# sheets}}, its groups as folders inside.",
-  "@exportGroupSummary": {
-    "description": "What exporting a group writes; sheets counts every sheet in it and its groups"
-  },
-  "exportFormat": "Format",
-  "@exportFormat": {
-    "description": "Export window: the row choosing the file format"
-  },
   "exportMarkdown": "Markdown",
   "@exportMarkdown": {
     "description": "The Markdown file format"
-  },
-  "exportDestination": "Save To",
-  "@exportDestination": {
-    "description": "Export window: the row choosing the folder written into"
-  },
-  "chooseEllipsis": "Choose…",
-  "@chooseEllipsis": {
-    "description": "Button that opens a folder picker"
   },
   "export": "Export",
   "@export": {
@@ -2959,5 +2939,81 @@
   "couldntExport": "Couldn’t Export “{name}”",
   "@couldntExport": {
     "description": "Notice title when an export fails"
+  },
+  "bytes": "{size} B",
+  "@bytes": {
+    "description": "A size under a kilobyte, as 512 B"
+  },
+  "kilobytes": "{size} KB",
+  "@kilobytes": {
+    "description": "A size in kilobytes, as 18 KB"
+  },
+  "picturesCount": "{count, plural, one {# picture} other {# pictures}}",
+  "@picturesCount": {
+    "description": "How many pictures, as 3 pictures"
+  },
+  "exportReading": "Reading {count, plural, one {# sheet} other {# sheets}}…",
+  "@exportReading": {
+    "description": "Export window: while the sheets are read to show what will be written"
+  },
+  "exportFiles": "Files",
+  "@exportFiles": {
+    "description": "Export window: heading of the list of what will be written"
+  },
+  "exportPlace": "Where to Export",
+  "@exportPlace": {
+    "description": "Export window: the button choosing the folder written into, for assistive technology and its tooltip"
+  },
+  "chooseFolderEllipsis": "Choose Folder…",
+  "@chooseFolderEllipsis": {
+    "description": "Menu item and button: pick another folder"
+  },
+  "exportRenamed": "Renamed",
+  "@exportRenamed": {
+    "description": "Export window: a badge on a file or folder given a number because its name is taken there"
+  },
+  "exportRenamedHint": "“{name}” is already there, so this is written beside it",
+  "@exportRenamedHint": {
+    "description": "Export window: why a file is renamed; name is the name it would have had"
+  },
+  "exportOptions": "Options",
+  "@exportOptions": {
+    "description": "Export window: heading of the export's options"
+  },
+  "exportFrontMatter": "Front Matter",
+  "@exportFrontMatter": {
+    "description": "Export option: a YAML header on each file"
+  },
+  "exportFrontMatterNote": "Each sheet’s title, dates and tags as YAML at the head of its file, as Obsidian and static site generators read them.",
+  "@exportFrontMatterNote": {
+    "description": "Export option's description"
+  },
+  "exportEmptyFile": "This file is empty.",
+  "@exportEmptyFile": {
+    "description": "Export window: preview of a sheet with no content"
+  },
+  "exportMoreLines": "{count, plural, one {# more line} other {# more lines}}",
+  "@exportMoreLines": {
+    "description": "Export window: the preview's end, when the file is longer than it shows"
+  },
+  "exportPictureNote": "{width} × {height} · {size}",
+  "@exportPictureNote": {
+    "description": "Export window: a picture's size in pixels and on disk, as 1600 × 1200 · 240 KB"
+  },
+  "exportWriting": "Writing {done} of {total}…",
+  "@exportWriting": {
+    "description": "Export window: progress while writing files"
+  },
+  "exportInto": "{count, plural, one {# item} other {# items}} into {place}",
+  "@exportInto": {
+    "description": "Export window footer: how many files and folders will be written, and where"
+  },
+  "chooseFolder": "Choose Folder",
+  "@chooseFolder": {
+    "description": "The confirm button of a folder picker"
+  },
+  "errorExportTaken": "Something was saved where the export would write while it was open. Its files are planned again with free names; export again.",
+  "@errorExportTaken": {
+    "description": "Why an export stopped: a name it planned was taken meanwhile"
   }
 }
