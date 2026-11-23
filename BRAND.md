@@ -1,4 +1,4 @@
-# Neverland Brand Policy
+### Neverland Brand Policy
 
 Copyright 2026 Yu (Caelyreth)
 
@@ -9,7 +9,7 @@ a license to the Neverland name or visual brand marks. This policy defines how
 those marks may and may not be used so users are never misled about where a
 release or service comes from.
 
-## Covered Marks
+#### Covered Marks
 
 This policy covers:
 
@@ -23,7 +23,7 @@ document and the images drawn from it) is Copyright 2026 Yu (Caelyreth), all
 rights reserved. It is not licensed under AGPL-3.0 with the source code. A
 modified version you distribute must replace it with artwork of its own.
 
-## Permitted Uses
+#### Permitted Uses
 
 You may use the Neverland name and marks for truthful, non-confusing
 reference without asking permission:
@@ -44,7 +44,7 @@ reference without asking permission:
   as long as they do not imply official endorsement or ship under a confusingly
   similar product name.
 
-## Disallowed Uses
+#### Disallowed Uses
 
 Unless you have explicit written permission, you may not:
 
@@ -57,7 +57,7 @@ Unless you have explicit written permission, you may not:
 - Use the covered marks in commercial advertising or promotional material to
   suggest partnership or sponsorship without prior approval.
 
-## Questions and Permission
+#### Questions and Permission
 
 For brand permissions, press inquiries, or questions about this policy, contact
-`neverland@shore.fm`.
+`neverland@elm.fm`.
