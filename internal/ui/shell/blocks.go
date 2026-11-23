@@ -294,9 +294,9 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 	case dragged:
 		// Its title line tall, the rest of its place kept below it, so
 		// nothing around it moves.
-		chip := 2*pad + theme.TextSmall.LineHeight(m.scale)
+		chip := components.Around(theme.TextSmall.LineHeight(m.scale), pad)
 		btn.Height(chip).Margin(0, 0, h-chip, 0).
-			Background(semantic.Surface.Elevated).Border(1, semantic.Border.Default)
+			Background(semantic.Surface.Elevated).Border(components.Rim, semantic.Border.Default)
 	}
 	if !confirming && btn.Clicked() {
 		if mods := btn.ClickModifiers(); !s.pickRow(id, mods) {
@@ -399,12 +399,12 @@ func (s *State) thumbnail(c *ui.Context, semantic theme.Theme, media string, sid
 		bitmap, shows = s.Thumbnail(media, c.Now())
 	}
 	frame := ui.Box(c.Key("thumbnail")).Size(side, side).Shrink(0).Radius(6*m.k).Clip().
-		Background(semantic.Surface.Inset).Border(1, semantic.Border.Variant).
+		Background(semantic.Surface.Inset).Border(components.Rim, semantic.Border.Variant).
 		AlignItems(ui.Center).Justify(ui.Center).IgnoreInput(true)
 	frame.Children(func() {
 		switch {
 		case bitmap != nil:
-			ui.Image(c, bitmap).Size(side, side).Fit(ui.Cover)
+			ui.Image(c, bitmap).Size(components.Within(side, 0), components.Within(side, 0)).Fit(ui.Cover)
 		case !shows:
 			ui.Icon(c, components.IconImageOff.SVG()).FontSize(side * 0.4).TextColor(semantic.Text.Muted)
 		}

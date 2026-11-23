@@ -42,9 +42,9 @@ func (s Switch) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		progress = Follow(toggle, "switch-progress", target, MotionNormal)
 	}
 	// The thumb keeps one margin on every side of the track. The track's
-	// focus border is laid out inside its box, and an absolute child is
-	// placed from inside that border, so its offsets drop the border width.
-	const border = float32(1)
+	// focus border is a Rim, and an absolute child is placed from inside
+	// it, so its offsets drop the rim.
+	border := Rim
 	margin := (height - thumb) / 2
 	toggle.Children(func() {
 		track := ui.Box(c).Width(width).Height(height).Radius(height/2).

@@ -182,8 +182,8 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 	kept, keeps := s.scopeGroup()
 	keeps = keeps && kept.Listed && !s.inTrash()
 	box := ui.Column(c).Key("view-switch").Width(size).Padding(pad).Gap(pad).Radius(size/2).
-		Border(1, semantic.Border.Variant).Background(semantic.Surface.Page).Role(ui.RoleRadioGroup).Label(locales.View())
-	face := size - 2*pad
+		Border(components.Rim, semantic.Border.Variant).Background(semantic.Surface.Page).Role(ui.RoleRadioGroup).Label(locales.View())
+	face := components.Within(size, pad)
 	// The fill is one circle standing behind the choice shown, sliding to
 	// the other as the view turns, so the switch reads as one thing moving.
 	at := map[bool]float32{true: 1}[listed]

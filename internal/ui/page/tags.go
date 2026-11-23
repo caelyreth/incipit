@@ -233,14 +233,14 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 	inset := theme.Space06.DIPs(scale)
 	chipPad := theme.Space04.DIPs(scale)
 	gap := theme.Space04.DIPs(scale)
-	const border = 1
+	border := components.Rim
 	row := metrics.Height
 	width := 240 * scale / theme.DefaultUIFontSize
-	height := float32(len(tp.rows))*row + 2*(pad+border)
+	height := components.Around(float32(len(tp.rows))*row, pad)
 	r := el.fromPage(start)
 	if !tp.placed {
 		// The side is chosen for the most rows the picker can show.
-		most := float32(tagRowsShown+1)*row + 2*(pad+border)
+		most := components.Around(float32(tagRowsShown+1)*row, pad)
 		tp.above = r.Y+r.H+gap+most > el.viewport.H && r.Y-gap-most >= 0
 		tp.placed = true
 	}

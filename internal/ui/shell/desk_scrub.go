@@ -79,7 +79,7 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 	}
 	bar := ui.Column(c).Key("desk-scrubber").Absolute().Left(gutter).Bottom(gutter).
 		Clip().
-		Background(semantic.Surface.Panel).Border(1, semantic.Border.Variant).
+		Background(semantic.Surface.Panel).Border(components.Rim, semantic.Border.Variant).
 		Role(ui.RoleGroup).Label(locales.DeskOverview())
 	// grown is how far open the switcher is, 0 to 1, the guard, the
 	// corners and the body following it.
@@ -120,16 +120,16 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 	foot := lerp(pad, theme.Space12.DIPs(scale), grown)
 	inner := theme.Space12.DIPs(scale)
 	most := max(3*metrics.Height*1.5, s.desk.viewport.H-2*gutter-pad-inner-scrubHeight*k-
-		metrics.Height-theme.Space04.DIPs(scale)-3*gap-1)
+		metrics.Height-theme.Space04.DIPs(scale)-3*gap-1-2*components.Rim)
 	// Its size, grown from the scrubber's to the switcher's and back: set
 	// here, not laid out, so it grows from the corner it stands in, the
 	// overview staying put at its foot. Its height is set as it opens, from
 	// what it lists then, and stays while words are written: what they
 	// find scrolls in it.
-	closedW, closedH := max(track, scrubHeight*k*2)+2*pad, scrubHeight*k+2*pad
+	closedW, closedH := components.Around(max(track, scrubHeight*k*2), pad), components.Around(scrubHeight*k, pad)
 	if grown > 0.001 && sw.height == 0 {
 		sw.list = s.switchListHeight(most)
-		sw.height = pad + s.switchBodyHeight(sw.list) + gap + scrubHeight*k + inner
+		sw.height = 2*components.Rim + pad + s.switchBodyHeight(sw.list) + gap + scrubHeight*k + inner
 	}
 	openH := sw.height
 	if animate {
@@ -145,7 +145,7 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 		if _, _, ok := bar.DragEnded(); ok && f > 0 {
 			s.settleStrip(s.desk.strip.X)
 		} else if x, _, _ := bar.PointerPosition(); bar.Clicked() && f > 0 {
-			s.scrubTo((x - pad) / f)
+			s.scrubTo((x - components.Rim - pad) / f)
 		}
 	}
 	target := float32(0)
@@ -158,7 +158,7 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 	}
 	bar.Opacity(max(shown, grown)).ZIndex(2)
 	if shown > 0.001 && grown < 0.001 {
-		depth := scrubHeight*k + 2*pad + 2*gutter
+		depth := closedH + 2*gutter
 		ui.Box(c).Key("desk-foot-fade").Absolute().Left(0).Right(0).Bottom(0).Height(depth).
 			IgnoreInput(true).Opacity(shown).
 			Gradient(semantic.Surface.Background.Alpha(0), semantic.Surface.Background, 180)
@@ -170,13 +170,13 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 		// Both stand from the foot, so the scrubber's edge, growing,
 		// uncovers the body from the top.
 		if grown > 0.001 {
-			s.switcherView(c, semantic, width-2*pad, sw.list, animate).Opacity(seen).
+			s.switcherView(c, semantic, components.Within(width, pad), sw.list, animate).Opacity(seen).
 				Absolute().Left(pad).Bottom(foot + scrubHeight*k + gap)
 		}
 		// The foot: the overview, a cell for each column, the window's
 		// span over them, and, open, the column the keys are on lit; the
 		// switcher's keys beside it.
-		ui.Box(c).Key("scrub-foot").Absolute().Left(foot).Bottom(foot).Width(width - 2*foot).Height(scrubHeight * k).Children(func() {
+		ui.Box(c).Key("scrub-foot").Absolute().Left(foot).Bottom(foot).Width(components.Within(width, foot)).Height(scrubHeight * k).Children(func() {
 			if len(spans) >= 2 {
 				s.scrubTrack(c, semantic, track, total, view, f, k)
 			}

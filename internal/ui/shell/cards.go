@@ -283,7 +283,7 @@ func (s *State) cardView(c *ui.Context, semantic theme.Theme, fr stageFrame, cd 
 	// from the edge all round.
 	rim := float32(0)
 	if cd.kind.ground() {
-		rim = 1
+		rim = components.Rim
 		// Arriving, it is marked, unless it is its own row, which is.
 		arriving := float32(0)
 		if !slices.Contains(cd.rows, fr.ID) {

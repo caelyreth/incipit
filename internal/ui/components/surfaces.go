@@ -5,6 +5,20 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// Rim is the hairline a framed box is drawn in. It is laid out inside the
+// box and takes room from what the box holds, and an absolute child is
+// placed from inside it: sized from the box's outer edge, its children
+// would stand the rim's width off-centre and press into it on one side.
+const Rim = float32(1)
+
+// Within is the room inside a box outer across, framed in a Rim and pad
+// in from it on either side: what its children are laid out in.
+func Within(outer, pad float32) float32 { return outer - 2*(Rim+pad) }
+
+// Around is how far across a box framed in a Rim is to hold inner, pad
+// in from the rim on either side: the inverse of Within.
+func Around(inner, pad float32) float32 { return inner + 2*(Rim+pad) }
+
 // Elevation names the two raised surfaces used by the app. Popovers keep a
 // stronger, fixed-DIP shadow; dialogs and notices scale with the UI.
 type Elevation uint8
@@ -19,7 +33,7 @@ const (
 // contents, interaction, and transition to its owner.
 func ElevatedSurface(element ui.Element, semantic theme.Theme, scale float32, _ Elevation) ui.Element {
 	return element.Radius(theme.DefaultControls.Scaled(scale).PanelRadius).
-		Border(1, semantic.Border.Default).
+		Border(Rim, semantic.Border.Default).
 		Background(semantic.Surface.Elevated)
 }
 
@@ -28,7 +42,7 @@ func ElevatedSurface(element ui.Element, semantic theme.Theme, scale float32, _ 
 // page's tag picker, and should read as part of the page.
 func OutlinedSurface(element ui.Element, semantic theme.Theme, scale float32) ui.Element {
 	return element.Radius(theme.DefaultControls.Scaled(scale).PanelRadius).
-		Border(1, semantic.Border.Default).
+		Border(Rim, semantic.Border.Default).
 		Background(semantic.Surface.Elevated)
 }
 
