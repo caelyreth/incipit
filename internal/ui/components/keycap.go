@@ -35,6 +35,16 @@ func KeycapStyle(semantic theme.Theme, scale float32, compact bool) Keycap {
 	return style
 }
 
+// glyphDrop is how far below its line's middle a key's glyph stands
+// centred, as a share of its size: the UI face draws ↩ a ninth of an em
+// above the middle that ⌘, the arrows and the letters share.
+func glyphDrop(key string) float32 {
+	if key == "↩" {
+		return 0.11
+	}
+	return 0
+}
+
 // Square reports whether key takes a square cap.
 func (k Keycap) Square(key string) bool { return utf8.RuneCountInString(key) == 1 }
 
@@ -89,9 +99,10 @@ func (k Keycap) Paint(p *ui.Painter, keys []string, left, top, alpha float32) {
 		p.Stroke(box, k.Border.Alpha(alpha), k.Radius, 1)
 		glyphs := k.glyphs(key)
 		w, _ := glyphs.Size()
-		// Centered in the cap, its line box lifted as the face needs.
+		// Centered in the cap, its line box lifted as the face needs and
+		// its glyph dropped where the face sets it high.
 		x := box.X + (box.W-w)/2
-		y := box.Y + (box.H-line)/2
+		y := box.Y + (box.H-line)/2 + glyphDrop(key)*k.Text.Size(k.scale)
 		p.TextLayout(glyphs, x, y-k.Lift(), k.Ink.Alpha(alpha))
 		left += widths[index] + k.Gap
 	}
