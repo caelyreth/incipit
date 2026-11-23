@@ -17,10 +17,10 @@ func Menus(c *ui.Context, semantic theme.Theme) {
 	scale := UIFontSize(c)
 	controls := theme.DefaultControls.Scaled(scale)
 	size, line := theme.RowTitle.Size(scale), theme.RowTitle.LineHeight(scale)
-	// As macOS's menus stand: a panel a few points in from its rows, the
-	// rows a line high and a little more, rounded within the panel's
-	// corners. Across, the theme's padding, which a palette's swatches
-	// line up by.
+	// As macOS's menus stand: a panel a few points in from its rows, over
+	// the system's material where it has one, the rows a line high and a
+	// little more, rounded within the panel's corners. Across, the theme's
+	// padding, which a palette's swatches line up by.
 	inset := theme.Space04.DIPs(scale) + 1
 	pad := theme.Space02.DIPs(scale)
 	across := 2 * c.Theme().Spacing
@@ -32,5 +32,6 @@ func Menus(c *ui.Context, semantic theme.Theme) {
 			item.Radius(controls.PanelRadius-inset).FontSize(size).FixedLineHeight(line).Padding(pad, across)
 		},
 		Highlight: ui.SurfaceHighlight,
+		Radius:    controls.PanelRadius,
 	})
 }
