@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/app/clipboard"
+	"github.com/caelyreth/neverland/app/markdown"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/engine"
 	"github.com/caelyreth/neverland/editor/policy"
@@ -384,7 +385,7 @@ func (ed *Editor) writeClipboard(services ui.Services) bool {
 		return false
 	}
 	if !slice.Empty() && ed.Selection().Kind != doc.SelectCells {
-		if md := clipboard.Markdown(slice); md != "" {
+		if md := markdown.Slice(slice); md != "" {
 			text = md
 		}
 	}

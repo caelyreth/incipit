@@ -1,4 +1,8 @@
-package clipboard
+// Package markdown writes the notebook's structure as standard Markdown:
+// a sink, reading documents and slices of them, never read back from.
+// The clipboard puts a copy's Markdown beside its own encoding with it,
+// and export writes sheets out as files with it.
+package markdown
 
 import (
 	"slices"
@@ -10,27 +14,49 @@ import (
 	"github.com/caelyreth/neverland/editor/vocab"
 )
 
-// Markdown formats a slice as standard Markdown with full inline and block
-// syntax. Callers needing lossless internal structure also keep Encode(slice)
-// in Format alongside this plain-text representation.
-func Markdown(slice vocab.Slice) string {
+// Slice formats a slice as standard Markdown with full inline and block
+// syntax, its pictures named by their media ids. Callers needing lossless
+// internal structure also keep their own encoding of the slice beside it.
+func Slice(slice vocab.Slice) string {
 	if slice.Empty() {
 		return ""
 	}
 	if len(slice.Nodes) == 0 {
 		return formatInlineItems(slice.Inline)
 	}
-	return joinBlocks(slice.Nodes, slice.OpenStart, "\n\n")
+	return writer{}.joinBlocks(slice.Nodes, slice.OpenStart, "\n\n")
 }
 
-func joinBlocks(nodes []*doc.Node, openStart int, sep string) string {
+// Document formats a document's blocks, root's children, as a Markdown
+// file holds them, ending in a newline. picture is where a figure's
+// picture is linked to, given its media id; nil links the media id.
+func Document(root *doc.Node, picture func(media string) string) string {
+	var blocks []*doc.Node
+	for _, s := range root.Slots() {
+		if !s.IsInline() {
+			blocks = append(blocks, s.Children()...)
+		}
+	}
+	text := writer{picture: picture}.joinBlocks(blocks, 0, "\n\n")
+	if text == "" {
+		return ""
+	}
+	return text + "\n"
+}
+
+// writer writes blocks, linking pictures where picture says.
+type writer struct {
+	picture func(media string) string
+}
+
+func (w writer) joinBlocks(nodes []*doc.Node, openStart int, sep string) string {
 	var b strings.Builder
 	for i, n := range nodes {
 		childOpen := 0
 		if i == 0 {
 			childOpen = openStart
 		}
-		part := formatNode(n, childOpen)
+		part := w.formatNode(n, childOpen)
 		if i > 0 {
 			b.WriteString(sep)
 		}
@@ -39,7 +65,7 @@ func joinBlocks(nodes []*doc.Node, openStart int, sep string) string {
 	return b.String()
 }
 
-func formatNode(n *doc.Node, openStart int) string {
+func (w writer) formatNode(n *doc.Node, openStart int) string {
 	if n == nil {
 		return ""
 	}
@@ -55,10 +81,10 @@ func formatNode(n *doc.Node, openStart int) string {
 		level := min(max(profile.HeadingLevel(n), 1), 6)
 		return strings.Repeat("#", level) + " " + text
 	case profile.Quote:
-		inner := joinBlocks(n.Slot(0).Children(), childOpen, "\n\n")
+		inner := w.joinBlocks(n.Slot(0).Children(), childOpen, "\n\n")
 		return prefixLines(inner, "> ", ">")
 	case profile.List:
-		return formatList(n, openStart)
+		return w.formatList(n, openStart)
 	case profile.Code:
 		info := strings.TrimSpace(profile.Schema().Attr(n, profile.FieldInfo).Text())
 		body := n.Text()
@@ -93,6 +119,9 @@ func formatNode(n *doc.Node, openStart int) string {
 		shape := profile.ShapeOf(n)
 		caption := altReplacer.Replace(formatInlineSlot(n.Slot(0)))
 		media := shape.Media
+		if w.picture != nil {
+			media = w.picture(media)
+		}
 		if strings.ContainsAny(media, " ()\t\n") {
 			media = "<" + media + ">"
 		}
@@ -110,13 +139,13 @@ func formatNode(n *doc.Node, openStart int) string {
 			continue
 		}
 		if len(s.Children()) > 0 {
-			parts = append(parts, joinBlocks(s.Children(), childOpen, "\n\n"))
+			parts = append(parts, w.joinBlocks(s.Children(), childOpen, "\n\n"))
 		}
 	}
 	return strings.Join(parts, "\n\n")
 }
 
-func formatList(n *doc.Node, openStart int) string {
+func (w writer) formatList(n *doc.Node, openStart int) string {
 	style := profile.ListStyleOf(n)
 	start := profile.ListStart(n)
 	items := n.Slot(0).Children()
@@ -129,12 +158,12 @@ func formatList(n *doc.Node, openStart int) string {
 		if i == 0 && openStart > 1 {
 			childOpen = openStart - 1
 		}
-		b.WriteString(formatItem(item, style, start+i, childOpen))
+		b.WriteString(w.formatItem(item, style, start+i, childOpen))
 	}
 	return b.String()
 }
 
-func formatItem(item *doc.Node, style profile.ListStyle, ordinal, openStart int) string {
+func (w writer) formatItem(item *doc.Node, style profile.ListStyle, ordinal, openStart int) string {
 	marker := "- "
 	if style == profile.Ordered {
 		marker = strconv.Itoa(ordinal) + ". "
@@ -166,7 +195,7 @@ func formatItem(item *doc.Node, style profile.ListStyle, ordinal, openStart int)
 			if i == 0 {
 				cOpen = max(openStart-1, 0)
 			}
-			rendered := formatNode(c, cOpen)
+			rendered := w.formatNode(c, cOpen)
 			if i == 0 && c.Kind() == profile.List {
 				b.WriteByte('\n')
 			} else {

@@ -1,4 +1,4 @@
-package clipboard
+package markdown
 
 import (
 	"testing"
@@ -70,7 +70,7 @@ func TestMarkdownInlineMarksAndObjects(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := Markdown(vocab.Slice{Inline: tc.items}); got != tc.want {
+			if got := Slice(vocab.Slice{Inline: tc.items}); got != tc.want {
 				t.Fatalf("Markdown = %q, want %q", got, tc.want)
 			}
 		})
@@ -88,15 +88,15 @@ func TestMarkdownBlocksAndPartialCuts(t *testing.T) {
 	))
 
 	// Whole heading (OpenStart == 0) keeps ## prefix.
-	if got, want := Markdown(vocab.Slice{Nodes: []*doc.Node{h, p1}}), "## Heading\n\nAlpha"; got != want {
+	if got, want := Slice(vocab.Slice{Nodes: []*doc.Node{h, p1}}), "## Heading\n\nAlpha"; got != want {
 		t.Fatalf("whole heading = %q, want %q", got, want)
 	}
 	// Cut heading (OpenStart == 1) omits ## prefix on the leading cut block.
-	if got, want := Markdown(vocab.Slice{Nodes: []*doc.Node{h, p1}, OpenStart: 1}), "Heading\n\nAlpha"; got != want {
+	if got, want := Slice(vocab.Slice{Nodes: []*doc.Node{h, p1}, OpenStart: 1}), "Heading\n\nAlpha"; got != want {
 		t.Fatalf("cut heading = %q, want %q", got, want)
 	}
 	// Nested quotes.
-	if got, want := Markdown(vocab.Slice{Nodes: []*doc.Node{q, p2}}), "> Quoted\n>\n> > Deep\n\nBeta"; got != want {
+	if got, want := Slice(vocab.Slice{Nodes: []*doc.Node{q, p2}}), "> Quoted\n>\n> > Deep\n\nBeta"; got != want {
 		t.Fatalf("quotes = %q, want %q", got, want)
 	}
 
@@ -114,7 +114,7 @@ func TestMarkdownBlocksAndPartialCuts(t *testing.T) {
 			doc.InlineSlot(doc.TextItem("done", nil)), doc.BlockSlot()),
 	))
 	wantList := "3. [ ] open\n   - sub\n4. [x] done"
-	if got := Markdown(vocab.Slice{Nodes: []*doc.Node{orderedList}}); got != wantList {
+	if got := Slice(vocab.Slice{Nodes: []*doc.Node{orderedList}}); got != wantList {
 		t.Fatalf("list = %q, want %q", got, wantList)
 	}
 
@@ -126,40 +126,7 @@ func TestMarkdownBlocksAndPartialCuts(t *testing.T) {
 	figBlock := profile.NewFigure(s, profile.Picture{Media: "bay photo.png", Width: 100, Height: 80}, "Bay [1]")
 
 	wantMisc := "````md\n```go\nx\n```\n````\n\n$$\nE = mc^2\n$$\n\n---\n\n![Bay \\[1\\]](<bay photo.png>)"
-	if got := Markdown(vocab.Slice{Nodes: []*doc.Node{codeBlock, mathBlock, divBlock, figBlock}}); got != wantMisc {
+	if got := Slice(vocab.Slice{Nodes: []*doc.Node{codeBlock, mathBlock, divBlock, figBlock}}); got != wantMisc {
 		t.Fatalf("misc = %q, want %q", got, wantMisc)
-	}
-}
-
-func TestMarkdownTableRoundTripsAlignmentsAndPipes(t *testing.T) {
-	s := profile.Schema()
-	table := profile.TableOf([][]string{{"Left", "Mid", "Right"}, {"a | b", "c", "d"}})
-	shape := profile.TableShapeOf(table)
-	shape.Columns[0].Align = profile.AlignStart
-	shape.Columns[1].Align = profile.AlignCenter
-	shape.Columns[2].Align = profile.AlignEnd
-	rows := table.Slot(0).Children()
-	rows[1] = doc.NewNode(profile.Row, doc.Attrs{}, doc.BlockSlot(
-		vocab.NewBlock(s, profile.Cell, doc.Attrs{}, doc.TextItem("a | b", nil)),
-		vocab.NewBlock(s, profile.Cell, doc.Attrs{}, doc.TextItem("c", marksOf(profile.Strong))),
-		vocab.NewBlock(s, profile.Cell, doc.Attrs{}, doc.TextItem("d", nil)),
-	))
-	aligned := doc.NewNode(profile.Table, shape.Attrs(), doc.BlockSlot(rows...))
-
-	md := Markdown(vocab.Slice{Nodes: []*doc.Node{aligned}})
-	want := "| Left | Mid | Right |\n| --- | :---: | ---: |\n| a \\| b | **c** | d |"
-	if md != want {
-		t.Fatalf("table = %q, want %q", md, want)
-	}
-	back, ok := TableText(md)
-	if !ok || len(back.Nodes) != 1 {
-		t.Fatalf("TableText failed to parse back %q", md)
-	}
-	gotShape := profile.TableShapeOf(back.Nodes[0])
-	if len(gotShape.Columns) != 3 ||
-		gotShape.Columns[0].Align != profile.AlignStart ||
-		gotShape.Columns[1].Align != profile.AlignCenter ||
-		gotShape.Columns[2].Align != profile.AlignEnd {
-		t.Fatalf("round-trip alignments = %+v", gotShape.Columns)
 	}
 }
