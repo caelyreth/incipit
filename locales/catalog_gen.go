@@ -1373,6 +1373,64 @@ func (msgs Messages) ThemeSystem() string {
 	return Catalog.Format(msgs.locale, "themeSystem", nil)
 }
 
+// Menus says "Menus"
+// in the language the app shows.
+//
+// Settings › Appearance › Interface, macOS only: whether menus are the
+// system's or Neverland's own.
+func Menus() string { return In(i18n.Locale()).Menus() }
+
+// Menus says "Menus"
+// in the language of msgs.
+//
+// Settings › Appearance › Interface, macOS only: whether menus are the
+// system's or Neverland's own.
+func (msgs Messages) Menus() string {
+	return Catalog.Format(msgs.locale, "menus", nil)
+}
+
+// MenusDescription says "Native, or Neverland's own, as on Windows and Linux."
+// in the language the app shows.
+//
+// Explains the Menus choice.
+func MenusDescription() string { return In(i18n.Locale()).MenusDescription() }
+
+// MenusDescription says "Native, or Neverland's own, as on Windows and Linux."
+// in the language of msgs.
+//
+// Explains the Menus choice.
+func (msgs Messages) MenusDescription() string {
+	return Catalog.Format(msgs.locale, "menusDescription", nil)
+}
+
+// MenusNative says "Native"
+// in the language the app shows.
+//
+// The Menus choice that shows menus as macOS draws them; the default.
+func MenusNative() string { return In(i18n.Locale()).MenusNative() }
+
+// MenusNative says "Native"
+// in the language of msgs.
+//
+// The Menus choice that shows menus as macOS draws them; the default.
+func (msgs Messages) MenusNative() string {
+	return Catalog.Format(msgs.locale, "menusNative", nil)
+}
+
+// MenusNeverland says "Neverland"
+// in the language the app shows.
+//
+// The Menus choice that has Neverland draw its own menus. The app's name.
+func MenusNeverland() string { return In(i18n.Locale()).MenusNeverland() }
+
+// MenusNeverland says "Neverland"
+// in the language of msgs.
+//
+// The Menus choice that has Neverland draw its own menus. The app's name.
+func (msgs Messages) MenusNeverland() string {
+	return Catalog.Format(msgs.locale, "menusNeverland", nil)
+}
+
 // UiFontSize says "UI Font Size"
 // in the language the app shows.
 //

@@ -6,13 +6,17 @@ import (
 )
 
 // Menus has the window show its popup menus as Neverland does on its
-// platform (menuPresentation): the system's on macOS, elsewhere drawn in
-// flyouts of the window, as macOS's stand: the raised surface over the
+// platform (menuPresentation): the system's on macOS unless drawn is
+// chosen there, elsewhere drawn in flyouts of the window, as macOS's stand: the raised surface over the
 // system's material, a faint light rim, the row under the pointer washed
 // in the words' ink.
-func Menus(c *ui.Context, semantic theme.Theme) {
-	c.SetMenuPresentation(menuPresentation)
-	if menuPresentation == ui.SystemMenus {
+func Menus(c *ui.Context, semantic theme.Theme, drawn bool) {
+	presentation := menuPresentation
+	if drawn {
+		presentation = ui.FlyoutMenus
+	}
+	c.SetMenuPresentation(presentation)
+	if presentation == ui.SystemMenus {
 		return
 	}
 	scale := UIFontSize(c)

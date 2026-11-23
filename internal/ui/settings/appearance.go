@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"runtime"
 	"strconv"
 
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
@@ -79,6 +80,9 @@ func (s *State) appearanceSection(c *ui.Context, semantic theme.Theme, sec Secti
 					s.fontStepper(c, semantic, true)
 				},
 			}.View(c, semantic)
+			if runtime.GOOS == "darwin" {
+				s.menusRow(c, semantic)
+			}
 			s.languageRows(c, semantic)
 		})
 	case typefaceKey:
@@ -118,6 +122,40 @@ func (s *State) appearanceSection(c *ui.Context, semantic theme.Theme, sec Secti
 			}
 		})
 	}
+}
+
+// menusRow chooses, on macOS, the system's menus or the app's own, drawn
+// as on Windows and Linux, where there is no choice.
+func (s *State) menusRow(c *ui.Context, semantic theme.Theme) {
+	components.SettingRow{
+		Label:       locales.Menus(),
+		Description: locales.MenusDescription(),
+		Control: func() {
+			choices := []struct {
+				key, label string
+				drawn      bool
+			}{
+				{"native", locales.MenusNative(), false},
+				{"neverland", locales.MenusNeverland(), true},
+			}
+			options := make([]components.SegmentOption, 0, len(choices))
+			for _, ch := range choices {
+				options = append(options, components.SegmentOption{
+					Key: "menus-" + ch.key, Label: ch.label,
+					Selected: s.Theme.DrawnMenus == ch.drawn,
+					Action: func() {
+						s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
+							Kind: appsettings.SetDrawnMenus, Drawn: ch.drawn,
+						}))
+					},
+				})
+			}
+			components.Segmented{
+				Key: "menus-choice", Label: locales.Menus(), Options: options,
+				Animate: s.motion(c),
+			}.View(c, semantic)
+		},
+	}.View(c, semantic)
 }
 
 func (s *State) fontStepper(c *ui.Context, semantic theme.Theme, uiFont bool) {

@@ -64,6 +64,9 @@ type AppearanceSettings struct {
 	// Japanese are drawn in, by its face in Typeface once kept; empty, the
 	// system's fonts draw them.
 	CJKForms string
+	// DrawnMenus has the app draw its popup menus itself on macOS, as it
+	// always does on Windows and Linux; off, the default, macOS draws them.
+	DrawnMenus bool
 }
 
 // ThemeNumber returns the stable one-based number of the palette shown
@@ -136,6 +139,8 @@ func (s *AppearanceSettings) Apply(change AppearanceChange) bool {
 			return false
 		}
 		s.CJKForms = change.Forms
+	case SetDrawnMenus:
+		s.DrawnMenus = change.Drawn
 	default:
 		return false
 	}

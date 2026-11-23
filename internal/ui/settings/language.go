@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"runtime"
+
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
@@ -13,6 +15,9 @@ import (
 func (s *State) interfaceInfo() sectionInfo {
 	words := locales.Interface() + " " + locales.InterfaceKeywords() + " " + locales.Theme() + " " +
 		locales.UiFontSize() + " " + locales.Language() + " " + locales.LanguageSystem()
+	if runtime.GOOS == "darwin" {
+		words += " " + locales.Menus() + " " + locales.MenusDescription()
+	}
 	for _, tag := range s.Languages {
 		words += " " + i18n.Autonym(tag)
 	}

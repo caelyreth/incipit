@@ -25,7 +25,7 @@ func (s *State) Typing() bool {
 func (s *State) View(c *ui.Context) {
 	semantic, changing := s.Colors.At(s.Settings, c.Now())
 	c.SetTheme(s.Settings.MyGoThemeFor(semantic))
-	components.Menus(c, semantic)
+	components.Menus(c, semantic, s.Settings.DrawnMenus)
 	if changing {
 		c.AnimationFrame()
 	}

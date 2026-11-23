@@ -196,6 +196,9 @@ type Settings struct {
 	// ProseFamily is the prose's family list, ProseFontFamily alone when
 	// empty.
 	ProseFamily string
+	// DrawnMenus draws the popup menus in the window's flyouts on macOS,
+	// as they always are on Windows and Linux.
+	DrawnMenus bool
 }
 
 const (

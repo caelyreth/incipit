@@ -347,6 +347,22 @@
   "@themeSystem": {
     "description": "The theme that follows the system's appearance: Starfield while it is dark, Daybreak while it is light."
   },
+  "menus": "Menus",
+  "@menus": {
+    "description": "Settings › Appearance › Interface, macOS only: whether menus are the system's or Neverland's own."
+  },
+  "menusDescription": "Native, or Neverland's own, as on Windows and Linux.",
+  "@menusDescription": {
+    "description": "Explains the Menus choice."
+  },
+  "menusNative": "Native",
+  "@menusNative": {
+    "description": "The Menus choice that shows menus as macOS draws them; the default."
+  },
+  "menusNeverland": "Neverland",
+  "@menusNeverland": {
+    "description": "The Menus choice that has Neverland draw its own menus. The app's name."
+  },
   "uiFontSize": "UI Font Size",
   "@uiFontSize": {
     "description": "A setting: the size of the app's own text."

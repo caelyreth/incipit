@@ -2,6 +2,6 @@ package components
 
 import "github.com/egoist/mygo/ui"
 
-// menuPresentation keeps the system's menus on macOS, which a build for
-// development may draw as the other platforms do (menus_preview_darwin.go).
+// menuPresentation keeps the system's menus on macOS, unless the settings
+// choose the app's own.
 var menuPresentation = ui.SystemMenus

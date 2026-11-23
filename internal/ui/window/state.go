@@ -578,6 +578,7 @@ func (a *AppState) appearanceSettings() theme.Settings {
 	settings.ProseFontSize = values.ProseFontSize
 	settings.LineSpacing = values.LineSpacing
 	settings.Appearance = theme.Appearance(values.ThemeNumber(a.systemDark))
+	settings.DrawnMenus = values.DrawnMenus
 	return settings
 }
 

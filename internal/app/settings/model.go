@@ -184,6 +184,7 @@ const (
 	SetLineSpacing
 	SetTypeface
 	SetCJKForms
+	SetDrawnMenus
 )
 
 // AppearanceChange is one neutral theme or text-size request. The accent
@@ -197,6 +198,8 @@ type AppearanceChange struct {
 	// (internal/app/fonts), empty for the system's fonts.
 	Typeface fonts.Style
 	Forms    string
+	// Drawn is SetDrawnMenus' choice: the app's own menus on macOS.
+	Drawn bool
 }
 
 func NewAppearanceChange(change AppearanceChange) Change {

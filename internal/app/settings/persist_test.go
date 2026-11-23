@@ -18,6 +18,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		LineSpacing:   2,
 		Typeface:      fonts.Sans,
 		CJKForms:      "jp",
+		DrawnMenus:    true,
 	}
 	keys, err := state.Keymap.Remap(keymap.Typewriter, keymap.NewChord("y", keymap.ModifiersPrimary|keymap.ModifiersShift), "")
 	if err != nil {

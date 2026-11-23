@@ -30,6 +30,7 @@ type persisted struct {
 	LineSpacing  float32                    `json:"lineSpacing"`
 	Typeface     string                     `json:"typeface,omitempty"`
 	CJKForms     string                     `json:"cjkForms,omitempty"`
+	Menus        string                     `json:"menus,omitempty"`
 	Keymap       map[string]*persistedChord `json:"keymap,omitempty"`
 	PolicyValues map[string]json.RawMessage `json:"policy,omitempty"`
 }
@@ -59,6 +60,7 @@ func (s State) Encode() ([]byte, error) {
 		LineSpacing:  s.Appearance.LineSpacing,
 		Typeface:     strings.ToLower(s.Appearance.Typeface.String()),
 		CJKForms:     s.Appearance.CJKForms,
+		Menus:        menusName(s.Appearance.DrawnMenus),
 		Keymap:       persistedOverrides(s.Keymap),
 		PolicyValues: policyValues,
 	}
@@ -108,6 +110,7 @@ func (s *State) Decode(data []byte) error {
 			LineSpacing:   record.LineSpacing,
 			Typeface:      parseTypeface(record.Typeface),
 			CJKForms:      record.CJKForms,
+			DrawnMenus:    record.Menus == "drawn",
 		}.Normalized(),
 		Keymap:  keys,
 		Policy:  values,
@@ -115,6 +118,15 @@ func (s *State) Decode(data []byte) error {
 	}
 	*s = candidate
 	return nil
+}
+
+// menusName is how a record names the menus chosen: "drawn" for the
+// app's own, nothing for the system's.
+func menusName(drawn bool) string {
+	if drawn {
+		return "drawn"
+	}
+	return ""
 }
 
 // parseTypeface is the style a record names, Serif for none or one not
