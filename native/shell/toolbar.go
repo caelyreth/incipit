@@ -4,77 +4,44 @@ import (
 	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
-	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
+// dockState is the dock's between frames.
 type dockState struct {
-	ctx      *ui.Context
-	semantic theme.Theme
-	animate  bool
-	groups   []components.ActionGroup
-	// locale is the language groups are labeled in.
-	locale string
 	// open is the tool choice whose menu shows, and settle holds its
 	// groups while what they are offered for keeps changing.
 	open   string
 	settle components.ToolSettle
 }
 
-func (s *State) dockIcon(
-	key, label, binding string,
-	icon components.IconName,
-	selected, enabled bool,
-	action func(),
-) {
-	c := s.actionDock.ctx
-	semantic := s.actionDock.semantic
-	components.IconButton{
-		Key: key, Label: label, Binding: binding,
-		Icon:  icon.SVG(),
-		Style: components.SubtleButton, Size: components.MediumButton,
-		Selected: selected, Disabled: !enabled, Animate: s.actionDock.animate,
-		IconColor: s.actionDock.semantic.Icon.Muted, Action: action,
-	}.View(c, semantic)
-}
-
-// ensureDockGroups are the dock's own actions, after the page's tools:
-// the writing modes.
-func (s *State) ensureDockGroups() {
-	if len(s.actionDock.groups) != 0 && s.actionDock.locale == i18n.Locale() {
-		return
-	}
-	s.actionDock.locale = i18n.Locale()
-	onTypewriter := func() {
-		if s.Typewriter != nil {
-			s.Typewriter(!s.Toolbar.Typewriter)
-		}
-	}
-	s.actionDock.groups = []components.ActionGroup{
-		{
-			Key: "presentation", Label: locales.Presentation(),
-			Actions: []func(){
-				func() {
-					s.dockIcon("typewriter", locales.Typewriter(), s.Toolbar.Bindings.Typewriter, components.IconTypewriter,
-						s.Toolbar.Typewriter, s.Toolbar.TypewriterEnabled, onTypewriter)
-				},
+// dockGroups are the dock's own actions, after the page's tools: the
+// writing modes, drawn in c.
+func (s *State) dockGroups(c *ui.Context, semantic theme.Theme, animate bool) []components.ActionGroup {
+	typewriter := func() {
+		components.IconButton{
+			Key: "typewriter", Label: locales.Typewriter(), Binding: s.Toolbar.Bindings.Typewriter,
+			Icon:  components.IconTypewriter.SVG(),
+			Style: components.SubtleButton, Size: components.MediumButton,
+			Selected: s.Toolbar.Typewriter, Disabled: !s.Toolbar.TypewriterEnabled, Animate: animate,
+			IconColor: semantic.Icon.Muted, Action: func() {
+				if s.Typewriter != nil {
+					s.Typewriter(!s.Toolbar.Typewriter)
+				}
 			},
-		},
+		}.View(c, semantic)
 	}
+	return []components.ActionGroup{{Key: "presentation", Label: locales.Presentation(), Actions: []func(){typewriter}}}
 }
 
 func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32) {
 	animate := s.animate(c)
-	s.ensureDockGroups()
-	s.actionDock.ctx = c
-	s.actionDock.semantic = semantic
-	s.actionDock.animate = animate
 	var tools []components.ToolGroup
 	if s.Tools != nil {
 		tools = s.Tools()
 	}
 	components.ToolBar{
-		Key: "writing-actions", Label: locales.WritingActions(), Groups: tools, Extra: s.actionDock.groups,
+		Key: "writing-actions", Label: locales.WritingActions(), Groups: tools, Extra: s.dockGroups(c, semantic, animate),
 		Room: room, Animate: animate, Side: components.HintAbove, Open: &s.actionDock.open,
 		Settle: &s.actionDock.settle, Move: true,
 		Run: func(id string) {
@@ -83,7 +50,6 @@ func (s *State) formatBar(c *ui.Context, semantic theme.Theme, room float32) {
 			}
 		},
 	}.View(c, semantic)
-	s.actionDock.ctx = nil
 }
 
 // dock floats over the desk's foot: the writing actions, or a sheet's find
