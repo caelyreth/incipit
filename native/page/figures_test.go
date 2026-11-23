@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/profile"
 	"github.com/caelyreth/neverland/editor/vocab"
+	"github.com/egoist/mygo/ui"
 )
 
 // figurePage is "above", a figure of a 400×300 picture, and "below".
@@ -205,5 +206,59 @@ func TestMenusOfferWhatIsSelected(t *testing.T) {
 	tel, _ := tablePage(t, 2, 2, "a")
 	if got := tel.menuGroups(); len(got) == 0 || got[0][0] != "table.row-above" {
 		t.Fatalf("the keyboard menu in a cell offers %v, want the table's", got)
+	}
+}
+
+// The keys that take the caret into an empty caption mark the room under
+// the picture its line opens in, not the figure; in the caption, its hint
+// stands on the line's baseline, as the text typed will; and the keys that
+// take the caret out are gone as it arrives where they pointed.
+func TestAnEmptyCaptionsHintsStandWhereTheyAct(t *testing.T) {
+	el, _ := figurePage(t)
+	tt := ui.NewTester(el.View, 700, 520)
+	el.Focus()
+	el.Editor.Do(vocab.Move{Unit: vocab.ToSlotEdge, Dir: vocab.Backward}, time.Unix(300, 0))
+	tt.Frame()
+	tt.Advance(time.Second)
+	u := el.Editor.layout.units[1]
+	var into *guideShown
+	for _, g := range el.shownGuides() {
+		if g.offered && g.kind == spotOpening {
+			into = g
+		}
+	}
+	if into == nil {
+		t.Fatal("no guide marks where the caption opens")
+	}
+	if bottom := u.y + u.box.Y + u.box.H; into.to.Y != bottom || into.to.X != u.x+u.box.X+u.box.W/2 || into.align != ui.Center {
+		t.Fatalf("guide at %v (%v), want under the picture's middle at %v", into.to, into.align, bottom)
+	}
+
+	tt.Key(ui.Shift, ui.KeyTab)
+	tt.Advance(time.Second)
+	u = el.Editor.layout.units[1]
+	s := u.surfaces[0]
+	if !el.hinted(u) {
+		t.Fatal("the caret is not in the empty caption")
+	}
+	lay, _ := hintOf(u, el.Editor.theme, el.Editor.metrics)
+	line, _ := lineAt(s, s.caretRect(0))
+	if got := hintTop(s, lay) + lay.Lines()[0].Baseline; got != line.Baseline {
+		t.Fatalf("hint's baseline %v, line's %v", got, line.Baseline)
+	}
+	var out vocab.CommandID
+	for id, g := range el.shownGuides() {
+		if g.offered && g.kind == spotText {
+			out = id
+		}
+	}
+	if out == "" {
+		t.Fatal("no guide out of the caption")
+	}
+
+	tt.Key(0, ui.KeyTab)
+	tt.Frame()
+	if a := el.springs.value(guideKey(out, "shown", shareValue)); a != 0 {
+		t.Fatalf("the guide out still shows at %v where the caret arrived", a)
 	}
 }

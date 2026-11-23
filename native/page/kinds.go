@@ -164,7 +164,7 @@ func (figureKind) caretX(el *Element, u *unitLayout, s *surfaceLayout) (float32,
 	if !el.hinted(u) {
 		return 0, false
 	}
-	_, x, _ := hintOf(u, el.Editor.theme, el.Editor.metrics)
+	_, x := hintOf(u, el.Editor.theme, el.Editor.metrics)
 	return u.x + s.x + x, true
 }
 

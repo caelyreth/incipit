@@ -368,21 +368,39 @@ func (el *Element) paintFigure(p *ui.Painter, u *unitLayout, ux, uy float32, now
 	if r, ok := el.drag.(*figureResize); ok && r.node == u.pres.Unit {
 		el.paintResizeLabel(p, box, r.label())
 	}
-	if a := hinted; a > 0.001 && len(u.surfaces) > 0 {
+	if a := hinted * el.captionRoom(u); a > 0.001 {
 		s := u.surfaces[0]
-		span, x, _ := hintOf(u, el.Editor.theme, m)
-		span.Color = t.Text.Muted.Alpha(0.65 * a)
-		c := s.caretRect(0)
-		h := span.Size * 1.2
-		p.RichText(ux+s.x+x, uy+s.y+c.Y+(c.H-h)/2, 0, span)
+		lay, x := hintOf(u, el.Editor.theme, m)
+		paintText(p, lay, ux+s.x+x, uy+s.y+hintTop(s, lay), t.Text.Muted.Alpha(0.65*a))
 	}
+}
+
+// captionRoom is how far a figure's caption line stands open as drawn: 1
+// once open, on its way while its room springs open or closed, and 0 while
+// it takes no room. What is drawn in the line shows only as far, so
+// nothing of it stands over the line below gliding into the room it
+// leaves.
+func (el *Element) captionRoom(u *unitLayout) float32 {
+	if len(u.surfaces) == 0 {
+		return 0
+	}
+	if u.surfaces[0].shown {
+		return el.opened(u)
+	}
+	if prev, a := el.closing(u); prev != nil && len(prev.surfaces) > 0 && prev.surfaces[0].shown {
+		return a
+	}
+	return 0
 }
 
 // hintOf is an empty caption's hint and where it starts in its surface:
 // in the caption's alignment, the caret standing at its start as an empty
-// field's stands at its placeholder's.
-func hintOf(u *unitLayout, th present.Theme, m Metrics) (ui.Span, float32, float32) {
+// field's stands at its placeholder's. It has no color of its own but the
+// ink it is painted in: a span's color faded to nothing reads as none, and
+// would paint in the ink at full strength.
+func hintOf(u *unitLayout, th present.Theme, m Metrics) (*ui.TextLayout, float32) {
 	span := span(locales.CaptionHint(), th.Resolve([]vocab.Group{u.pres.Group}), m)
+	span.Color = ui.Color{}
 	lay := ui.ShapeRichTextWith([]ui.Span{span}, ui.Font{Family: span.Font, Size: span.Size, Weight: span.Weight, Italic: span.Italic}, ui.TextShape{})
 	w, _ := lay.Size()
 	x := u.surfaces[0].caretRect(0).X
@@ -392,7 +410,33 @@ func hintOf(u *unitLayout, th present.Theme, m Metrics) (ui.Span, float32, float
 	case profile.AlignEnd:
 		x -= w
 	}
-	return span, x, w
+	return lay, x
+}
+
+// hintTop is where a hint's layout stands in an empty surface: its
+// baseline on the line's, where the caret and the text typed stand.
+func hintTop(s *surfaceLayout, lay *ui.TextLayout) float32 {
+	line, ok := lineAt(s, s.caretRect(0))
+	hint := lay.Lines()
+	if !ok || len(hint) == 0 {
+		return 0
+	}
+	return line.Baseline - hint[0].Baseline
+}
+
+// captionOpening is where a figure's closed caption opens, in page
+// coordinates: the band under the picture, at the caption's caret, and the
+// caption's alignment.
+func (el *Element) captionOpening(u *unitLayout) (ui.Rect, ui.Align) {
+	s := u.surfaces[0]
+	align := ui.Start
+	switch u.figure.Align {
+	case profile.AlignCenter:
+		align = ui.Center
+	case profile.AlignEnd:
+		align = ui.End
+	}
+	return ui.Rect{X: u.x + s.x + s.caretRect(0).X, Y: u.y + u.box.Y + u.box.H, H: el.Editor.metrics.Gap}, align
 }
 
 // hinted reports whether a figure's caption shows its hint: it is empty,

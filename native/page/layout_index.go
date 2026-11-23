@@ -134,6 +134,9 @@ const (
 	// text shown, as in a closed card: it has no caret of its own there,
 	// and is the object, outlined.
 	spotObject
+	// spotOpening is a line an object opens under what it draws as the
+	// caret enters it, as a figure's empty caption: the band it opens in.
+	spotOpening
 	// spotRange is a range of the page: the rows what it covers stands
 	// in (span).
 	spotRange

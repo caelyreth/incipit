@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/caelyreth/neverland/app/keymap"
+	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/present"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -28,6 +29,10 @@ const (
 type guideShown struct {
 	kind spotKind
 	keys []string
+	// at is the place it marks, and align, for an opening, where its keys
+	// stand at it.
+	at    doc.Caret
+	align ui.Align
 	// to is where it goes, and head, for a range, its first row's height.
 	to   ui.Rect
 	head float32
@@ -77,6 +82,7 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 			continue
 		}
 		to, kind, head, from := ui.Rect{}, spotRange, float32(0), ui.Rect{}
+		align := ui.Start
 		if len(g.Covers) > 0 {
 			to, head, ok = pl.span(g.Covers)
 			from = to
@@ -88,7 +94,7 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 			pc, ok = pl.lookup(g.At)
 			if ok {
 				var r ui.Rect
-				r, _, ok = pl.spot(g.At)
+				r, _, _, ok = el.guideSpot(pl, g.At)
 				if ok {
 					cur := pc.unit.pres.Context.Indent
 					next := max(cur+g.Shift, 0)
@@ -98,7 +104,7 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 				}
 			}
 		} else {
-			to, kind, ok = pl.spot(g.At)
+			to, kind, align, ok = el.guideSpot(pl, g.At)
 			if !ok && g.After != 0 {
 				if u := pl.unitOf(g.After); u != nil {
 					to = ui.Rect{X: u.x + u.box.X, Y: u.bottom() + gapBarRoom - 1, W: u.box.W, H: 2}
@@ -121,7 +127,9 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 		}
 		t.keys = keymap.Keycaps(chord, keymap.PlatformCurrent)
 		t.to, t.head, t.offered = to, head, true
+		t.at, t.align = g.At, align
 	}
+	head := el.shownSelection().Head
 	for id, t := range shown {
 		target := float32(0)
 		if t.offered {
@@ -132,12 +140,34 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 			delete(shown, id)
 			continue
 		}
+		if !t.offered && !t.fading && t.kind != spotRange && t.at == head {
+			// The caret came where it pointed: it is done there, gone
+			// before the caret, and what moves in, stands.
+			el.springs.jump(key, 0)
+		}
 		t.fading = !t.offered
 		el.springs.follow(key, target, chromeFollow)
 		for k, v := range [...]float32{t.to.X, t.to.Y, t.to.W, t.to.H, t.head} {
 			el.springs.follow(guideKey(id, guidePlaces[k], placeValue), v, placeFollow)
 		}
 	}
+}
+
+// guideSpot is where a guide marks a place in its own shape: a caret in
+// text as the caret stands there; a figure's closed caption where its line
+// opens, which the caret entering opens; else as the place is.
+func (el *Element) guideSpot(pl *pageLayout, at doc.Caret) (ui.Rect, spotKind, ui.Align, bool) {
+	cm, ok := pl.spotMetrics(at)
+	if !ok {
+		return ui.Rect{}, 0, ui.Start, false
+	}
+	if cm.kind == spotObject {
+		if pc, ok := pl.lookup(at); ok && pc.unit.figure != nil && pc.surface != nil {
+			r, align := el.captionOpening(pc.unit)
+			return r, spotOpening, align, true
+		}
+	}
+	return el.caretShape(cm), cm.kind, ui.Start, true
 }
 
 // systemChord is the platform's key for a command the platform runs, which
@@ -164,13 +194,16 @@ func selectionCovers(paints []present.Paint) []present.Cover {
 // paintGuides draws each guide where its command acts, as that place is
 // drawn, its keys on the compact caps the Keymap draws, clear of it:
 //
-//   - at a caret in text, a hairline as tall as the caret, the keys riding
+//   - at a caret in text, a hairline where the caret would stand, the keys riding
 //     just above it, clear of the glyphs that follow;
 //   - at a gap, a hairline across the object's edge as its caret is, the
 //     keys at its start on the side away from the object;
 //   - inside what an object draws, the outline every paint draws around
 //     an object, the keys centered above it, or below where the view
 //     leaves no room;
+//   - at a line an object opens as the caret enters it, as a figure's
+//     empty caption, the keys alone in the band it opens in, where its
+//     text would start;
 //   - over a range, a bracket in the margin beside the rows it covers,
 //     never in the column, so it cannot read as a selection
 //     (paintBracket).
@@ -217,6 +250,14 @@ func (el *Element) paintGuides(p *ui.Painter, view ui.Rect, ox, oy float32) {
 			left, top = r.X+r.W/2-width/2, r.Y-style.Height-2
 			if top < view.Y {
 				top = r.Y + r.H + 2
+			}
+		case spotOpening:
+			left, top = r.X, r.Y+(r.H-style.Height)/2
+			switch t.align {
+			case ui.Center:
+				left -= width / 2
+			case ui.End:
+				left -= width
 			}
 		case spotGapBefore, spotGapAfter:
 			p.Fill(ui.Rect{X: r.X, Y: r.Y + r.H/2, W: r.W, H: 1}, mark, 0)
