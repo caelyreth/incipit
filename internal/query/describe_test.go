@@ -47,7 +47,7 @@ func TestAConditionIsSaidWhole(t *testing.T) {
 		"-$inbox":        "Not in the Inbox",
 		"$trash":         "In the trash",
 		"$has:":          "Content has …",
-		"-$has:image":    "Content has no image",
+		"-$has:image":    "Content has no pictures",
 		"$link:x.com":    "Links to x.com",
 		"$sort:-updated": "Sorted by updated, newest first",
 	} {

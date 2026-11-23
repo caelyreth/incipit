@@ -2,6 +2,7 @@ package page
 
 import (
 	"github.com/caelyreth/neverland/editor/present"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -39,12 +40,41 @@ func (el *Element) accessUnits(c *ui.Context) {
 		height := max(u.h, 1)
 		node := ui.Box(c).Key(u.accessKey).Absolute().
 			Left(el.column + u.x).Top(top + u.y).Width(width).Height(height).
-			Role(role).Label(p.Label()).Value(p.Value()).RoleDescription(description).
+			Role(role).Label(accessName(p)).Value(p.Value()).RoleDescription(description).
 			IgnoreInput(true)
 		if p.Level > 0 {
 			node.Level(p.Level)
 		}
 	}
+}
+
+// accessName is what assistive technology calls a unit: its words, or,
+// with none, its role's name.
+func accessName(p *present.Presentation) string {
+	if label := p.Label(); label != "" {
+		return label
+	}
+	switch p.Role {
+	case "heading":
+		return locales.RoleHeading()
+	case "listitem":
+		return locales.RoleListItem()
+	case "code":
+		return locales.RoleCode()
+	case "math":
+		return locales.RoleMath()
+	case "separator":
+		return locales.RoleSeparator()
+	case "figure":
+		return locales.RoleFigure()
+	case "table":
+		return locales.RoleTable()
+	case "cell":
+		return locales.RoleCell()
+	case "columnheader":
+		return locales.RoleColumnHeader()
+	}
+	return locales.RoleParagraph()
 }
 
 // accessRole is a presentation role's platform role and the app's name
@@ -56,9 +86,9 @@ func accessRole(p *present.Presentation) (ui.Role, string) {
 	case "listitem":
 		return ui.RoleListItem, ""
 	case "code":
-		return ui.RoleText, "code"
+		return ui.RoleText, locales.DescribeCode()
 	case "math":
-		return ui.RoleText, "math"
+		return ui.RoleText, locales.DescribeMath()
 	case "separator":
 		return ui.RoleSeparator, ""
 	case "figure":

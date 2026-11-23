@@ -280,7 +280,7 @@ func (s *State) listGroup(f *found, g GroupItem, path []string, trashed bool) {
 		f.add("new:"+g.ID, tierResult, block{group: &g, create: true})
 	}
 	for _, inner := range s.groups(g.ID) {
-		s.listGroup(f, inner, append(slices.Clone(path), g.Name), trashed)
+		s.listGroup(f, inner, append(slices.Clone(path), g.Title()), trashed)
 	}
 }
 
@@ -348,12 +348,22 @@ func sortStep(by string, sh SheetItem, now time.Time) string {
 	case "words":
 		for _, v := range query.CountPresets {
 			if n, ok := query.ParseCounts(v); ok && n.Contains(sh.Words) {
-				d := query.Describe(mustKey("words"), v)
-				return strings.ToUpper(d[:1]) + d[1:] + " words"
+				return lengthStep(n)
 			}
 		}
 	}
 	return ""
+}
+
+// lengthStep says a span of lengths, as $words offers them.
+func lengthStep(n query.Counts) string {
+	switch {
+	case !n.HasMin:
+		return locales.LengthUnder(thousands(n.Max + 1))
+	case !n.HasMax:
+		return locales.LengthOver(thousands(n.Min))
+	}
+	return locales.LengthBetween(thousands(n.Min), thousands(n.Max))
 }
 
 // listWide are the cards of a list that stand across it, its dividers,

@@ -7852,3 +7852,2715 @@ func CommandsToggleMathDialect() string { return In(i18n.Locale()).CommandsToggl
 func (msgs Messages) CommandsToggleMathDialect() string {
 	return Catalog.Format(msgs.locale, "commandsToggleMathDialect", nil)
 }
+
+// UnitCommands says "{count, plural, one {command} other {commands}}"
+// in the language the app shows.
+//
+// The unit after the count of commands found, beside the search, as 12
+// commands; the count stands before it on its own.
+func UnitCommands(count int) string { return In(i18n.Locale()).UnitCommands(count) }
+
+// UnitCommands says "{count, plural, one {command} other {commands}}"
+// in the language of msgs.
+//
+// The unit after the count of commands found, beside the search, as 12
+// commands; the count stands before it on its own.
+func (msgs Messages) UnitCommands(count int) string {
+	return Catalog.Format(msgs.locale, "unitCommands", map[string]any{"count": count})
+}
+
+// UnitSections says "{count, plural, one {section} other {sections}}"
+// in the language the app shows.
+//
+// The unit after the count of settings sections found, beside the search.
+func UnitSections(count int) string { return In(i18n.Locale()).UnitSections(count) }
+
+// UnitSections says "{count, plural, one {section} other {sections}}"
+// in the language of msgs.
+//
+// The unit after the count of settings sections found, beside the search.
+func (msgs Messages) UnitSections(count int) string {
+	return Catalog.Format(msgs.locale, "unitSections", map[string]any{"count": count})
+}
+
+// UnitSheets says "{count, plural, one {sheet} other {sheets}}"
+// in the language the app shows.
+//
+// The unit after the count of sheets found, beside the search.
+func UnitSheets(count int) string { return In(i18n.Locale()).UnitSheets(count) }
+
+// UnitSheets says "{count, plural, one {sheet} other {sheets}}"
+// in the language of msgs.
+//
+// The unit after the count of sheets found, beside the search.
+func (msgs Messages) UnitSheets(count int) string {
+	return Catalog.Format(msgs.locale, "unitSheets", map[string]any{"count": count})
+}
+
+// UnitWords says "{count, plural, one {word} other {words}}"
+// in the language the app shows.
+//
+// The unit after the count of words in the sheets found, beside the search.
+func UnitWords(count int) string { return In(i18n.Locale()).UnitWords(count) }
+
+// UnitWords says "{count, plural, one {word} other {words}}"
+// in the language of msgs.
+//
+// The unit after the count of words in the sheets found, beside the search.
+func (msgs Messages) UnitWords(count int) string {
+	return Catalog.Format(msgs.locale, "unitWords", map[string]any{"count": count})
+}
+
+// Search says "Search"
+// in the language the app shows.
+//
+// Assistive technology: the search field.
+func Search() string { return In(i18n.Locale()).Search() }
+
+// Search says "Search"
+// in the language of msgs.
+//
+// Assistive technology: the search field.
+func (msgs Messages) Search() string {
+	return Catalog.Format(msgs.locale, "search", nil)
+}
+
+// SearchSettings says "Search Settings"
+// in the language the app shows.
+//
+// The search field, while empty, in Settings.
+func SearchSettings() string { return In(i18n.Locale()).SearchSettings() }
+
+// SearchSettings says "Search Settings"
+// in the language of msgs.
+//
+// The search field, while empty, in Settings.
+func (msgs Messages) SearchSettings() string {
+	return Catalog.Format(msgs.locale, "searchSettings", nil)
+}
+
+// SearchCommands says "Search Commands"
+// in the language the app shows.
+//
+// The search field, while empty, among the commands.
+func SearchCommands() string { return In(i18n.Locale()).SearchCommands() }
+
+// SearchCommands says "Search Commands"
+// in the language of msgs.
+//
+// The search field, while empty, among the commands.
+func (msgs Messages) SearchCommands() string {
+	return Catalog.Format(msgs.locale, "searchCommands", nil)
+}
+
+// SearchTrash says "Search the Trash"
+// in the language the app shows.
+//
+// The search field, while empty, in the Trash.
+func SearchTrash() string { return In(i18n.Locale()).SearchTrash() }
+
+// SearchTrash says "Search the Trash"
+// in the language of msgs.
+//
+// The search field, while empty, in the Trash.
+func (msgs Messages) SearchTrash() string {
+	return Catalog.Format(msgs.locale, "searchTrash", nil)
+}
+
+// SearchGroup says "Search {group}"
+// in the language the app shows.
+//
+// The search field, while empty, in a group.
+func SearchGroup(group string) string { return In(i18n.Locale()).SearchGroup(group) }
+
+// SearchGroup says "Search {group}"
+// in the language of msgs.
+//
+// The search field, while empty, in a group.
+func (msgs Messages) SearchGroup(group string) string {
+	return Catalog.Format(msgs.locale, "searchGroup", map[string]any{"group": group})
+}
+
+// SearchAllSheets says "Search All Sheets"
+// in the language the app shows.
+//
+// The search field, while empty.
+func SearchAllSheets() string { return In(i18n.Locale()).SearchAllSheets() }
+
+// SearchAllSheets says "Search All Sheets"
+// in the language of msgs.
+//
+// The search field, while empty.
+func (msgs Messages) SearchAllSheets() string {
+	return Catalog.Format(msgs.locale, "searchAllSheets", nil)
+}
+
+// QueryTag says "Tag"
+// in the language the app shows.
+//
+// A filter of the search: $tag, the sheets with a tag.
+func QueryTag() string { return In(i18n.Locale()).QueryTag() }
+
+// QueryTag says "Tag"
+// in the language of msgs.
+//
+// A filter of the search: $tag, the sheets with a tag.
+func (msgs Messages) QueryTag() string {
+	return Catalog.Format(msgs.locale, "queryTag", nil)
+}
+
+// QueryTagIs says "{not, select, yes {Tag is not {value}} other {Tag is {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole; not is yes where it leaves out what
+// it names, and value is what it names, as “work”.
+func QueryTagIs(not string, value string) string { return In(i18n.Locale()).QueryTagIs(not, value) }
+
+// QueryTagIs says "{not, select, yes {Tag is not {value}} other {Tag is {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole; not is yes where it leaves out what
+// it names, and value is what it names, as “work”.
+func (msgs Messages) QueryTagIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryTagIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryTagHelp says "Sheets with a tag; $tag:none for sheets with none"
+// in the language the app shows.
+//
+// What the filter $tag finds, in the search's suggestions; keep $tag:none
+// as written.
+func QueryTagHelp() string { return In(i18n.Locale()).QueryTagHelp() }
+
+// QueryTagHelp says "Sheets with a tag; $tag:none for sheets with none"
+// in the language of msgs.
+//
+// What the filter $tag finds, in the search's suggestions; keep $tag:none
+// as written.
+func (msgs Messages) QueryTagHelp() string {
+	return Catalog.Format(msgs.locale, "queryTagHelp", nil)
+}
+
+// QueryIn says "Group"
+// in the language the app shows.
+//
+// A filter of the search: $in, the sheets in a group.
+func QueryIn() string { return In(i18n.Locale()).QueryIn() }
+
+// QueryIn says "Group"
+// in the language of msgs.
+//
+// A filter of the search: $in, the sheets in a group.
+func (msgs Messages) QueryIn() string {
+	return Catalog.Format(msgs.locale, "queryIn", nil)
+}
+
+// QueryInIs says "{not, select, yes {Group is not {value}} other {Group is {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole; not is yes where it leaves out what
+// it names.
+func QueryInIs(not string, value string) string { return In(i18n.Locale()).QueryInIs(not, value) }
+
+// QueryInIs says "{not, select, yes {Group is not {value}} other {Group is {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole; not is yes where it leaves out what
+// it names.
+func (msgs Messages) QueryInIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryInIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryInHelp says "Sheets in a group or the groups inside it"
+// in the language the app shows.
+//
+// What the filter $in finds, in the search's suggestions.
+func QueryInHelp() string { return In(i18n.Locale()).QueryInHelp() }
+
+// QueryInHelp says "Sheets in a group or the groups inside it"
+// in the language of msgs.
+//
+// What the filter $in finds, in the search's suggestions.
+func (msgs Messages) QueryInHelp() string {
+	return Catalog.Format(msgs.locale, "queryInHelp", nil)
+}
+
+// QueryUpdated says "Updated"
+// in the language the app shows.
+//
+// A filter of the search: $updated, when sheets were changed.
+func QueryUpdated() string { return In(i18n.Locale()).QueryUpdated() }
+
+// QueryUpdated says "Updated"
+// in the language of msgs.
+//
+// A filter of the search: $updated, when sheets were changed.
+func (msgs Messages) QueryUpdated() string {
+	return Catalog.Format(msgs.locale, "queryUpdated", nil)
+}
+
+// QueryUpdatedIs says "{not, select, yes {Updated not {value}} other {Updated {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole; value is a time said in words, as
+// “in the last 7 days”.
+func QueryUpdatedIs(not string, value string) string {
+	return In(i18n.Locale()).QueryUpdatedIs(not, value)
+}
+
+// QueryUpdatedIs says "{not, select, yes {Updated not {value}} other {Updated {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole; value is a time said in words, as
+// “in the last 7 days”.
+func (msgs Messages) QueryUpdatedIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryUpdatedIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryUpdatedHelp says "Sheets changed then: today, 7d, 2026-11, >2026-01-01"
+// in the language the app shows.
+//
+// What the filter $updated finds, in the search's suggestions; keep the
+// examples as written.
+func QueryUpdatedHelp() string { return In(i18n.Locale()).QueryUpdatedHelp() }
+
+// QueryUpdatedHelp says "Sheets changed then: today, 7d, 2026-11, >2026-01-01"
+// in the language of msgs.
+//
+// What the filter $updated finds, in the search's suggestions; keep the
+// examples as written.
+func (msgs Messages) QueryUpdatedHelp() string {
+	return Catalog.Format(msgs.locale, "queryUpdatedHelp", nil)
+}
+
+// QueryDateHelp says "Same as $updated"
+// in the language the app shows.
+//
+// What the filter $date finds, in the search's suggestions.
+func QueryDateHelp() string { return In(i18n.Locale()).QueryDateHelp() }
+
+// QueryDateHelp says "Same as $updated"
+// in the language of msgs.
+//
+// What the filter $date finds, in the search's suggestions.
+func (msgs Messages) QueryDateHelp() string {
+	return Catalog.Format(msgs.locale, "queryDateHelp", nil)
+}
+
+// QueryCreated says "Created"
+// in the language the app shows.
+//
+// A filter of the search: $created, when sheets were made.
+func QueryCreated() string { return In(i18n.Locale()).QueryCreated() }
+
+// QueryCreated says "Created"
+// in the language of msgs.
+//
+// A filter of the search: $created, when sheets were made.
+func (msgs Messages) QueryCreated() string {
+	return Catalog.Format(msgs.locale, "queryCreated", nil)
+}
+
+// QueryCreatedIs says "{not, select, yes {Created not {value}} other {Created {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole; value is a time said in words.
+func QueryCreatedIs(not string, value string) string {
+	return In(i18n.Locale()).QueryCreatedIs(not, value)
+}
+
+// QueryCreatedIs says "{not, select, yes {Created not {value}} other {Created {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole; value is a time said in words.
+func (msgs Messages) QueryCreatedIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryCreatedIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryCreatedHelp says "Sheets made then"
+// in the language the app shows.
+//
+// What the filter $created finds, in the search's suggestions.
+func QueryCreatedHelp() string { return In(i18n.Locale()).QueryCreatedHelp() }
+
+// QueryCreatedHelp says "Sheets made then"
+// in the language of msgs.
+//
+// What the filter $created finds, in the search's suggestions.
+func (msgs Messages) QueryCreatedHelp() string {
+	return Catalog.Format(msgs.locale, "queryCreatedHelp", nil)
+}
+
+// QueryWords says "Words"
+// in the language the app shows.
+//
+// A filter of the search: $words, how long sheets are.
+func QueryWords() string { return In(i18n.Locale()).QueryWords() }
+
+// QueryWords says "Words"
+// in the language of msgs.
+//
+// A filter of the search: $words, how long sheets are.
+func (msgs Messages) QueryWords() string {
+	return Catalog.Format(msgs.locale, "queryWords", nil)
+}
+
+// QueryWordsIs says "{not, select, yes {Words not {value}} other {Words {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole; value is a count said in words, as
+// “fewer than 100”.
+func QueryWordsIs(not string, value string) string { return In(i18n.Locale()).QueryWordsIs(not, value) }
+
+// QueryWordsIs says "{not, select, yes {Words not {value}} other {Words {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole; value is a count said in words, as
+// “fewer than 100”.
+func (msgs Messages) QueryWordsIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryWordsIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryWordsHelp says "Sheets of a length: 500 (at least), <100, 100..500"
+// in the language the app shows.
+//
+// What the filter $words finds, in the search's suggestions; keep the
+// examples as written.
+func QueryWordsHelp() string { return In(i18n.Locale()).QueryWordsHelp() }
+
+// QueryWordsHelp says "Sheets of a length: 500 (at least), <100, 100..500"
+// in the language of msgs.
+//
+// What the filter $words finds, in the search's suggestions; keep the
+// examples as written.
+func (msgs Messages) QueryWordsHelp() string {
+	return Catalog.Format(msgs.locale, "queryWordsHelp", nil)
+}
+
+// QueryTitle says "Title"
+// in the language the app shows.
+//
+// A filter of the search: $title, words in sheets' titles.
+func QueryTitle() string { return In(i18n.Locale()).QueryTitle() }
+
+// QueryTitle says "Title"
+// in the language of msgs.
+//
+// A filter of the search: $title, words in sheets' titles.
+func (msgs Messages) QueryTitle() string {
+	return Catalog.Format(msgs.locale, "queryTitle", nil)
+}
+
+// QueryTitleIs says "{not, select, yes {Title doesn’t have {value}} other {Title has {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole.
+func QueryTitleIs(not string, value string) string { return In(i18n.Locale()).QueryTitleIs(not, value) }
+
+// QueryTitleIs says "{not, select, yes {Title doesn’t have {value}} other {Title has {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole.
+func (msgs Messages) QueryTitleIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryTitleIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryTitleHelp says "Words in the title"
+// in the language the app shows.
+//
+// What the filter $title finds, in the search's suggestions.
+func QueryTitleHelp() string { return In(i18n.Locale()).QueryTitleHelp() }
+
+// QueryTitleHelp says "Words in the title"
+// in the language of msgs.
+//
+// What the filter $title finds, in the search's suggestions.
+func (msgs Messages) QueryTitleHelp() string {
+	return Catalog.Format(msgs.locale, "queryTitleHelp", nil)
+}
+
+// QueryHeading says "Heading"
+// in the language the app shows.
+//
+// A filter of the search: $heading, words in headings.
+func QueryHeading() string { return In(i18n.Locale()).QueryHeading() }
+
+// QueryHeading says "Heading"
+// in the language of msgs.
+//
+// A filter of the search: $heading, words in headings.
+func (msgs Messages) QueryHeading() string {
+	return Catalog.Format(msgs.locale, "queryHeading", nil)
+}
+
+// QueryHeadingIs says "{not, select, yes {Heading doesn’t have {value}} other {Heading has {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole.
+func QueryHeadingIs(not string, value string) string {
+	return In(i18n.Locale()).QueryHeadingIs(not, value)
+}
+
+// QueryHeadingIs says "{not, select, yes {Heading doesn’t have {value}} other {Heading has {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole.
+func (msgs Messages) QueryHeadingIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryHeadingIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryHeadingHelp says "Words in a heading"
+// in the language the app shows.
+//
+// What the filter $heading finds, in the search's suggestions.
+func QueryHeadingHelp() string { return In(i18n.Locale()).QueryHeadingHelp() }
+
+// QueryHeadingHelp says "Words in a heading"
+// in the language of msgs.
+//
+// What the filter $heading finds, in the search's suggestions.
+func (msgs Messages) QueryHeadingHelp() string {
+	return Catalog.Format(msgs.locale, "queryHeadingHelp", nil)
+}
+
+// QueryCode says "Code"
+// in the language the app shows.
+//
+// A filter of the search: $code, words in code.
+func QueryCode() string { return In(i18n.Locale()).QueryCode() }
+
+// QueryCode says "Code"
+// in the language of msgs.
+//
+// A filter of the search: $code, words in code.
+func (msgs Messages) QueryCode() string {
+	return Catalog.Format(msgs.locale, "queryCode", nil)
+}
+
+// QueryCodeIs says "{not, select, yes {Code doesn’t have {value}} other {Code has {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole.
+func QueryCodeIs(not string, value string) string { return In(i18n.Locale()).QueryCodeIs(not, value) }
+
+// QueryCodeIs says "{not, select, yes {Code doesn’t have {value}} other {Code has {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole.
+func (msgs Messages) QueryCodeIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryCodeIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryCodeHelp says "Words in code"
+// in the language the app shows.
+//
+// What the filter $code finds, in the search's suggestions.
+func QueryCodeHelp() string { return In(i18n.Locale()).QueryCodeHelp() }
+
+// QueryCodeHelp says "Words in code"
+// in the language of msgs.
+//
+// What the filter $code finds, in the search's suggestions.
+func (msgs Messages) QueryCodeHelp() string {
+	return Catalog.Format(msgs.locale, "queryCodeHelp", nil)
+}
+
+// QueryQuote says "Quote"
+// in the language the app shows.
+//
+// A filter of the search: $quote, words in quotes.
+func QueryQuote() string { return In(i18n.Locale()).QueryQuote() }
+
+// QueryQuote says "Quote"
+// in the language of msgs.
+//
+// A filter of the search: $quote, words in quotes.
+func (msgs Messages) QueryQuote() string {
+	return Catalog.Format(msgs.locale, "queryQuote", nil)
+}
+
+// QueryQuoteIs says "{not, select, yes {Quote doesn’t have {value}} other {Quote has {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole.
+func QueryQuoteIs(not string, value string) string { return In(i18n.Locale()).QueryQuoteIs(not, value) }
+
+// QueryQuoteIs says "{not, select, yes {Quote doesn’t have {value}} other {Quote has {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole.
+func (msgs Messages) QueryQuoteIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryQuoteIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryQuoteHelp says "Words in a quote"
+// in the language the app shows.
+//
+// What the filter $quote finds, in the search's suggestions.
+func QueryQuoteHelp() string { return In(i18n.Locale()).QueryQuoteHelp() }
+
+// QueryQuoteHelp says "Words in a quote"
+// in the language of msgs.
+//
+// What the filter $quote finds, in the search's suggestions.
+func (msgs Messages) QueryQuoteHelp() string {
+	return Catalog.Format(msgs.locale, "queryQuoteHelp", nil)
+}
+
+// QueryHas says "Content"
+// in the language the app shows.
+//
+// A filter of the search: $has, sheets holding a kind of thing.
+func QueryHas() string { return In(i18n.Locale()).QueryHas() }
+
+// QueryHas says "Content"
+// in the language of msgs.
+//
+// A filter of the search: $has, sheets holding a kind of thing.
+func (msgs Messages) QueryHas() string {
+	return Catalog.Format(msgs.locale, "queryHas", nil)
+}
+
+// QueryHasIs says "{not, select, yes {Content has no {value}} other {Content has {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole; value is a kind of thing, as
+// pictures.
+func QueryHasIs(not string, value string) string { return In(i18n.Locale()).QueryHasIs(not, value) }
+
+// QueryHasIs says "{not, select, yes {Content has no {value}} other {Content has {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole; value is a kind of thing, as
+// pictures.
+func (msgs Messages) QueryHasIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryHasIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryHasHelp says "Sheets holding a kind of thing"
+// in the language the app shows.
+//
+// What the filter $has finds, in the search's suggestions.
+func QueryHasHelp() string { return In(i18n.Locale()).QueryHasHelp() }
+
+// QueryHasHelp says "Sheets holding a kind of thing"
+// in the language of msgs.
+//
+// What the filter $has finds, in the search's suggestions.
+func (msgs Messages) QueryHasHelp() string {
+	return Catalog.Format(msgs.locale, "queryHasHelp", nil)
+}
+
+// QueryTask says "Task"
+// in the language the app shows.
+//
+// A filter of the search: $task, sheets with tasks.
+func QueryTask() string { return In(i18n.Locale()).QueryTask() }
+
+// QueryTask says "Task"
+// in the language of msgs.
+//
+// A filter of the search: $task, sheets with tasks.
+func (msgs Messages) QueryTask() string {
+	return Catalog.Format(msgs.locale, "queryTask", nil)
+}
+
+// QueryTaskIs says "{not, select, yes {Task doesn’t have {value}} other {Task has {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole.
+func QueryTaskIs(not string, value string) string { return In(i18n.Locale()).QueryTaskIs(not, value) }
+
+// QueryTaskIs says "{not, select, yes {Task doesn’t have {value}} other {Task has {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole.
+func (msgs Messages) QueryTaskIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryTaskIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryTaskAlone says "{not, select, yes {No task} other {Task}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole, with no words: sheets with a task, or
+// with none.
+func QueryTaskAlone(not string) string { return In(i18n.Locale()).QueryTaskAlone(not) }
+
+// QueryTaskAlone says "{not, select, yes {No task} other {Task}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole, with no words: sheets with a task, or
+// with none.
+func (msgs Messages) QueryTaskAlone(not string) string {
+	return Catalog.Format(msgs.locale, "queryTaskAlone", map[string]any{"not": not})
+}
+
+// QueryTaskHelp says "Sheets with a task; $task:words, a task holding them"
+// in the language the app shows.
+//
+// What the filter $task finds, in the search's suggestions; keep
+// $task:words as written.
+func QueryTaskHelp() string { return In(i18n.Locale()).QueryTaskHelp() }
+
+// QueryTaskHelp says "Sheets with a task; $task:words, a task holding them"
+// in the language of msgs.
+//
+// What the filter $task finds, in the search's suggestions; keep
+// $task:words as written.
+func (msgs Messages) QueryTaskHelp() string {
+	return Catalog.Format(msgs.locale, "queryTaskHelp", nil)
+}
+
+// QueryTodo says "Open task"
+// in the language the app shows.
+//
+// A filter of the search: $todo, sheets with open tasks.
+func QueryTodo() string { return In(i18n.Locale()).QueryTodo() }
+
+// QueryTodo says "Open task"
+// in the language of msgs.
+//
+// A filter of the search: $todo, sheets with open tasks.
+func (msgs Messages) QueryTodo() string {
+	return Catalog.Format(msgs.locale, "queryTodo", nil)
+}
+
+// QueryTodoIs says "{not, select, yes {Open task doesn’t have {value}} other {Open task has {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole.
+func QueryTodoIs(not string, value string) string { return In(i18n.Locale()).QueryTodoIs(not, value) }
+
+// QueryTodoIs says "{not, select, yes {Open task doesn’t have {value}} other {Open task has {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole.
+func (msgs Messages) QueryTodoIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryTodoIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryTodoAlone says "{not, select, yes {No open task} other {Open task}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole, with no words.
+func QueryTodoAlone(not string) string { return In(i18n.Locale()).QueryTodoAlone(not) }
+
+// QueryTodoAlone says "{not, select, yes {No open task} other {Open task}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole, with no words.
+func (msgs Messages) QueryTodoAlone(not string) string {
+	return Catalog.Format(msgs.locale, "queryTodoAlone", map[string]any{"not": not})
+}
+
+// QueryTodoHelp says "Sheets with an open task; $todo:words, an open task holding them"
+// in the language the app shows.
+//
+// What the filter $todo finds, in the search's suggestions; keep
+// $todo:words as written.
+func QueryTodoHelp() string { return In(i18n.Locale()).QueryTodoHelp() }
+
+// QueryTodoHelp says "Sheets with an open task; $todo:words, an open task holding them"
+// in the language of msgs.
+//
+// What the filter $todo finds, in the search's suggestions; keep
+// $todo:words as written.
+func (msgs Messages) QueryTodoHelp() string {
+	return Catalog.Format(msgs.locale, "queryTodoHelp", nil)
+}
+
+// QueryDone says "Done task"
+// in the language the app shows.
+//
+// A filter of the search: $done, sheets with done tasks.
+func QueryDone() string { return In(i18n.Locale()).QueryDone() }
+
+// QueryDone says "Done task"
+// in the language of msgs.
+//
+// A filter of the search: $done, sheets with done tasks.
+func (msgs Messages) QueryDone() string {
+	return Catalog.Format(msgs.locale, "queryDone", nil)
+}
+
+// QueryDoneIs says "{not, select, yes {Done task doesn’t have {value}} other {Done task has {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole.
+func QueryDoneIs(not string, value string) string { return In(i18n.Locale()).QueryDoneIs(not, value) }
+
+// QueryDoneIs says "{not, select, yes {Done task doesn’t have {value}} other {Done task has {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole.
+func (msgs Messages) QueryDoneIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryDoneIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryDoneAlone says "{not, select, yes {No done task} other {Done task}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole, with no words.
+func QueryDoneAlone(not string) string { return In(i18n.Locale()).QueryDoneAlone(not) }
+
+// QueryDoneAlone says "{not, select, yes {No done task} other {Done task}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole, with no words.
+func (msgs Messages) QueryDoneAlone(not string) string {
+	return Catalog.Format(msgs.locale, "queryDoneAlone", map[string]any{"not": not})
+}
+
+// QueryDoneHelp says "Sheets with a done task; $done:words, a done task holding them"
+// in the language the app shows.
+//
+// What the filter $done finds, in the search's suggestions; keep
+// $done:words as written.
+func QueryDoneHelp() string { return In(i18n.Locale()).QueryDoneHelp() }
+
+// QueryDoneHelp says "Sheets with a done task; $done:words, a done task holding them"
+// in the language of msgs.
+//
+// What the filter $done finds, in the search's suggestions; keep
+// $done:words as written.
+func (msgs Messages) QueryDoneHelp() string {
+	return Catalog.Format(msgs.locale, "queryDoneHelp", nil)
+}
+
+// QueryLink says "Links"
+// in the language the app shows.
+//
+// A filter of the search: $link, sheets linking to a site.
+func QueryLink() string { return In(i18n.Locale()).QueryLink() }
+
+// QueryLink says "Links"
+// in the language of msgs.
+//
+// A filter of the search: $link, sheets linking to a site.
+func (msgs Messages) QueryLink() string {
+	return Catalog.Format(msgs.locale, "queryLink", nil)
+}
+
+// QueryLinkIs says "{not, select, yes {Links not to {value}} other {Links to {value}}}"
+// in the language the app shows.
+//
+// A filter of the search, said whole; value is a site, as github.com.
+func QueryLinkIs(not string, value string) string { return In(i18n.Locale()).QueryLinkIs(not, value) }
+
+// QueryLinkIs says "{not, select, yes {Links not to {value}} other {Links to {value}}}"
+// in the language of msgs.
+//
+// A filter of the search, said whole; value is a site, as github.com.
+func (msgs Messages) QueryLinkIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryLinkIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryLinkHelp says "Links to a site, as $link:github.com"
+// in the language the app shows.
+//
+// What the filter $link finds, in the search's suggestions; keep
+// $link:github.com as written.
+func QueryLinkHelp() string { return In(i18n.Locale()).QueryLinkHelp() }
+
+// QueryLinkHelp says "Links to a site, as $link:github.com"
+// in the language of msgs.
+//
+// What the filter $link finds, in the search's suggestions; keep
+// $link:github.com as written.
+func (msgs Messages) QueryLinkHelp() string {
+	return Catalog.Format(msgs.locale, "queryLinkHelp", nil)
+}
+
+// QueryInbox says "{not, select, yes {Not in the Inbox} other {In the Inbox}}"
+// in the language the app shows.
+//
+// A filter of the search: $inbox, the sheets in the Inbox, or not.
+func QueryInbox(not string) string { return In(i18n.Locale()).QueryInbox(not) }
+
+// QueryInbox says "{not, select, yes {Not in the Inbox} other {In the Inbox}}"
+// in the language of msgs.
+//
+// A filter of the search: $inbox, the sheets in the Inbox, or not.
+func (msgs Messages) QueryInbox(not string) string {
+	return Catalog.Format(msgs.locale, "queryInbox", map[string]any{"not": not})
+}
+
+// QueryInboxHelp says "Sheets in the Inbox"
+// in the language the app shows.
+//
+// What the filter $inbox finds, in the search's suggestions.
+func QueryInboxHelp() string { return In(i18n.Locale()).QueryInboxHelp() }
+
+// QueryInboxHelp says "Sheets in the Inbox"
+// in the language of msgs.
+//
+// What the filter $inbox finds, in the search's suggestions.
+func (msgs Messages) QueryInboxHelp() string {
+	return Catalog.Format(msgs.locale, "queryInboxHelp", nil)
+}
+
+// QueryTrash says "In the trash"
+// in the language the app shows.
+//
+// A filter of the search: $trash, the sheets in the Trash.
+func QueryTrash() string { return In(i18n.Locale()).QueryTrash() }
+
+// QueryTrash says "In the trash"
+// in the language of msgs.
+//
+// A filter of the search: $trash, the sheets in the Trash.
+func (msgs Messages) QueryTrash() string {
+	return Catalog.Format(msgs.locale, "queryTrash", nil)
+}
+
+// QueryTrashHelp says "Sheets in the trash"
+// in the language the app shows.
+//
+// What the filter $trash finds, in the search's suggestions.
+func QueryTrashHelp() string { return In(i18n.Locale()).QueryTrashHelp() }
+
+// QueryTrashHelp says "Sheets in the trash"
+// in the language of msgs.
+//
+// What the filter $trash finds, in the search's suggestions.
+func (msgs Messages) QueryTrashHelp() string {
+	return Catalog.Format(msgs.locale, "queryTrashHelp", nil)
+}
+
+// QueryOpen says "{not, select, yes {Not open in a tab} other {Open in a tab}}"
+// in the language the app shows.
+//
+// A filter of the search: $open, the sheets open on the desk, or not.
+func QueryOpen(not string) string { return In(i18n.Locale()).QueryOpen(not) }
+
+// QueryOpen says "{not, select, yes {Not open in a tab} other {Open in a tab}}"
+// in the language of msgs.
+//
+// A filter of the search: $open, the sheets open on the desk, or not.
+func (msgs Messages) QueryOpen(not string) string {
+	return Catalog.Format(msgs.locale, "queryOpen", map[string]any{"not": not})
+}
+
+// QueryOpenHelp says "Sheets open in a tab"
+// in the language the app shows.
+//
+// What the filter $open finds, in the search's suggestions.
+func QueryOpenHelp() string { return In(i18n.Locale()).QueryOpenHelp() }
+
+// QueryOpenHelp says "Sheets open in a tab"
+// in the language of msgs.
+//
+// What the filter $open finds, in the search's suggestions.
+func (msgs Messages) QueryOpenHelp() string {
+	return Catalog.Format(msgs.locale, "queryOpenHelp", nil)
+}
+
+// QuerySettings says "Settings"
+// in the language the app shows.
+//
+// A filter of the search: $settings, the app's settings.
+func QuerySettings() string { return In(i18n.Locale()).QuerySettings() }
+
+// QuerySettings says "Settings"
+// in the language of msgs.
+//
+// A filter of the search: $settings, the app's settings.
+func (msgs Messages) QuerySettings() string {
+	return Catalog.Format(msgs.locale, "querySettings", nil)
+}
+
+// QuerySettingsHelp says "The app's settings, found by their words"
+// in the language the app shows.
+//
+// What the filter $settings finds, in the search's suggestions.
+func QuerySettingsHelp() string { return In(i18n.Locale()).QuerySettingsHelp() }
+
+// QuerySettingsHelp says "The app's settings, found by their words"
+// in the language of msgs.
+//
+// What the filter $settings finds, in the search's suggestions.
+func (msgs Messages) QuerySettingsHelp() string {
+	return Catalog.Format(msgs.locale, "querySettingsHelp", nil)
+}
+
+// QuerySheet says "In this sheet"
+// in the language the app shows.
+//
+// A filter of the search: $sheet, finding in the sheet in front.
+func QuerySheet() string { return In(i18n.Locale()).QuerySheet() }
+
+// QuerySheet says "In this sheet"
+// in the language of msgs.
+//
+// A filter of the search: $sheet, finding in the sheet in front.
+func (msgs Messages) QuerySheet() string {
+	return Catalog.Format(msgs.locale, "querySheet", nil)
+}
+
+// QuerySheetHelp says "Find in the sheet in front, as ⌘F does"
+// in the language the app shows.
+//
+// What the filter $sheet finds, in the search's suggestions.
+func QuerySheetHelp() string { return In(i18n.Locale()).QuerySheetHelp() }
+
+// QuerySheetHelp says "Find in the sheet in front, as ⌘F does"
+// in the language of msgs.
+//
+// What the filter $sheet finds, in the search's suggestions.
+func (msgs Messages) QuerySheetHelp() string {
+	return Catalog.Format(msgs.locale, "querySheetHelp", nil)
+}
+
+// QuerySort says "Sorted by"
+// in the language the app shows.
+//
+// A setting of the search: $sort, the order sheets are listed in.
+func QuerySort() string { return In(i18n.Locale()).QuerySort() }
+
+// QuerySort says "Sorted by"
+// in the language of msgs.
+//
+// A setting of the search: $sort, the order sheets are listed in.
+func (msgs Messages) QuerySort() string {
+	return Catalog.Format(msgs.locale, "querySort", nil)
+}
+
+// QuerySortIs says "Sorted by {value}"
+// in the language the app shows.
+//
+// A setting of the search, said whole; value is an order, as “updated,
+// newest first”.
+func QuerySortIs(value string) string { return In(i18n.Locale()).QuerySortIs(value) }
+
+// QuerySortIs says "Sorted by {value}"
+// in the language of msgs.
+//
+// A setting of the search, said whole; value is an order, as “updated,
+// newest first”.
+func (msgs Messages) QuerySortIs(value string) string {
+	return Catalog.Format(msgs.locale, "querySortIs", map[string]any{"value": value})
+}
+
+// QuerySortHelp says "Order: relevance, updated, created, title, words; -updated turns it"
+// in the language the app shows.
+//
+// What $sort does, in the search's suggestions; keep the orders as written.
+func QuerySortHelp() string { return In(i18n.Locale()).QuerySortHelp() }
+
+// QuerySortHelp says "Order: relevance, updated, created, title, words; -updated turns it"
+// in the language of msgs.
+//
+// What $sort does, in the search's suggestions; keep the orders as written.
+func (msgs Messages) QuerySortHelp() string {
+	return Catalog.Format(msgs.locale, "querySortHelp", nil)
+}
+
+// QueryBands says "Bands by"
+// in the language the app shows.
+//
+// A setting of the search: $bands, what the field stands near.
+func QueryBands() string { return In(i18n.Locale()).QueryBands() }
+
+// QueryBands says "Bands by"
+// in the language of msgs.
+//
+// A setting of the search: $bands, what the field stands near.
+func (msgs Messages) QueryBands() string {
+	return Catalog.Format(msgs.locale, "queryBands", nil)
+}
+
+// QueryBandsIs says "Bands by {value}"
+// in the language the app shows.
+//
+// A setting of the search, said whole; value is a way of standing the
+// field, as activity.
+func QueryBandsIs(value string) string { return In(i18n.Locale()).QueryBandsIs(value) }
+
+// QueryBandsIs says "Bands by {value}"
+// in the language of msgs.
+//
+// A setting of the search, said whole; value is a way of standing the
+// field, as activity.
+func (msgs Messages) QueryBandsIs(value string) string {
+	return Catalog.Format(msgs.locale, "queryBandsIs", map[string]any{"value": value})
+}
+
+// QueryBandsHelp says "What stands near: activity, relevance, updated, created, tag"
+// in the language the app shows.
+//
+// What $bands does, in the search's suggestions; keep the ways as written.
+func QueryBandsHelp() string { return In(i18n.Locale()).QueryBandsHelp() }
+
+// QueryBandsHelp says "What stands near: activity, relevance, updated, created, tag"
+// in the language of msgs.
+//
+// What $bands does, in the search's suggestions; keep the ways as written.
+func (msgs Messages) QueryBandsHelp() string {
+	return Catalog.Format(msgs.locale, "queryBandsHelp", nil)
+}
+
+// QueryCase says "Match case"
+// in the language the app shows.
+//
+// A setting of finding in a sheet: $case.
+func QueryCase() string { return In(i18n.Locale()).QueryCase() }
+
+// QueryCase says "Match case"
+// in the language of msgs.
+//
+// A setting of finding in a sheet: $case.
+func (msgs Messages) QueryCase() string {
+	return Catalog.Format(msgs.locale, "queryCase", nil)
+}
+
+// QueryCaseHelp says "Match letter case"
+// in the language the app shows.
+//
+// What $case does, in the search's suggestions.
+func QueryCaseHelp() string { return In(i18n.Locale()).QueryCaseHelp() }
+
+// QueryCaseHelp says "Match letter case"
+// in the language of msgs.
+//
+// What $case does, in the search's suggestions.
+func (msgs Messages) QueryCaseHelp() string {
+	return Catalog.Format(msgs.locale, "queryCaseHelp", nil)
+}
+
+// QueryWord says "Whole words"
+// in the language the app shows.
+//
+// A setting of finding in a sheet: $word.
+func QueryWord() string { return In(i18n.Locale()).QueryWord() }
+
+// QueryWord says "Whole words"
+// in the language of msgs.
+//
+// A setting of finding in a sheet: $word.
+func (msgs Messages) QueryWord() string {
+	return Catalog.Format(msgs.locale, "queryWord", nil)
+}
+
+// QueryWordHelp says "Match whole words only"
+// in the language the app shows.
+//
+// What $word does, in the search's suggestions.
+func QueryWordHelp() string { return In(i18n.Locale()).QueryWordHelp() }
+
+// QueryWordHelp says "Match whole words only"
+// in the language of msgs.
+//
+// What $word does, in the search's suggestions.
+func (msgs Messages) QueryWordHelp() string {
+	return Catalog.Format(msgs.locale, "queryWordHelp", nil)
+}
+
+// TakesWords says "words"
+// in the language the app shows.
+//
+// What a filter takes, beside it in the search's suggestions: words.
+func TakesWords() string { return In(i18n.Locale()).TakesWords() }
+
+// TakesWords says "words"
+// in the language of msgs.
+//
+// What a filter takes, beside it in the search's suggestions: words.
+func (msgs Messages) TakesWords() string {
+	return Catalog.Format(msgs.locale, "takesWords", nil)
+}
+
+// TakesName says "name"
+// in the language the app shows.
+//
+// What a filter takes, beside it in the search's suggestions: a name.
+func TakesName() string { return In(i18n.Locale()).TakesName() }
+
+// TakesName says "name"
+// in the language of msgs.
+//
+// What a filter takes, beside it in the search's suggestions: a name.
+func (msgs Messages) TakesName() string {
+	return Catalog.Format(msgs.locale, "takesName", nil)
+}
+
+// TakesDate says "date"
+// in the language the app shows.
+//
+// What a filter takes, beside it in the search's suggestions: a date.
+func TakesDate() string { return In(i18n.Locale()).TakesDate() }
+
+// TakesDate says "date"
+// in the language of msgs.
+//
+// What a filter takes, beside it in the search's suggestions: a date.
+func (msgs Messages) TakesDate() string {
+	return Catalog.Format(msgs.locale, "takesDate", nil)
+}
+
+// TakesCount says "count"
+// in the language the app shows.
+//
+// What a filter takes, beside it in the search's suggestions: a count.
+func TakesCount() string { return In(i18n.Locale()).TakesCount() }
+
+// TakesCount says "count"
+// in the language of msgs.
+//
+// What a filter takes, beside it in the search's suggestions: a count.
+func (msgs Messages) TakesCount() string {
+	return Catalog.Format(msgs.locale, "takesCount", nil)
+}
+
+// TakesKind says "kind"
+// in the language the app shows.
+//
+// What a filter takes, beside it in the search's suggestions: a kind.
+func TakesKind() string { return In(i18n.Locale()).TakesKind() }
+
+// TakesKind says "kind"
+// in the language of msgs.
+//
+// What a filter takes, beside it in the search's suggestions: a kind.
+func (msgs Messages) TakesKind() string {
+	return Catalog.Format(msgs.locale, "takesKind", nil)
+}
+
+// DateTodayWord says "today"
+// in the language the app shows.
+//
+// A date of a filter, in a sentence: Updated today.
+func DateTodayWord() string { return In(i18n.Locale()).DateTodayWord() }
+
+// DateTodayWord says "today"
+// in the language of msgs.
+//
+// A date of a filter, in a sentence: Updated today.
+func (msgs Messages) DateTodayWord() string {
+	return Catalog.Format(msgs.locale, "dateTodayWord", nil)
+}
+
+// DateYesterday says "yesterday"
+// in the language the app shows.
+//
+// A date of a filter, in a sentence.
+func DateYesterday() string { return In(i18n.Locale()).DateYesterday() }
+
+// DateYesterday says "yesterday"
+// in the language of msgs.
+//
+// A date of a filter, in a sentence.
+func (msgs Messages) DateYesterday() string {
+	return Catalog.Format(msgs.locale, "dateYesterday", nil)
+}
+
+// DateThisWeekWord says "this week"
+// in the language the app shows.
+//
+// A date of a filter, in a sentence.
+func DateThisWeekWord() string { return In(i18n.Locale()).DateThisWeekWord() }
+
+// DateThisWeekWord says "this week"
+// in the language of msgs.
+//
+// A date of a filter, in a sentence.
+func (msgs Messages) DateThisWeekWord() string {
+	return Catalog.Format(msgs.locale, "dateThisWeekWord", nil)
+}
+
+// DateLastWeek says "last week"
+// in the language the app shows.
+//
+// A date of a filter, in a sentence.
+func DateLastWeek() string { return In(i18n.Locale()).DateLastWeek() }
+
+// DateLastWeek says "last week"
+// in the language of msgs.
+//
+// A date of a filter, in a sentence.
+func (msgs Messages) DateLastWeek() string {
+	return Catalog.Format(msgs.locale, "dateLastWeek", nil)
+}
+
+// DateThisMonthWord says "this month"
+// in the language the app shows.
+//
+// A date of a filter, in a sentence.
+func DateThisMonthWord() string { return In(i18n.Locale()).DateThisMonthWord() }
+
+// DateThisMonthWord says "this month"
+// in the language of msgs.
+//
+// A date of a filter, in a sentence.
+func (msgs Messages) DateThisMonthWord() string {
+	return Catalog.Format(msgs.locale, "dateThisMonthWord", nil)
+}
+
+// DateLastMonth says "last month"
+// in the language the app shows.
+//
+// A date of a filter, in a sentence.
+func DateLastMonth() string { return In(i18n.Locale()).DateLastMonth() }
+
+// DateLastMonth says "last month"
+// in the language of msgs.
+//
+// A date of a filter, in a sentence.
+func (msgs Messages) DateLastMonth() string {
+	return Catalog.Format(msgs.locale, "dateLastMonth", nil)
+}
+
+// DateThisYearWord says "this year"
+// in the language the app shows.
+//
+// A date of a filter, in a sentence.
+func DateThisYearWord() string { return In(i18n.Locale()).DateThisYearWord() }
+
+// DateThisYearWord says "this year"
+// in the language of msgs.
+//
+// A date of a filter, in a sentence.
+func (msgs Messages) DateThisYearWord() string {
+	return Catalog.Format(msgs.locale, "dateThisYearWord", nil)
+}
+
+// DateLastYear says "last year"
+// in the language the app shows.
+//
+// A date of a filter, in a sentence.
+func DateLastYear() string { return In(i18n.Locale()).DateLastYear() }
+
+// DateLastYear says "last year"
+// in the language of msgs.
+//
+// A date of a filter, in a sentence.
+func (msgs Messages) DateLastYear() string {
+	return Catalog.Format(msgs.locale, "dateLastYear", nil)
+}
+
+// SpanDays says "{n, plural, one {# day} other {# days}}"
+// in the language the app shows.
+//
+// A span of time in a filter's sentence.
+func SpanDays(n int) string { return In(i18n.Locale()).SpanDays(n) }
+
+// SpanDays says "{n, plural, one {# day} other {# days}}"
+// in the language of msgs.
+//
+// A span of time in a filter's sentence.
+func (msgs Messages) SpanDays(n int) string {
+	return Catalog.Format(msgs.locale, "spanDays", map[string]any{"n": n})
+}
+
+// SpanWeeks says "{n, plural, one {# week} other {# weeks}}"
+// in the language the app shows.
+//
+// A span of time in a filter's sentence.
+func SpanWeeks(n int) string { return In(i18n.Locale()).SpanWeeks(n) }
+
+// SpanWeeks says "{n, plural, one {# week} other {# weeks}}"
+// in the language of msgs.
+//
+// A span of time in a filter's sentence.
+func (msgs Messages) SpanWeeks(n int) string {
+	return Catalog.Format(msgs.locale, "spanWeeks", map[string]any{"n": n})
+}
+
+// SpanMonths says "{n, plural, one {# month} other {# months}}"
+// in the language the app shows.
+//
+// A span of time in a filter's sentence.
+func SpanMonths(n int) string { return In(i18n.Locale()).SpanMonths(n) }
+
+// SpanMonths says "{n, plural, one {# month} other {# months}}"
+// in the language of msgs.
+//
+// A span of time in a filter's sentence.
+func (msgs Messages) SpanMonths(n int) string {
+	return Catalog.Format(msgs.locale, "spanMonths", map[string]any{"n": n})
+}
+
+// SpanYears says "{n, plural, one {# year} other {# years}}"
+// in the language the app shows.
+//
+// A span of time in a filter's sentence.
+func SpanYears(n int) string { return In(i18n.Locale()).SpanYears(n) }
+
+// SpanYears says "{n, plural, one {# year} other {# years}}"
+// in the language of msgs.
+//
+// A span of time in a filter's sentence.
+func (msgs Messages) SpanYears(n int) string {
+	return Catalog.Format(msgs.locale, "spanYears", map[string]any{"n": n})
+}
+
+// InLastDays says "{n, plural, one {in the last day} other {in the last # days}}"
+// in the language the app shows.
+//
+// A time in a filter's sentence: Updated in the last 7 days.
+func InLastDays(n int) string { return In(i18n.Locale()).InLastDays(n) }
+
+// InLastDays says "{n, plural, one {in the last day} other {in the last # days}}"
+// in the language of msgs.
+//
+// A time in a filter's sentence: Updated in the last 7 days.
+func (msgs Messages) InLastDays(n int) string {
+	return Catalog.Format(msgs.locale, "inLastDays", map[string]any{"n": n})
+}
+
+// InLastWeeks says "{n, plural, one {in the last week} other {in the last # weeks}}"
+// in the language the app shows.
+//
+// A time in a filter's sentence.
+func InLastWeeks(n int) string { return In(i18n.Locale()).InLastWeeks(n) }
+
+// InLastWeeks says "{n, plural, one {in the last week} other {in the last # weeks}}"
+// in the language of msgs.
+//
+// A time in a filter's sentence.
+func (msgs Messages) InLastWeeks(n int) string {
+	return Catalog.Format(msgs.locale, "inLastWeeks", map[string]any{"n": n})
+}
+
+// InLastMonths says "{n, plural, one {in the last month} other {in the last # months}}"
+// in the language the app shows.
+//
+// A time in a filter's sentence.
+func InLastMonths(n int) string { return In(i18n.Locale()).InLastMonths(n) }
+
+// InLastMonths says "{n, plural, one {in the last month} other {in the last # months}}"
+// in the language of msgs.
+//
+// A time in a filter's sentence.
+func (msgs Messages) InLastMonths(n int) string {
+	return Catalog.Format(msgs.locale, "inLastMonths", map[string]any{"n": n})
+}
+
+// InLastYears says "{n, plural, one {in the last year} other {in the last # years}}"
+// in the language the app shows.
+//
+// A time in a filter's sentence.
+func InLastYears(n int) string { return In(i18n.Locale()).InLastYears(n) }
+
+// InLastYears says "{n, plural, one {in the last year} other {in the last # years}}"
+// in the language of msgs.
+//
+// A time in a filter's sentence.
+func (msgs Messages) InLastYears(n int) string {
+	return Catalog.Format(msgs.locale, "inLastYears", map[string]any{"n": n})
+}
+
+// SpanAgo says "{span} ago"
+// in the language the app shows.
+//
+// A time in a filter's sentence, as 3 days ago.
+func SpanAgo(span string) string { return In(i18n.Locale()).SpanAgo(span) }
+
+// SpanAgo says "{span} ago"
+// in the language of msgs.
+//
+// A time in a filter's sentence, as 3 days ago.
+func (msgs Messages) SpanAgo(span string) string {
+	return Catalog.Format(msgs.locale, "spanAgo", map[string]any{"span": span})
+}
+
+// MoreThanAgo says "more than {span} ago"
+// in the language the app shows.
+//
+// A time in a filter's sentence.
+func MoreThanAgo(span string) string { return In(i18n.Locale()).MoreThanAgo(span) }
+
+// MoreThanAgo says "more than {span} ago"
+// in the language of msgs.
+//
+// A time in a filter's sentence.
+func (msgs Messages) MoreThanAgo(span string) string {
+	return Catalog.Format(msgs.locale, "moreThanAgo", map[string]any{"span": span})
+}
+
+// UpTo says "up to {point}"
+// in the language the app shows.
+//
+// A time in a filter's sentence: Updated up to 2026-01.
+func UpTo(point string) string { return In(i18n.Locale()).UpTo(point) }
+
+// UpTo says "up to {point}"
+// in the language of msgs.
+//
+// A time in a filter's sentence: Updated up to 2026-01.
+func (msgs Messages) UpTo(point string) string {
+	return Catalog.Format(msgs.locale, "upTo", map[string]any{"point": point})
+}
+
+// FromPoint says "from {point}"
+// in the language the app shows.
+//
+// A time in a filter's sentence.
+func FromPoint(point string) string { return In(i18n.Locale()).FromPoint(point) }
+
+// FromPoint says "from {point}"
+// in the language of msgs.
+//
+// A time in a filter's sentence.
+func (msgs Messages) FromPoint(point string) string {
+	return Catalog.Format(msgs.locale, "fromPoint", map[string]any{"point": point})
+}
+
+// FromTo says "{from} to {to}"
+// in the language the app shows.
+//
+// A span in a filter's sentence, of times or of counts.
+func FromTo(from string, to string) string { return In(i18n.Locale()).FromTo(from, to) }
+
+// FromTo says "{from} to {to}"
+// in the language of msgs.
+//
+// A span in a filter's sentence, of times or of counts.
+func (msgs Messages) FromTo(from string, to string) string {
+	return Catalog.Format(msgs.locale, "fromTo", map[string]any{"from": from, "to": to})
+}
+
+// AfterPoint says "after {point}"
+// in the language the app shows.
+//
+// A time in a filter's sentence.
+func AfterPoint(point string) string { return In(i18n.Locale()).AfterPoint(point) }
+
+// AfterPoint says "after {point}"
+// in the language of msgs.
+//
+// A time in a filter's sentence.
+func (msgs Messages) AfterPoint(point string) string {
+	return Catalog.Format(msgs.locale, "afterPoint", map[string]any{"point": point})
+}
+
+// BeforePoint says "before {point}"
+// in the language the app shows.
+//
+// A time in a filter's sentence.
+func BeforePoint(point string) string { return In(i18n.Locale()).BeforePoint(point) }
+
+// BeforePoint says "before {point}"
+// in the language of msgs.
+//
+// A time in a filter's sentence.
+func (msgs Messages) BeforePoint(point string) string {
+	return Catalog.Format(msgs.locale, "beforePoint", map[string]any{"point": point})
+}
+
+// OnDay says "on {day}"
+// in the language the app shows.
+//
+// A day in a filter's sentence: Updated on 2026-11-22.
+func OnDay(day string) string { return In(i18n.Locale()).OnDay(day) }
+
+// OnDay says "on {day}"
+// in the language of msgs.
+//
+// A day in a filter's sentence: Updated on 2026-11-22.
+func (msgs Messages) OnDay(day string) string {
+	return Catalog.Format(msgs.locale, "onDay", map[string]any{"day": day})
+}
+
+// InPeriod says "in {period}"
+// in the language the app shows.
+//
+// A month or year in a filter's sentence: Updated in 2026-11.
+func InPeriod(period string) string { return In(i18n.Locale()).InPeriod(period) }
+
+// InPeriod says "in {period}"
+// in the language of msgs.
+//
+// A month or year in a filter's sentence: Updated in 2026-11.
+func (msgs Messages) InPeriod(period string) string {
+	return Catalog.Format(msgs.locale, "inPeriod", map[string]any{"period": period})
+}
+
+// OrFewer says "{n} or fewer"
+// in the language the app shows.
+//
+// A count in a filter's sentence.
+func OrFewer(n string) string { return In(i18n.Locale()).OrFewer(n) }
+
+// OrFewer says "{n} or fewer"
+// in the language of msgs.
+//
+// A count in a filter's sentence.
+func (msgs Messages) OrFewer(n string) string {
+	return Catalog.Format(msgs.locale, "orFewer", map[string]any{"n": n})
+}
+
+// OrMore says "{n} or more"
+// in the language the app shows.
+//
+// A count in a filter's sentence.
+func OrMore(n string) string { return In(i18n.Locale()).OrMore(n) }
+
+// OrMore says "{n} or more"
+// in the language of msgs.
+//
+// A count in a filter's sentence.
+func (msgs Messages) OrMore(n string) string {
+	return Catalog.Format(msgs.locale, "orMore", map[string]any{"n": n})
+}
+
+// MoreThan says "more than {n}"
+// in the language the app shows.
+//
+// A count in a filter's sentence.
+func MoreThan(n string) string { return In(i18n.Locale()).MoreThan(n) }
+
+// MoreThan says "more than {n}"
+// in the language of msgs.
+//
+// A count in a filter's sentence.
+func (msgs Messages) MoreThan(n string) string {
+	return Catalog.Format(msgs.locale, "moreThan", map[string]any{"n": n})
+}
+
+// FewerThan says "fewer than {n}"
+// in the language the app shows.
+//
+// A count in a filter's sentence.
+func FewerThan(n string) string { return In(i18n.Locale()).FewerThan(n) }
+
+// FewerThan says "fewer than {n}"
+// in the language of msgs.
+//
+// A count in a filter's sentence.
+func (msgs Messages) FewerThan(n string) string {
+	return Catalog.Format(msgs.locale, "fewerThan", map[string]any{"n": n})
+}
+
+// SortOrder says "{field}, {order}"
+// in the language the app shows.
+//
+// An order in a filter's sentence, as “updated, newest first”.
+func SortOrder(field string, order string) string { return In(i18n.Locale()).SortOrder(field, order) }
+
+// SortOrder says "{field}, {order}"
+// in the language of msgs.
+//
+// An order in a filter's sentence, as “updated, newest first”.
+func (msgs Messages) SortOrder(field string, order string) string {
+	return Catalog.Format(msgs.locale, "sortOrder", map[string]any{"field": field, "order": order})
+}
+
+// SortRelevance says "relevance"
+// in the language the app shows.
+//
+// An order of the search: how well sheets match.
+func SortRelevance() string { return In(i18n.Locale()).SortRelevance() }
+
+// SortRelevance says "relevance"
+// in the language of msgs.
+//
+// An order of the search: how well sheets match.
+func (msgs Messages) SortRelevance() string {
+	return Catalog.Format(msgs.locale, "sortRelevance", nil)
+}
+
+// SortUpdated says "updated"
+// in the language the app shows.
+//
+// An order of the search: when sheets were changed.
+func SortUpdated() string { return In(i18n.Locale()).SortUpdated() }
+
+// SortUpdated says "updated"
+// in the language of msgs.
+//
+// An order of the search: when sheets were changed.
+func (msgs Messages) SortUpdated() string {
+	return Catalog.Format(msgs.locale, "sortUpdated", nil)
+}
+
+// SortCreated says "created"
+// in the language the app shows.
+//
+// An order of the search: when sheets were made.
+func SortCreated() string { return In(i18n.Locale()).SortCreated() }
+
+// SortCreated says "created"
+// in the language of msgs.
+//
+// An order of the search: when sheets were made.
+func (msgs Messages) SortCreated() string {
+	return Catalog.Format(msgs.locale, "sortCreated", nil)
+}
+
+// SortTitle says "title"
+// in the language the app shows.
+//
+// An order of the search: by title.
+func SortTitle() string { return In(i18n.Locale()).SortTitle() }
+
+// SortTitle says "title"
+// in the language of msgs.
+//
+// An order of the search: by title.
+func (msgs Messages) SortTitle() string {
+	return Catalog.Format(msgs.locale, "sortTitle", nil)
+}
+
+// SortWords says "words"
+// in the language the app shows.
+//
+// An order of the search: by length.
+func SortWords() string { return In(i18n.Locale()).SortWords() }
+
+// SortWords says "words"
+// in the language of msgs.
+//
+// An order of the search: by length.
+func (msgs Messages) SortWords() string {
+	return Catalog.Format(msgs.locale, "sortWords", nil)
+}
+
+// OldestFirst says "oldest first"
+// in the language the app shows.
+//
+// Which come first in an order by date.
+func OldestFirst() string { return In(i18n.Locale()).OldestFirst() }
+
+// OldestFirst says "oldest first"
+// in the language of msgs.
+//
+// Which come first in an order by date.
+func (msgs Messages) OldestFirst() string {
+	return Catalog.Format(msgs.locale, "oldestFirst", nil)
+}
+
+// NewestFirst says "newest first"
+// in the language the app shows.
+//
+// Which come first in an order by date.
+func NewestFirst() string { return In(i18n.Locale()).NewestFirst() }
+
+// NewestFirst says "newest first"
+// in the language of msgs.
+//
+// Which come first in an order by date.
+func (msgs Messages) NewestFirst() string {
+	return Catalog.Format(msgs.locale, "newestFirst", nil)
+}
+
+// LongestFirst says "longest first"
+// in the language the app shows.
+//
+// Which come first in an order by length.
+func LongestFirst() string { return In(i18n.Locale()).LongestFirst() }
+
+// LongestFirst says "longest first"
+// in the language of msgs.
+//
+// Which come first in an order by length.
+func (msgs Messages) LongestFirst() string {
+	return Catalog.Format(msgs.locale, "longestFirst", nil)
+}
+
+// ShortestFirst says "shortest first"
+// in the language the app shows.
+//
+// Which come first in an order by length.
+func ShortestFirst() string { return In(i18n.Locale()).ShortestFirst() }
+
+// ShortestFirst says "shortest first"
+// in the language of msgs.
+//
+// Which come first in an order by length.
+func (msgs Messages) ShortestFirst() string {
+	return Catalog.Format(msgs.locale, "shortestFirst", nil)
+}
+
+// AToZ says "A to Z"
+// in the language the app shows.
+//
+// Which come first in an order by title.
+func AToZ() string { return In(i18n.Locale()).AToZ() }
+
+// AToZ says "A to Z"
+// in the language of msgs.
+//
+// Which come first in an order by title.
+func (msgs Messages) AToZ() string {
+	return Catalog.Format(msgs.locale, "aToZ", nil)
+}
+
+// ZToA says "Z to A"
+// in the language the app shows.
+//
+// Which come first in an order by title.
+func ZToA() string { return In(i18n.Locale()).ZToA() }
+
+// ZToA says "Z to A"
+// in the language of msgs.
+//
+// Which come first in an order by title.
+func (msgs Messages) ZToA() string {
+	return Catalog.Format(msgs.locale, "zToA", nil)
+}
+
+// LensActivity says "activity"
+// in the language the app shows.
+//
+// A way the field stands sheets near: by when they were written.
+func LensActivity() string { return In(i18n.Locale()).LensActivity() }
+
+// LensActivity says "activity"
+// in the language of msgs.
+//
+// A way the field stands sheets near: by when they were written.
+func (msgs Messages) LensActivity() string {
+	return Catalog.Format(msgs.locale, "lensActivity", nil)
+}
+
+// LensRelevance says "relevance"
+// in the language the app shows.
+//
+// A way the field stands sheets near: by how well they match.
+func LensRelevance() string { return In(i18n.Locale()).LensRelevance() }
+
+// LensRelevance says "relevance"
+// in the language of msgs.
+//
+// A way the field stands sheets near: by how well they match.
+func (msgs Messages) LensRelevance() string {
+	return Catalog.Format(msgs.locale, "lensRelevance", nil)
+}
+
+// LensUpdated says "updated"
+// in the language the app shows.
+//
+// A way the field stands sheets near: by when they were changed.
+func LensUpdated() string { return In(i18n.Locale()).LensUpdated() }
+
+// LensUpdated says "updated"
+// in the language of msgs.
+//
+// A way the field stands sheets near: by when they were changed.
+func (msgs Messages) LensUpdated() string {
+	return Catalog.Format(msgs.locale, "lensUpdated", nil)
+}
+
+// LensCreated says "created"
+// in the language the app shows.
+//
+// A way the field stands sheets near: by when they were made.
+func LensCreated() string { return In(i18n.Locale()).LensCreated() }
+
+// LensCreated says "created"
+// in the language of msgs.
+//
+// A way the field stands sheets near: by when they were made.
+func (msgs Messages) LensCreated() string {
+	return Catalog.Format(msgs.locale, "lensCreated", nil)
+}
+
+// LensTag says "tag"
+// in the language the app shows.
+//
+// A way the field stands sheets near: by their tags.
+func LensTag() string { return In(i18n.Locale()).LensTag() }
+
+// LensTag says "tag"
+// in the language of msgs.
+//
+// A way the field stands sheets near: by their tags.
+func (msgs Messages) LensTag() string {
+	return Catalog.Format(msgs.locale, "lensTag", nil)
+}
+
+// KindCode says "code"
+// in the language the app shows.
+//
+// A kind of thing a sheet holds, for $has.
+func KindCode() string { return In(i18n.Locale()).KindCode() }
+
+// KindCode says "code"
+// in the language of msgs.
+//
+// A kind of thing a sheet holds, for $has.
+func (msgs Messages) KindCode() string {
+	return Catalog.Format(msgs.locale, "kindCode", nil)
+}
+
+// KindImage says "pictures"
+// in the language the app shows.
+//
+// A kind of thing a sheet holds, for $has.
+func KindImage() string { return In(i18n.Locale()).KindImage() }
+
+// KindImage says "pictures"
+// in the language of msgs.
+//
+// A kind of thing a sheet holds, for $has.
+func (msgs Messages) KindImage() string {
+	return Catalog.Format(msgs.locale, "kindImage", nil)
+}
+
+// KindLink says "links"
+// in the language the app shows.
+//
+// A kind of thing a sheet holds, for $has.
+func KindLink() string { return In(i18n.Locale()).KindLink() }
+
+// KindLink says "links"
+// in the language of msgs.
+//
+// A kind of thing a sheet holds, for $has.
+func (msgs Messages) KindLink() string {
+	return Catalog.Format(msgs.locale, "kindLink", nil)
+}
+
+// KindList says "lists"
+// in the language the app shows.
+//
+// A kind of thing a sheet holds, for $has.
+func KindList() string { return In(i18n.Locale()).KindList() }
+
+// KindList says "lists"
+// in the language of msgs.
+//
+// A kind of thing a sheet holds, for $has.
+func (msgs Messages) KindList() string {
+	return Catalog.Format(msgs.locale, "kindList", nil)
+}
+
+// KindMath says "math"
+// in the language the app shows.
+//
+// A kind of thing a sheet holds, for $has.
+func KindMath() string { return In(i18n.Locale()).KindMath() }
+
+// KindMath says "math"
+// in the language of msgs.
+//
+// A kind of thing a sheet holds, for $has.
+func (msgs Messages) KindMath() string {
+	return Catalog.Format(msgs.locale, "kindMath", nil)
+}
+
+// KindQuote says "quotes"
+// in the language the app shows.
+//
+// A kind of thing a sheet holds, for $has.
+func KindQuote() string { return In(i18n.Locale()).KindQuote() }
+
+// KindQuote says "quotes"
+// in the language of msgs.
+//
+// A kind of thing a sheet holds, for $has.
+func (msgs Messages) KindQuote() string {
+	return Catalog.Format(msgs.locale, "kindQuote", nil)
+}
+
+// KindTable says "tables"
+// in the language the app shows.
+//
+// A kind of thing a sheet holds, for $has.
+func KindTable() string { return In(i18n.Locale()).KindTable() }
+
+// KindTable says "tables"
+// in the language of msgs.
+//
+// A kind of thing a sheet holds, for $has.
+func (msgs Messages) KindTable() string {
+	return Catalog.Format(msgs.locale, "kindTable", nil)
+}
+
+// KindTask says "tasks"
+// in the language the app shows.
+//
+// A kind of thing a sheet holds, for $has.
+func KindTask() string { return In(i18n.Locale()).KindTask() }
+
+// KindTask says "tasks"
+// in the language of msgs.
+//
+// A kind of thing a sheet holds, for $has.
+func (msgs Messages) KindTask() string {
+	return Catalog.Format(msgs.locale, "kindTask", nil)
+}
+
+// Pending says "…"
+// in the language the app shows.
+//
+// A filter's value not yet written, in its sentence: Title has …
+func Pending() string { return In(i18n.Locale()).Pending() }
+
+// Pending says "…"
+// in the language of msgs.
+//
+// A filter's value not yet written, in its sentence: Title has …
+func (msgs Messages) Pending() string {
+	return Catalog.Format(msgs.locale, "pending", nil)
+}
+
+// Inbox says "Inbox"
+// in the language the app shows.
+//
+// The group every notebook has, for sheets not filed anywhere else.
+func Inbox() string { return In(i18n.Locale()).Inbox() }
+
+// Inbox says "Inbox"
+// in the language of msgs.
+//
+// The group every notebook has, for sheets not filed anywhere else.
+func (msgs Messages) Inbox() string {
+	return Catalog.Format(msgs.locale, "inbox", nil)
+}
+
+// LengthUnder says "Under {n} words"
+// in the language the app shows.
+//
+// A step of the list sorted by length; n is written with its thousands.
+func LengthUnder(n string) string { return In(i18n.Locale()).LengthUnder(n) }
+
+// LengthUnder says "Under {n} words"
+// in the language of msgs.
+//
+// A step of the list sorted by length; n is written with its thousands.
+func (msgs Messages) LengthUnder(n string) string {
+	return Catalog.Format(msgs.locale, "lengthUnder", map[string]any{"n": n})
+}
+
+// LengthBetween says "{from} to {to} words"
+// in the language the app shows.
+//
+// A step of the list sorted by length.
+func LengthBetween(from string, to string) string { return In(i18n.Locale()).LengthBetween(from, to) }
+
+// LengthBetween says "{from} to {to} words"
+// in the language of msgs.
+//
+// A step of the list sorted by length.
+func (msgs Messages) LengthBetween(from string, to string) string {
+	return Catalog.Format(msgs.locale, "lengthBetween", map[string]any{"from": from, "to": to})
+}
+
+// LengthOver says "{n} words or more"
+// in the language the app shows.
+//
+// A step of the list sorted by length.
+func LengthOver(n string) string { return In(i18n.Locale()).LengthOver(n) }
+
+// LengthOver says "{n} words or more"
+// in the language of msgs.
+//
+// A step of the list sorted by length.
+func (msgs Messages) LengthOver(n string) string {
+	return Catalog.Format(msgs.locale, "lengthOver", map[string]any{"n": n})
+}
+
+// ErrorPermission says "Neverland isn't allowed to use the file. Check its permissions."
+// in the language the app shows.
+//
+// Under a notice: why it failed.
+func ErrorPermission() string { return In(i18n.Locale()).ErrorPermission() }
+
+// ErrorPermission says "Neverland isn't allowed to use the file. Check its permissions."
+// in the language of msgs.
+//
+// Under a notice: why it failed.
+func (msgs Messages) ErrorPermission() string {
+	return Catalog.Format(msgs.locale, "errorPermission", nil)
+}
+
+// ErrorNotFound says "The file is no longer there."
+// in the language the app shows.
+//
+// Under a notice: why it failed.
+func ErrorNotFound() string { return In(i18n.Locale()).ErrorNotFound() }
+
+// ErrorNotFound says "The file is no longer there."
+// in the language of msgs.
+//
+// Under a notice: why it failed.
+func (msgs Messages) ErrorNotFound() string {
+	return Catalog.Format(msgs.locale, "errorNotFound", nil)
+}
+
+// ErrorDiskFull says "The disk is full. Free some space and try again."
+// in the language the app shows.
+//
+// Under a notice: why it failed.
+func ErrorDiskFull() string { return In(i18n.Locale()).ErrorDiskFull() }
+
+// ErrorDiskFull says "The disk is full. Free some space and try again."
+// in the language of msgs.
+//
+// Under a notice: why it failed.
+func (msgs Messages) ErrorDiskFull() string {
+	return Catalog.Format(msgs.locale, "errorDiskFull", nil)
+}
+
+// ErrorNotebookClosed says "The notebook is closed."
+// in the language the app shows.
+//
+// Under a notice: why it failed.
+func ErrorNotebookClosed() string { return In(i18n.Locale()).ErrorNotebookClosed() }
+
+// ErrorNotebookClosed says "The notebook is closed."
+// in the language of msgs.
+//
+// Under a notice: why it failed.
+func (msgs Messages) ErrorNotebookClosed() string {
+	return Catalog.Format(msgs.locale, "errorNotebookClosed", nil)
+}
+
+// ErrorNotebookLocked says "The notebook is open in another Neverland window."
+// in the language the app shows.
+//
+// Under a notice: why it failed.
+func ErrorNotebookLocked() string { return In(i18n.Locale()).ErrorNotebookLocked() }
+
+// ErrorNotebookLocked says "The notebook is open in another Neverland window."
+// in the language of msgs.
+//
+// Under a notice: why it failed.
+func (msgs Messages) ErrorNotebookLocked() string {
+	return Catalog.Format(msgs.locale, "errorNotebookLocked", nil)
+}
+
+// ErrorMediaFormat says "It isn't a picture Neverland can show."
+// in the language the app shows.
+//
+// Under a notice: why a picture could not be added.
+func ErrorMediaFormat() string { return In(i18n.Locale()).ErrorMediaFormat() }
+
+// ErrorMediaFormat says "It isn't a picture Neverland can show."
+// in the language of msgs.
+//
+// Under a notice: why a picture could not be added.
+func (msgs Messages) ErrorMediaFormat() string {
+	return Catalog.Format(msgs.locale, "errorMediaFormat", nil)
+}
+
+// ErrorMediaSize says "The picture is too large."
+// in the language the app shows.
+//
+// Under a notice: why a picture could not be added.
+func ErrorMediaSize() string { return In(i18n.Locale()).ErrorMediaSize() }
+
+// ErrorMediaSize says "The picture is too large."
+// in the language of msgs.
+//
+// Under a notice: why a picture could not be added.
+func (msgs Messages) ErrorMediaSize() string {
+	return Catalog.Format(msgs.locale, "errorMediaSize", nil)
+}
+
+// ErrorInbox says "The Inbox stays as it is."
+// in the language the app shows.
+//
+// Under a notice: the Inbox cannot be renamed, moved or trashed.
+func ErrorInbox() string { return In(i18n.Locale()).ErrorInbox() }
+
+// ErrorInbox says "The Inbox stays as it is."
+// in the language of msgs.
+//
+// Under a notice: the Inbox cannot be renamed, moved or trashed.
+func (msgs Messages) ErrorInbox() string {
+	return Catalog.Format(msgs.locale, "errorInbox", nil)
+}
+
+// ErrorCycle says "A group can't go inside itself."
+// in the language the app shows.
+//
+// Under a notice: why a group could not be moved.
+func ErrorCycle() string { return In(i18n.Locale()).ErrorCycle() }
+
+// ErrorCycle says "A group can't go inside itself."
+// in the language of msgs.
+//
+// Under a notice: why a group could not be moved.
+func (msgs Messages) ErrorCycle() string {
+	return Catalog.Format(msgs.locale, "errorCycle", nil)
+}
+
+// ErrorTrashed says "The group is in the Trash."
+// in the language the app shows.
+//
+// Under a notice: why it failed.
+func ErrorTrashed() string { return In(i18n.Locale()).ErrorTrashed() }
+
+// ErrorTrashed says "The group is in the Trash."
+// in the language of msgs.
+//
+// Under a notice: why it failed.
+func (msgs Messages) ErrorTrashed() string {
+	return Catalog.Format(msgs.locale, "errorTrashed", nil)
+}
+
+// ErrorUnknownItem says "The sheet or group is no longer there."
+// in the language the app shows.
+//
+// Under a notice: why it failed.
+func ErrorUnknownItem() string { return In(i18n.Locale()).ErrorUnknownItem() }
+
+// ErrorUnknownItem says "The sheet or group is no longer there."
+// in the language of msgs.
+//
+// Under a notice: why it failed.
+func (msgs Messages) ErrorUnknownItem() string {
+	return Catalog.Format(msgs.locale, "errorUnknownItem", nil)
+}
+
+// ErrorTimeout says "It took too long. Check the connection and try again."
+// in the language the app shows.
+//
+// Under a notice: why it failed.
+func ErrorTimeout() string { return In(i18n.Locale()).ErrorTimeout() }
+
+// ErrorTimeout says "It took too long. Check the connection and try again."
+// in the language of msgs.
+//
+// Under a notice: why it failed.
+func (msgs Messages) ErrorTimeout() string {
+	return Catalog.Format(msgs.locale, "errorTimeout", nil)
+}
+
+// KeyFn says "Fn"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS, as keyboards print it in the
+// language.
+func KeyFn() string { return In(i18n.Locale()).KeyFn() }
+
+// KeyFn says "Fn"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS, as keyboards print it in the
+// language.
+func (msgs Messages) KeyFn() string {
+	return Catalog.Format(msgs.locale, "keyFn", nil)
+}
+
+// KeyCtrl says "Ctrl"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyCtrl() string { return In(i18n.Locale()).KeyCtrl() }
+
+// KeyCtrl says "Ctrl"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyCtrl() string {
+	return Catalog.Format(msgs.locale, "keyCtrl", nil)
+}
+
+// KeyAlt says "Alt"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyAlt() string { return In(i18n.Locale()).KeyAlt() }
+
+// KeyAlt says "Alt"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyAlt() string {
+	return Catalog.Format(msgs.locale, "keyAlt", nil)
+}
+
+// KeyShift says "Shift"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyShift() string { return In(i18n.Locale()).KeyShift() }
+
+// KeyShift says "Shift"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyShift() string {
+	return Catalog.Format(msgs.locale, "keyShift", nil)
+}
+
+// KeySuper says "Super"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS: the Windows or system key.
+func KeySuper() string { return In(i18n.Locale()).KeySuper() }
+
+// KeySuper says "Super"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS: the Windows or system key.
+func (msgs Messages) KeySuper() string {
+	return Catalog.Format(msgs.locale, "keySuper", nil)
+}
+
+// KeyEnter says "Enter"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyEnter() string { return In(i18n.Locale()).KeyEnter() }
+
+// KeyEnter says "Enter"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyEnter() string {
+	return Catalog.Format(msgs.locale, "keyEnter", nil)
+}
+
+// KeyEsc says "Esc"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyEsc() string { return In(i18n.Locale()).KeyEsc() }
+
+// KeyEsc says "Esc"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyEsc() string {
+	return Catalog.Format(msgs.locale, "keyEsc", nil)
+}
+
+// KeyBackspace says "Backspace"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyBackspace() string { return In(i18n.Locale()).KeyBackspace() }
+
+// KeyBackspace says "Backspace"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyBackspace() string {
+	return Catalog.Format(msgs.locale, "keyBackspace", nil)
+}
+
+// KeyDelete says "Delete"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyDelete() string { return In(i18n.Locale()).KeyDelete() }
+
+// KeyDelete says "Delete"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyDelete() string {
+	return Catalog.Format(msgs.locale, "keyDelete", nil)
+}
+
+// KeyTab says "Tab"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyTab() string { return In(i18n.Locale()).KeyTab() }
+
+// KeyTab says "Tab"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyTab() string {
+	return Catalog.Format(msgs.locale, "keyTab", nil)
+}
+
+// KeySpace says "Space"
+// in the language the app shows.
+//
+// A key's name on a keycap.
+func KeySpace() string { return In(i18n.Locale()).KeySpace() }
+
+// KeySpace says "Space"
+// in the language of msgs.
+//
+// A key's name on a keycap.
+func (msgs Messages) KeySpace() string {
+	return Catalog.Format(msgs.locale, "keySpace", nil)
+}
+
+// KeyHome says "Home"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyHome() string { return In(i18n.Locale()).KeyHome() }
+
+// KeyHome says "Home"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyHome() string {
+	return Catalog.Format(msgs.locale, "keyHome", nil)
+}
+
+// KeyEnd says "End"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyEnd() string { return In(i18n.Locale()).KeyEnd() }
+
+// KeyEnd says "End"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyEnd() string {
+	return Catalog.Format(msgs.locale, "keyEnd", nil)
+}
+
+// KeyPageUp says "PgUp"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyPageUp() string { return In(i18n.Locale()).KeyPageUp() }
+
+// KeyPageUp says "PgUp"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyPageUp() string {
+	return Catalog.Format(msgs.locale, "keyPageUp", nil)
+}
+
+// KeyPageDown says "PgDn"
+// in the language the app shows.
+//
+// A key's name on a keycap, off macOS.
+func KeyPageDown() string { return In(i18n.Locale()).KeyPageDown() }
+
+// KeyPageDown says "PgDn"
+// in the language of msgs.
+//
+// A key's name on a keycap, off macOS.
+func (msgs Messages) KeyPageDown() string {
+	return Catalog.Format(msgs.locale, "keyPageDown", nil)
+}
+
+// KeyInsert says "Ins"
+// in the language the app shows.
+//
+// A key's name on a keycap.
+func KeyInsert() string { return In(i18n.Locale()).KeyInsert() }
+
+// KeyInsert says "Ins"
+// in the language of msgs.
+//
+// A key's name on a keycap.
+func (msgs Messages) KeyInsert() string {
+	return Catalog.Format(msgs.locale, "keyInsert", nil)
+}
+
+// KeyMenu says "Menu"
+// in the language the app shows.
+//
+// A key's name on a keycap: the context menu key.
+func KeyMenu() string { return In(i18n.Locale()).KeyMenu() }
+
+// KeyMenu says "Menu"
+// in the language of msgs.
+//
+// A key's name on a keycap: the context menu key.
+func (msgs Messages) KeyMenu() string {
+	return Catalog.Format(msgs.locale, "keyMenu", nil)
+}
+
+// KeyBack says "Back"
+// in the language the app shows.
+//
+// A key's name on a keycap: the browser's back key.
+func KeyBack() string { return In(i18n.Locale()).KeyBack() }
+
+// KeyBack says "Back"
+// in the language of msgs.
+//
+// A key's name on a keycap: the browser's back key.
+func (msgs Messages) KeyBack() string {
+	return Catalog.Format(msgs.locale, "keyBack", nil)
+}
+
+// KeyForward says "Forward"
+// in the language the app shows.
+//
+// A key's name on a keycap: the browser's forward key.
+func KeyForward() string { return In(i18n.Locale()).KeyForward() }
+
+// KeyForward says "Forward"
+// in the language of msgs.
+//
+// A key's name on a keycap: the browser's forward key.
+func (msgs Messages) KeyForward() string {
+	return Catalog.Format(msgs.locale, "keyForward", nil)
+}
+
+// StatWords says "{count, plural, one {# word} other {# words}}"
+// in the language the app shows.
+//
+// A count in the footer under a sheet.
+func StatWords(count int) string { return In(i18n.Locale()).StatWords(count) }
+
+// StatWords says "{count, plural, one {# word} other {# words}}"
+// in the language of msgs.
+//
+// A count in the footer under a sheet.
+func (msgs Messages) StatWords(count int) string {
+	return Catalog.Format(msgs.locale, "statWords", map[string]any{"count": count})
+}
+
+// StatCharacters says "{count, plural, one {# character} other {# characters}}"
+// in the language the app shows.
+//
+// A count in the footer under a sheet.
+func StatCharacters(count int) string { return In(i18n.Locale()).StatCharacters(count) }
+
+// StatCharacters says "{count, plural, one {# character} other {# characters}}"
+// in the language of msgs.
+//
+// A count in the footer under a sheet.
+func (msgs Messages) StatCharacters(count int) string {
+	return Catalog.Format(msgs.locale, "statCharacters", map[string]any{"count": count})
+}
+
+// StatCJK says "{count} CJK"
+// in the language the app shows.
+//
+// A count in the footer under a sheet: the Chinese, Japanese and Korean
+// characters; count is written with its thousands.
+func StatCJK(count string) string { return In(i18n.Locale()).StatCJK(count) }
+
+// StatCJK says "{count} CJK"
+// in the language of msgs.
+//
+// A count in the footer under a sheet: the Chinese, Japanese and Korean
+// characters; count is written with its thousands.
+func (msgs Messages) StatCJK(count string) string {
+	return Catalog.Format(msgs.locale, "statCJK", map[string]any{"count": count})
+}
+
+// StatOf says "{part} of {whole}"
+// in the language the app shows.
+//
+// A count in the footer while text is selected: the selection's against the
+// sheet's, as 1 word of 1,204 words.
+func StatOf(part string, whole string) string { return In(i18n.Locale()).StatOf(part, whole) }
+
+// StatOf says "{part} of {whole}"
+// in the language of msgs.
+//
+// A count in the footer while text is selected: the selection's against the
+// sheet's, as 1 word of 1,204 words.
+func (msgs Messages) StatOf(part string, whole string) string {
+	return Catalog.Format(msgs.locale, "statOf", map[string]any{"part": part, "whole": whole})
+}
+
+// StatCJKOf says "{part} of {whole} CJK"
+// in the language the app shows.
+//
+// The CJK count in the footer while text is selected, as 1 of 3 CJK; part
+// and whole are written with their thousands.
+func StatCJKOf(part string, whole string) string { return In(i18n.Locale()).StatCJKOf(part, whole) }
+
+// StatCJKOf says "{part} of {whole} CJK"
+// in the language of msgs.
+//
+// The CJK count in the footer while text is selected, as 1 of 3 CJK; part
+// and whole are written with their thousands.
+func (msgs Messages) StatCJKOf(part string, whole string) string {
+	return Catalog.Format(msgs.locale, "statCJKOf", map[string]any{"part": part, "whole": whole})
+}
+
+// RoleParagraph says "Paragraph"
+// in the language the app shows.
+//
+// Assistive technology: an empty paragraph of a sheet.
+func RoleParagraph() string { return In(i18n.Locale()).RoleParagraph() }
+
+// RoleParagraph says "Paragraph"
+// in the language of msgs.
+//
+// Assistive technology: an empty paragraph of a sheet.
+func (msgs Messages) RoleParagraph() string {
+	return Catalog.Format(msgs.locale, "roleParagraph", nil)
+}
+
+// RoleHeading says "Heading"
+// in the language the app shows.
+//
+// Assistive technology: an empty heading of a sheet.
+func RoleHeading() string { return In(i18n.Locale()).RoleHeading() }
+
+// RoleHeading says "Heading"
+// in the language of msgs.
+//
+// Assistive technology: an empty heading of a sheet.
+func (msgs Messages) RoleHeading() string {
+	return Catalog.Format(msgs.locale, "roleHeading", nil)
+}
+
+// RoleListItem says "List item"
+// in the language the app shows.
+//
+// Assistive technology: an empty list item of a sheet.
+func RoleListItem() string { return In(i18n.Locale()).RoleListItem() }
+
+// RoleListItem says "List item"
+// in the language of msgs.
+//
+// Assistive technology: an empty list item of a sheet.
+func (msgs Messages) RoleListItem() string {
+	return Catalog.Format(msgs.locale, "roleListItem", nil)
+}
+
+// RoleCode says "Code"
+// in the language the app shows.
+//
+// Assistive technology: an empty code block of a sheet.
+func RoleCode() string { return In(i18n.Locale()).RoleCode() }
+
+// RoleCode says "Code"
+// in the language of msgs.
+//
+// Assistive technology: an empty code block of a sheet.
+func (msgs Messages) RoleCode() string {
+	return Catalog.Format(msgs.locale, "roleCode", nil)
+}
+
+// RoleMath says "Math"
+// in the language the app shows.
+//
+// Assistive technology: an empty math block of a sheet.
+func RoleMath() string { return In(i18n.Locale()).RoleMath() }
+
+// RoleMath says "Math"
+// in the language of msgs.
+//
+// Assistive technology: an empty math block of a sheet.
+func (msgs Messages) RoleMath() string {
+	return Catalog.Format(msgs.locale, "roleMath", nil)
+}
+
+// RoleSeparator says "Separator"
+// in the language the app shows.
+//
+// Assistive technology: a divider of a sheet.
+func RoleSeparator() string { return In(i18n.Locale()).RoleSeparator() }
+
+// RoleSeparator says "Separator"
+// in the language of msgs.
+//
+// Assistive technology: a divider of a sheet.
+func (msgs Messages) RoleSeparator() string {
+	return Catalog.Format(msgs.locale, "roleSeparator", nil)
+}
+
+// RoleFigure says "Figure"
+// in the language the app shows.
+//
+// Assistive technology: a picture of a sheet with no caption.
+func RoleFigure() string { return In(i18n.Locale()).RoleFigure() }
+
+// RoleFigure says "Figure"
+// in the language of msgs.
+//
+// Assistive technology: a picture of a sheet with no caption.
+func (msgs Messages) RoleFigure() string {
+	return Catalog.Format(msgs.locale, "roleFigure", nil)
+}
+
+// RoleTable says "Table"
+// in the language the app shows.
+//
+// Assistive technology: a table of a sheet.
+func RoleTable() string { return In(i18n.Locale()).RoleTable() }
+
+// RoleTable says "Table"
+// in the language of msgs.
+//
+// Assistive technology: a table of a sheet.
+func (msgs Messages) RoleTable() string {
+	return Catalog.Format(msgs.locale, "roleTable", nil)
+}
+
+// RoleCell says "Cell"
+// in the language the app shows.
+//
+// Assistive technology: an empty cell of a table.
+func RoleCell() string { return In(i18n.Locale()).RoleCell() }
+
+// RoleCell says "Cell"
+// in the language of msgs.
+//
+// Assistive technology: an empty cell of a table.
+func (msgs Messages) RoleCell() string {
+	return Catalog.Format(msgs.locale, "roleCell", nil)
+}
+
+// RoleColumnHeader says "Column header"
+// in the language the app shows.
+//
+// Assistive technology: an empty header cell of a table.
+func RoleColumnHeader() string { return In(i18n.Locale()).RoleColumnHeader() }
+
+// RoleColumnHeader says "Column header"
+// in the language of msgs.
+//
+// Assistive technology: an empty header cell of a table.
+func (msgs Messages) RoleColumnHeader() string {
+	return Catalog.Format(msgs.locale, "roleColumnHeader", nil)
+}
+
+// DescribeCode says "code"
+// in the language the app shows.
+//
+// Assistive technology: what a code block is, where the platform has no
+// role for it.
+func DescribeCode() string { return In(i18n.Locale()).DescribeCode() }
+
+// DescribeCode says "code"
+// in the language of msgs.
+//
+// Assistive technology: what a code block is, where the platform has no
+// role for it.
+func (msgs Messages) DescribeCode() string {
+	return Catalog.Format(msgs.locale, "describeCode", nil)
+}
+
+// DescribeMath says "math"
+// in the language the app shows.
+//
+// Assistive technology: what a formula or math block is, where the platform
+// has no role for it.
+func DescribeMath() string { return In(i18n.Locale()).DescribeMath() }
+
+// DescribeMath says "math"
+// in the language of msgs.
+//
+// Assistive technology: what a formula or math block is, where the platform
+// has no role for it.
+func (msgs Messages) DescribeMath() string {
+	return Catalog.Format(msgs.locale, "describeMath", nil)
+}
+
+// NewSheetAreaText says "Sheet"
+// in the language the app shows.
+//
+// What the area that makes a sheet shows, short for New sheet
+func NewSheetAreaText() string { return In(i18n.Locale()).NewSheetAreaText() }
+
+// NewSheetAreaText says "Sheet"
+// in the language of msgs.
+//
+// What the area that makes a sheet shows, short for New sheet
+func (msgs Messages) NewSheetAreaText() string {
+	return Catalog.Format(msgs.locale, "newSheetAreaText", nil)
+}
+
+// ListSeparator says ", "
+// in the language the app shows.
+//
+// What stands between the items of a list said inline, as the hidden tags
+// of a card
+func ListSeparator() string { return In(i18n.Locale()).ListSeparator() }
+
+// ListSeparator says ", "
+// in the language of msgs.
+//
+// What stands between the items of a list said inline, as the hidden tags
+// of a card
+func (msgs Messages) ListSeparator() string {
+	return Catalog.Format(msgs.locale, "listSeparator", nil)
+}

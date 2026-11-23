@@ -143,7 +143,7 @@ func TestObjectAccessibilityUsesItsRole(t *testing.T) {
 	}
 	for _, p := range e.Present(1, ids) {
 		if p.Kind == profile.Divider {
-			if p.Role != "separator" || p.Label() != "Separator" || p.Value() != "" {
+			if p.Role != "separator" || p.Label() != "" || p.Value() != "" {
 				t.Fatalf("divider accessibility = %q %q %q", p.Role, p.Label(), p.Value())
 			}
 			return

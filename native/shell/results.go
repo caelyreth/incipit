@@ -245,7 +245,7 @@ func (s *State) paths(scope string) map[string][]string {
 	var walk func(parent string, path []string)
 	walk = func(parent string, path []string) {
 		for _, g := range s.Library.Groups(parent) {
-			p := append(slices.Clone(path), g.Name)
+			p := append(slices.Clone(path), g.Title())
 			out[g.ID] = p
 			if g.HasGroups {
 				walk(g.ID, p)

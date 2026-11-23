@@ -26,7 +26,8 @@ type accessPart struct {
 func (p *Presentation) setAccessible() {
 	parts, value, u := p.accessParts()
 	p.access.value = value
-	p.access.label = accessibleName(p.Role, value)
+	// An empty unit has no name of its own; the app names its role.
+	p.access.label = value
 	p.access.utf16 = make([]int32, 0, len(p.Stops))
 	at := newAccessIndex(parts, u)
 	for i, st := range p.Stops {
@@ -249,22 +250,6 @@ func absInt(n int) int {
 // renderer's empty-box placeholder.
 func boxText(n *doc.Node) string {
 	return n.Text()
-}
-
-func accessibleName(role, value string) string {
-	if value != "" {
-		return value
-	}
-	switch role {
-	case "listitem":
-		return "List item"
-	case "separator":
-		return "Separator"
-	}
-	if role == "" {
-		return "Paragraph"
-	}
-	return strings.ToUpper(role[:1]) + role[1:]
 }
 
 func utf16Len(s string) int {

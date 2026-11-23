@@ -42,7 +42,9 @@ type Place struct {
 
 // GroupItem is a group as the library lists it.
 type GroupItem struct {
-	ID   string
+	ID string
+	// Name is the group's name as the library keeps it and the query
+	// names it ($in:Inbox); Title shows it.
 	Name string
 	// Count is how many sheets the group holds, its groups' included.
 	Count int
@@ -66,6 +68,15 @@ type GroupItem struct {
 	// Tasks are its whole tree's tasks, or, for a smart folder, those of
 	// the sheets it finds.
 	Tasks Tasks
+}
+
+// Title is the group's name as it is shown: the Inbox's in the language
+// the app shows, which the library keeps in one.
+func (g GroupItem) Title() string {
+	if g.Inbox {
+		return locales.Inbox()
+	}
+	return g.Name
 }
 
 // Tasks counts tasks, open and done.
@@ -125,7 +136,12 @@ type MoveTarget struct {
 	ID    string
 	Name  string
 	Depth int
+	// Inbox marks the Inbox, shown by its Title.
+	Inbox bool
 }
+
+// Title is the target's name as it is shown.
+func (t MoveTarget) Title() string { return GroupItem{Name: t.Name, Inbox: t.Inbox}.Title() }
 
 // Library is what the field shows and changes: the notebook's sheets and
 // the groups that hold them. Groups are named by ID; "" is the top level.
@@ -265,7 +281,7 @@ func (s *State) moveTargets(move func(group string), exclude ...string) func(*ui
 				skipDepth = target.Depth
 				continue
 			}
-			if m.Item(strings.Repeat("    ", target.Depth) + target.Name).Chosen() {
+			if m.Item(strings.Repeat("    ", target.Depth) + target.Title()).Chosen() {
 				move(target.ID)
 			}
 		}

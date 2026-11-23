@@ -214,7 +214,7 @@ func rowIDs(kind string, ids []string) []string {
 // groupNamedByID is the group id's name, quoted.
 func (s *State) groupNamedByID(id string) string {
 	if g, ok := s.Library.Group(id); ok {
-		return locales.Quoted(g.Name)
+		return locales.Quoted(g.Title())
 	}
 	return locales.TheGroup()
 }

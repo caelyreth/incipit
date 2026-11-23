@@ -17,16 +17,6 @@ type Suggestion struct {
 	Done, Written           bool
 }
 
-// hints say what each kind of key takes.
-var hints = map[Takes]string{
-	TakesText: "words", TakesName: "name",
-	TakesDate: "date", TakesNumber: "count", TakesChoice: "kind",
-}
-
-// Hint says what the key takes: words, a name, a date, a count, a kind;
-// nothing for a key that stands alone.
-func (k *Key) Hint() string { return hints[k.Takes] }
-
 // Completion is what may stand where the caret is in a query: Items, in
 // order, each in place of Span.
 type Completion struct {
@@ -92,7 +82,7 @@ func Complete(text string, caret int, scope Scope, names func(key string) []stri
 		if k.Scope&scope == 0 || written[k.Name] || !strings.HasPrefix(k.Name, partial) {
 			continue
 		}
-		s := Suggestion{Label: "$" + k.Name, Text: "$" + k.Name, Hint: k.Hint(), Help: k.Help}
+		s := Suggestion{Label: "$" + k.Name, Text: "$" + k.Name, Hint: k.Hint(), Help: k.Help()}
 		switch {
 		case k.Bare():
 			s.Done = true

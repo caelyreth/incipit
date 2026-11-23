@@ -133,12 +133,3 @@ func (n *NoticeCenter) take() []noticeChange {
 	n.pending = nil
 	return pending
 }
-
-// Describe is an error as a notice's sentence: its first letter raised.
-func describeNotice(err error) string {
-	text := []rune(err.Error())
-	if len(text) > 0 && text[0] >= 'a' && text[0] <= 'z' {
-		text[0] -= 'a' - 'A'
-	}
-	return string(text)
-}

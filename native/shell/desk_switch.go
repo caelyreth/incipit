@@ -249,7 +249,7 @@ func (s *State) switchRows() []switchRow {
 		if at := slices.IndexFunc(filed, func(sh SheetItem) bool { return sh.ID == s.ActivePage }); at >= 0 {
 			section := locales.SwitchNear()
 			if group.Name != "" {
-				section = locales.SwitchNearIn(group.Name)
+				section = locales.SwitchNearIn(group.Title())
 			}
 			most := min(switchNear, left)
 			n = 0
@@ -520,7 +520,7 @@ func switchMeta(row switchRow, c *ui.Context) string {
 	}
 	var parts []string
 	if row.group.Name != "" {
-		parts = append(parts, row.group.Name)
+		parts = append(parts, row.group.Title())
 	}
 	if at := when(row.sheet.Updated, c.Now()); at != "" {
 		parts = append(parts, at)

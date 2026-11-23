@@ -1,10 +1,15 @@
 package keymap
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/caelyreth/neverland/locales"
+)
 
 // Keycaps returns the keys a person presses for chord, one cap each, in the
 // platform's conventional order and notation: symbols on macOS (⌃⌥⇧⌘),
-// words elsewhere (Ctrl, Alt, Shift, Super).
+// words elsewhere (Ctrl, Alt, Shift, Super), in the language the app
+// shows.
 func Keycaps(chord Chord, platform Platform) []string {
 	platform = platform.resolved()
 	modifiers := chord.Modifiers
@@ -12,22 +17,22 @@ func Keycaps(chord Chord, platform Platform) []string {
 	order := []struct {
 		modifier Modifier
 		mac      string
-		other    string
+		other    func() string
 	}{
-		{ModifierFunction, "fn", "Fn"},
-		{ModifierControl, "⌃", "Ctrl"},
-		{ModifierAlt, "⌥", "Alt"},
-		{ModifierShift, "⇧", "Shift"},
-		{ModifierPrimary, "⌘", "Ctrl"},
-		{ModifierSuper, "⌘", "Super"},
+		{ModifierFunction, "fn", locales.KeyFn},
+		{ModifierControl, "⌃", locales.KeyCtrl},
+		{ModifierAlt, "⌥", locales.KeyAlt},
+		{ModifierShift, "⇧", locales.KeyShift},
+		{ModifierPrimary, "⌘", locales.KeyCtrl},
+		{ModifierSuper, "⌘", locales.KeySuper},
 	}
 	for _, entry := range order {
 		if !modifiers.Has(entry.modifier) {
 			continue
 		}
-		label := entry.other
-		if platform == PlatformDarwin {
-			label = entry.mac
+		label := entry.mac
+		if platform != PlatformDarwin {
+			label = entry.other()
 		}
 		if len(caps) > 0 && caps[len(caps)-1] == label {
 			continue
@@ -70,25 +75,25 @@ func Words(chord Chord, platform Platform) string {
 
 func keyLabel(key string, platform Platform) string {
 	mac := platform == PlatformDarwin
-	pick := func(symbol, word string) string {
+	pick := func(symbol string, word func() string) string {
 		if mac {
 			return symbol
 		}
-		return word
+		return word()
 	}
 	switch key {
 	case "enter":
-		return pick("↩", "Enter")
+		return pick("↩", locales.KeyEnter)
 	case "escape":
-		return pick("⎋", "Esc")
+		return pick("⎋", locales.KeyEsc)
 	case "backspace":
-		return pick("⌫", "Backspace")
+		return pick("⌫", locales.KeyBackspace)
 	case "delete":
-		return pick("⌦", "Delete")
+		return pick("⌦", locales.KeyDelete)
 	case "tab":
-		return pick("⇥", "Tab")
+		return pick("⇥", locales.KeyTab)
 	case "space":
-		return "Space"
+		return locales.KeySpace()
 	case "left":
 		return "←"
 	case "right":
@@ -98,21 +103,21 @@ func keyLabel(key string, platform Platform) string {
 	case "down":
 		return "↓"
 	case "home":
-		return pick("↖", "Home")
+		return pick("↖", locales.KeyHome)
 	case "end":
-		return pick("↘", "End")
+		return pick("↘", locales.KeyEnd)
 	case "pageup":
-		return pick("⇞", "PgUp")
+		return pick("⇞", locales.KeyPageUp)
 	case "pagedown":
-		return pick("⇟", "PgDn")
+		return pick("⇟", locales.KeyPageDown)
 	case "insert":
-		return "Ins"
+		return locales.KeyInsert()
 	case "contextmenu":
-		return "Menu"
+		return locales.KeyMenu()
 	case "back":
-		return "Back"
+		return locales.KeyBack()
 	case "forward":
-		return "Forward"
+		return locales.KeyForward()
 	}
 	if len(key) == 1 || (len(key) <= 3 && key[0] == 'f') {
 		return strings.ToUpper(key)

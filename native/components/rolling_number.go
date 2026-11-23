@@ -1,10 +1,8 @@
 package components
 
 import (
-	"strconv"
-	"strings"
-
 	"github.com/caelyreth/neverland/native/theme"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -137,15 +135,8 @@ func AnimatedText(c *ui.Context, key, text string, size, lineH float32, ink ui.C
 	return w
 }
 
-// Thousands formats n with ASCII comma thousands separators.
+// Thousands writes n with its thousands grouped, as the language the app
+// shows groups them: 1,204.
 func Thousands(n int) string {
-	digits := strconv.Itoa(n)
-	var out strings.Builder
-	for index, digit := range digits {
-		if index > 0 && (len(digits)-index)%3 == 0 {
-			out.WriteByte(',')
-		}
-		out.WriteRune(digit)
-	}
-	return out.String()
+	return i18n.FormatNumber(i18n.Locale(), n, i18n.NumberOptions{})
 }

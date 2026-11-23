@@ -2147,5 +2147,765 @@
   "commandsToggleMathDialect": "Switch Math Dialect",
   "@commandsToggleMathDialect": {
     "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "unitCommands": "{count, plural, one {command} other {commands}}",
+  "@unitCommands": {
+    "description": "The unit after the count of commands found, beside the search, as 12 commands; the count stands before it on its own."
+  },
+  "unitSections": "{count, plural, one {section} other {sections}}",
+  "@unitSections": {
+    "description": "The unit after the count of settings sections found, beside the search."
+  },
+  "unitSheets": "{count, plural, one {sheet} other {sheets}}",
+  "@unitSheets": {
+    "description": "The unit after the count of sheets found, beside the search."
+  },
+  "unitWords": "{count, plural, one {word} other {words}}",
+  "@unitWords": {
+    "description": "The unit after the count of words in the sheets found, beside the search."
+  },
+  "search": "Search",
+  "@search": {
+    "description": "Assistive technology: the search field."
+  },
+  "searchSettings": "Search Settings",
+  "@searchSettings": {
+    "description": "The search field, while empty, in Settings."
+  },
+  "searchCommands": "Search Commands",
+  "@searchCommands": {
+    "description": "The search field, while empty, among the commands."
+  },
+  "searchTrash": "Search the Trash",
+  "@searchTrash": {
+    "description": "The search field, while empty, in the Trash."
+  },
+  "searchGroup": "Search {group}",
+  "@searchGroup": {
+    "description": "The search field, while empty, in a group."
+  },
+  "searchAllSheets": "Search All Sheets",
+  "@searchAllSheets": {
+    "description": "The search field, while empty."
+  },
+  "queryTag": "Tag",
+  "@queryTag": {
+    "description": "A filter of the search: $tag, the sheets with a tag."
+  },
+  "queryTagIs": "{not, select, yes {Tag is not {value}} other {Tag is {value}}}",
+  "@queryTagIs": {
+    "description": "A filter of the search, said whole; not is yes where it leaves out what it names, and value is what it names, as “work”."
+  },
+  "queryTagHelp": "Sheets with a tag; $tag:none for sheets with none",
+  "@queryTagHelp": {
+    "description": "What the filter $tag finds, in the search's suggestions; keep $tag:none as written."
+  },
+  "queryIn": "Group",
+  "@queryIn": {
+    "description": "A filter of the search: $in, the sheets in a group."
+  },
+  "queryInIs": "{not, select, yes {Group is not {value}} other {Group is {value}}}",
+  "@queryInIs": {
+    "description": "A filter of the search, said whole; not is yes where it leaves out what it names."
+  },
+  "queryInHelp": "Sheets in a group or the groups inside it",
+  "@queryInHelp": {
+    "description": "What the filter $in finds, in the search's suggestions."
+  },
+  "queryUpdated": "Updated",
+  "@queryUpdated": {
+    "description": "A filter of the search: $updated, when sheets were changed."
+  },
+  "queryUpdatedIs": "{not, select, yes {Updated not {value}} other {Updated {value}}}",
+  "@queryUpdatedIs": {
+    "description": "A filter of the search, said whole; value is a time said in words, as “in the last 7 days”."
+  },
+  "queryUpdatedHelp": "Sheets changed then: today, 7d, 2026-11, >2026-01-01",
+  "@queryUpdatedHelp": {
+    "description": "What the filter $updated finds, in the search's suggestions; keep the examples as written."
+  },
+  "queryDateHelp": "Same as $updated",
+  "@queryDateHelp": {
+    "description": "What the filter $date finds, in the search's suggestions."
+  },
+  "queryCreated": "Created",
+  "@queryCreated": {
+    "description": "A filter of the search: $created, when sheets were made."
+  },
+  "queryCreatedIs": "{not, select, yes {Created not {value}} other {Created {value}}}",
+  "@queryCreatedIs": {
+    "description": "A filter of the search, said whole; value is a time said in words."
+  },
+  "queryCreatedHelp": "Sheets made then",
+  "@queryCreatedHelp": {
+    "description": "What the filter $created finds, in the search's suggestions."
+  },
+  "queryWords": "Words",
+  "@queryWords": {
+    "description": "A filter of the search: $words, how long sheets are."
+  },
+  "queryWordsIs": "{not, select, yes {Words not {value}} other {Words {value}}}",
+  "@queryWordsIs": {
+    "description": "A filter of the search, said whole; value is a count said in words, as “fewer than 100”."
+  },
+  "queryWordsHelp": "Sheets of a length: 500 (at least), <100, 100..500",
+  "@queryWordsHelp": {
+    "description": "What the filter $words finds, in the search's suggestions; keep the examples as written."
+  },
+  "queryTitle": "Title",
+  "@queryTitle": {
+    "description": "A filter of the search: $title, words in sheets' titles."
+  },
+  "queryTitleIs": "{not, select, yes {Title doesn’t have {value}} other {Title has {value}}}",
+  "@queryTitleIs": {
+    "description": "A filter of the search, said whole."
+  },
+  "queryTitleHelp": "Words in the title",
+  "@queryTitleHelp": {
+    "description": "What the filter $title finds, in the search's suggestions."
+  },
+  "queryHeading": "Heading",
+  "@queryHeading": {
+    "description": "A filter of the search: $heading, words in headings."
+  },
+  "queryHeadingIs": "{not, select, yes {Heading doesn’t have {value}} other {Heading has {value}}}",
+  "@queryHeadingIs": {
+    "description": "A filter of the search, said whole."
+  },
+  "queryHeadingHelp": "Words in a heading",
+  "@queryHeadingHelp": {
+    "description": "What the filter $heading finds, in the search's suggestions."
+  },
+  "queryCode": "Code",
+  "@queryCode": {
+    "description": "A filter of the search: $code, words in code."
+  },
+  "queryCodeIs": "{not, select, yes {Code doesn’t have {value}} other {Code has {value}}}",
+  "@queryCodeIs": {
+    "description": "A filter of the search, said whole."
+  },
+  "queryCodeHelp": "Words in code",
+  "@queryCodeHelp": {
+    "description": "What the filter $code finds, in the search's suggestions."
+  },
+  "queryQuote": "Quote",
+  "@queryQuote": {
+    "description": "A filter of the search: $quote, words in quotes."
+  },
+  "queryQuoteIs": "{not, select, yes {Quote doesn’t have {value}} other {Quote has {value}}}",
+  "@queryQuoteIs": {
+    "description": "A filter of the search, said whole."
+  },
+  "queryQuoteHelp": "Words in a quote",
+  "@queryQuoteHelp": {
+    "description": "What the filter $quote finds, in the search's suggestions."
+  },
+  "queryHas": "Content",
+  "@queryHas": {
+    "description": "A filter of the search: $has, sheets holding a kind of thing."
+  },
+  "queryHasIs": "{not, select, yes {Content has no {value}} other {Content has {value}}}",
+  "@queryHasIs": {
+    "description": "A filter of the search, said whole; value is a kind of thing, as pictures."
+  },
+  "queryHasHelp": "Sheets holding a kind of thing",
+  "@queryHasHelp": {
+    "description": "What the filter $has finds, in the search's suggestions."
+  },
+  "queryTask": "Task",
+  "@queryTask": {
+    "description": "A filter of the search: $task, sheets with tasks."
+  },
+  "queryTaskIs": "{not, select, yes {Task doesn’t have {value}} other {Task has {value}}}",
+  "@queryTaskIs": {
+    "description": "A filter of the search, said whole."
+  },
+  "queryTaskAlone": "{not, select, yes {No task} other {Task}}",
+  "@queryTaskAlone": {
+    "description": "A filter of the search, said whole, with no words: sheets with a task, or with none."
+  },
+  "queryTaskHelp": "Sheets with a task; $task:words, a task holding them",
+  "@queryTaskHelp": {
+    "description": "What the filter $task finds, in the search's suggestions; keep $task:words as written."
+  },
+  "queryTodo": "Open task",
+  "@queryTodo": {
+    "description": "A filter of the search: $todo, sheets with open tasks."
+  },
+  "queryTodoIs": "{not, select, yes {Open task doesn’t have {value}} other {Open task has {value}}}",
+  "@queryTodoIs": {
+    "description": "A filter of the search, said whole."
+  },
+  "queryTodoAlone": "{not, select, yes {No open task} other {Open task}}",
+  "@queryTodoAlone": {
+    "description": "A filter of the search, said whole, with no words."
+  },
+  "queryTodoHelp": "Sheets with an open task; $todo:words, an open task holding them",
+  "@queryTodoHelp": {
+    "description": "What the filter $todo finds, in the search's suggestions; keep $todo:words as written."
+  },
+  "queryDone": "Done task",
+  "@queryDone": {
+    "description": "A filter of the search: $done, sheets with done tasks."
+  },
+  "queryDoneIs": "{not, select, yes {Done task doesn’t have {value}} other {Done task has {value}}}",
+  "@queryDoneIs": {
+    "description": "A filter of the search, said whole."
+  },
+  "queryDoneAlone": "{not, select, yes {No done task} other {Done task}}",
+  "@queryDoneAlone": {
+    "description": "A filter of the search, said whole, with no words."
+  },
+  "queryDoneHelp": "Sheets with a done task; $done:words, a done task holding them",
+  "@queryDoneHelp": {
+    "description": "What the filter $done finds, in the search's suggestions; keep $done:words as written."
+  },
+  "queryLink": "Links",
+  "@queryLink": {
+    "description": "A filter of the search: $link, sheets linking to a site."
+  },
+  "queryLinkIs": "{not, select, yes {Links not to {value}} other {Links to {value}}}",
+  "@queryLinkIs": {
+    "description": "A filter of the search, said whole; value is a site, as github.com."
+  },
+  "queryLinkHelp": "Links to a site, as $link:github.com",
+  "@queryLinkHelp": {
+    "description": "What the filter $link finds, in the search's suggestions; keep $link:github.com as written."
+  },
+  "queryInbox": "{not, select, yes {Not in the Inbox} other {In the Inbox}}",
+  "@queryInbox": {
+    "description": "A filter of the search: $inbox, the sheets in the Inbox, or not."
+  },
+  "queryInboxHelp": "Sheets in the Inbox",
+  "@queryInboxHelp": {
+    "description": "What the filter $inbox finds, in the search's suggestions."
+  },
+  "queryTrash": "In the trash",
+  "@queryTrash": {
+    "description": "A filter of the search: $trash, the sheets in the Trash."
+  },
+  "queryTrashHelp": "Sheets in the trash",
+  "@queryTrashHelp": {
+    "description": "What the filter $trash finds, in the search's suggestions."
+  },
+  "queryOpen": "{not, select, yes {Not open in a tab} other {Open in a tab}}",
+  "@queryOpen": {
+    "description": "A filter of the search: $open, the sheets open on the desk, or not."
+  },
+  "queryOpenHelp": "Sheets open in a tab",
+  "@queryOpenHelp": {
+    "description": "What the filter $open finds, in the search's suggestions."
+  },
+  "querySettings": "Settings",
+  "@querySettings": {
+    "description": "A filter of the search: $settings, the app's settings."
+  },
+  "querySettingsHelp": "The app's settings, found by their words",
+  "@querySettingsHelp": {
+    "description": "What the filter $settings finds, in the search's suggestions."
+  },
+  "querySheet": "In this sheet",
+  "@querySheet": {
+    "description": "A filter of the search: $sheet, finding in the sheet in front."
+  },
+  "querySheetHelp": "Find in the sheet in front, as ⌘F does",
+  "@querySheetHelp": {
+    "description": "What the filter $sheet finds, in the search's suggestions."
+  },
+  "querySort": "Sorted by",
+  "@querySort": {
+    "description": "A setting of the search: $sort, the order sheets are listed in."
+  },
+  "querySortIs": "Sorted by {value}",
+  "@querySortIs": {
+    "description": "A setting of the search, said whole; value is an order, as “updated, newest first”."
+  },
+  "querySortHelp": "Order: relevance, updated, created, title, words; -updated turns it",
+  "@querySortHelp": {
+    "description": "What $sort does, in the search's suggestions; keep the orders as written."
+  },
+  "queryBands": "Bands by",
+  "@queryBands": {
+    "description": "A setting of the search: $bands, what the field stands near."
+  },
+  "queryBandsIs": "Bands by {value}",
+  "@queryBandsIs": {
+    "description": "A setting of the search, said whole; value is a way of standing the field, as activity."
+  },
+  "queryBandsHelp": "What stands near: activity, relevance, updated, created, tag",
+  "@queryBandsHelp": {
+    "description": "What $bands does, in the search's suggestions; keep the ways as written."
+  },
+  "queryCase": "Match case",
+  "@queryCase": {
+    "description": "A setting of finding in a sheet: $case."
+  },
+  "queryCaseHelp": "Match letter case",
+  "@queryCaseHelp": {
+    "description": "What $case does, in the search's suggestions."
+  },
+  "queryWord": "Whole words",
+  "@queryWord": {
+    "description": "A setting of finding in a sheet: $word."
+  },
+  "queryWordHelp": "Match whole words only",
+  "@queryWordHelp": {
+    "description": "What $word does, in the search's suggestions."
+  },
+  "takesWords": "words",
+  "@takesWords": {
+    "description": "What a filter takes, beside it in the search's suggestions: words."
+  },
+  "takesName": "name",
+  "@takesName": {
+    "description": "What a filter takes, beside it in the search's suggestions: a name."
+  },
+  "takesDate": "date",
+  "@takesDate": {
+    "description": "What a filter takes, beside it in the search's suggestions: a date."
+  },
+  "takesCount": "count",
+  "@takesCount": {
+    "description": "What a filter takes, beside it in the search's suggestions: a count."
+  },
+  "takesKind": "kind",
+  "@takesKind": {
+    "description": "What a filter takes, beside it in the search's suggestions: a kind."
+  },
+  "dateTodayWord": "today",
+  "@dateTodayWord": {
+    "description": "A date of a filter, in a sentence: Updated today."
+  },
+  "dateYesterday": "yesterday",
+  "@dateYesterday": {
+    "description": "A date of a filter, in a sentence."
+  },
+  "dateThisWeekWord": "this week",
+  "@dateThisWeekWord": {
+    "description": "A date of a filter, in a sentence."
+  },
+  "dateLastWeek": "last week",
+  "@dateLastWeek": {
+    "description": "A date of a filter, in a sentence."
+  },
+  "dateThisMonthWord": "this month",
+  "@dateThisMonthWord": {
+    "description": "A date of a filter, in a sentence."
+  },
+  "dateLastMonth": "last month",
+  "@dateLastMonth": {
+    "description": "A date of a filter, in a sentence."
+  },
+  "dateThisYearWord": "this year",
+  "@dateThisYearWord": {
+    "description": "A date of a filter, in a sentence."
+  },
+  "dateLastYear": "last year",
+  "@dateLastYear": {
+    "description": "A date of a filter, in a sentence."
+  },
+  "spanDays": "{n, plural, one {# day} other {# days}}",
+  "@spanDays": {
+    "description": "A span of time in a filter's sentence."
+  },
+  "spanWeeks": "{n, plural, one {# week} other {# weeks}}",
+  "@spanWeeks": {
+    "description": "A span of time in a filter's sentence."
+  },
+  "spanMonths": "{n, plural, one {# month} other {# months}}",
+  "@spanMonths": {
+    "description": "A span of time in a filter's sentence."
+  },
+  "spanYears": "{n, plural, one {# year} other {# years}}",
+  "@spanYears": {
+    "description": "A span of time in a filter's sentence."
+  },
+  "inLastDays": "{n, plural, one {in the last day} other {in the last # days}}",
+  "@inLastDays": {
+    "description": "A time in a filter's sentence: Updated in the last 7 days."
+  },
+  "inLastWeeks": "{n, plural, one {in the last week} other {in the last # weeks}}",
+  "@inLastWeeks": {
+    "description": "A time in a filter's sentence."
+  },
+  "inLastMonths": "{n, plural, one {in the last month} other {in the last # months}}",
+  "@inLastMonths": {
+    "description": "A time in a filter's sentence."
+  },
+  "inLastYears": "{n, plural, one {in the last year} other {in the last # years}}",
+  "@inLastYears": {
+    "description": "A time in a filter's sentence."
+  },
+  "spanAgo": "{span} ago",
+  "@spanAgo": {
+    "description": "A time in a filter's sentence, as 3 days ago."
+  },
+  "moreThanAgo": "more than {span} ago",
+  "@moreThanAgo": {
+    "description": "A time in a filter's sentence."
+  },
+  "upTo": "up to {point}",
+  "@upTo": {
+    "description": "A time in a filter's sentence: Updated up to 2026-01."
+  },
+  "fromPoint": "from {point}",
+  "@fromPoint": {
+    "description": "A time in a filter's sentence."
+  },
+  "fromTo": "{from} to {to}",
+  "@fromTo": {
+    "description": "A span in a filter's sentence, of times or of counts."
+  },
+  "afterPoint": "after {point}",
+  "@afterPoint": {
+    "description": "A time in a filter's sentence."
+  },
+  "beforePoint": "before {point}",
+  "@beforePoint": {
+    "description": "A time in a filter's sentence."
+  },
+  "onDay": "on {day}",
+  "@onDay": {
+    "description": "A day in a filter's sentence: Updated on 2026-11-22."
+  },
+  "inPeriod": "in {period}",
+  "@inPeriod": {
+    "description": "A month or year in a filter's sentence: Updated in 2026-11."
+  },
+  "orFewer": "{n} or fewer",
+  "@orFewer": {
+    "description": "A count in a filter's sentence."
+  },
+  "orMore": "{n} or more",
+  "@orMore": {
+    "description": "A count in a filter's sentence."
+  },
+  "moreThan": "more than {n}",
+  "@moreThan": {
+    "description": "A count in a filter's sentence."
+  },
+  "fewerThan": "fewer than {n}",
+  "@fewerThan": {
+    "description": "A count in a filter's sentence."
+  },
+  "sortOrder": "{field}, {order}",
+  "@sortOrder": {
+    "description": "An order in a filter's sentence, as “updated, newest first”."
+  },
+  "sortRelevance": "relevance",
+  "@sortRelevance": {
+    "description": "An order of the search: how well sheets match."
+  },
+  "sortUpdated": "updated",
+  "@sortUpdated": {
+    "description": "An order of the search: when sheets were changed."
+  },
+  "sortCreated": "created",
+  "@sortCreated": {
+    "description": "An order of the search: when sheets were made."
+  },
+  "sortTitle": "title",
+  "@sortTitle": {
+    "description": "An order of the search: by title."
+  },
+  "sortWords": "words",
+  "@sortWords": {
+    "description": "An order of the search: by length."
+  },
+  "oldestFirst": "oldest first",
+  "@oldestFirst": {
+    "description": "Which come first in an order by date."
+  },
+  "newestFirst": "newest first",
+  "@newestFirst": {
+    "description": "Which come first in an order by date."
+  },
+  "longestFirst": "longest first",
+  "@longestFirst": {
+    "description": "Which come first in an order by length."
+  },
+  "shortestFirst": "shortest first",
+  "@shortestFirst": {
+    "description": "Which come first in an order by length."
+  },
+  "aToZ": "A to Z",
+  "@aToZ": {
+    "description": "Which come first in an order by title."
+  },
+  "zToA": "Z to A",
+  "@zToA": {
+    "description": "Which come first in an order by title."
+  },
+  "lensActivity": "activity",
+  "@lensActivity": {
+    "description": "A way the field stands sheets near: by when they were written."
+  },
+  "lensRelevance": "relevance",
+  "@lensRelevance": {
+    "description": "A way the field stands sheets near: by how well they match."
+  },
+  "lensUpdated": "updated",
+  "@lensUpdated": {
+    "description": "A way the field stands sheets near: by when they were changed."
+  },
+  "lensCreated": "created",
+  "@lensCreated": {
+    "description": "A way the field stands sheets near: by when they were made."
+  },
+  "lensTag": "tag",
+  "@lensTag": {
+    "description": "A way the field stands sheets near: by their tags."
+  },
+  "kindCode": "code",
+  "@kindCode": {
+    "description": "A kind of thing a sheet holds, for $has."
+  },
+  "kindImage": "pictures",
+  "@kindImage": {
+    "description": "A kind of thing a sheet holds, for $has."
+  },
+  "kindLink": "links",
+  "@kindLink": {
+    "description": "A kind of thing a sheet holds, for $has."
+  },
+  "kindList": "lists",
+  "@kindList": {
+    "description": "A kind of thing a sheet holds, for $has."
+  },
+  "kindMath": "math",
+  "@kindMath": {
+    "description": "A kind of thing a sheet holds, for $has."
+  },
+  "kindQuote": "quotes",
+  "@kindQuote": {
+    "description": "A kind of thing a sheet holds, for $has."
+  },
+  "kindTable": "tables",
+  "@kindTable": {
+    "description": "A kind of thing a sheet holds, for $has."
+  },
+  "kindTask": "tasks",
+  "@kindTask": {
+    "description": "A kind of thing a sheet holds, for $has."
+  },
+  "pending": "…",
+  "@pending": {
+    "description": "A filter's value not yet written, in its sentence: Title has …"
+  },
+  "inbox": "Inbox",
+  "@inbox": {
+    "description": "The group every notebook has, for sheets not filed anywhere else."
+  },
+  "lengthUnder": "Under {n} words",
+  "@lengthUnder": {
+    "description": "A step of the list sorted by length; n is written with its thousands."
+  },
+  "lengthBetween": "{from} to {to} words",
+  "@lengthBetween": {
+    "description": "A step of the list sorted by length."
+  },
+  "lengthOver": "{n} words or more",
+  "@lengthOver": {
+    "description": "A step of the list sorted by length."
+  },
+  "errorPermission": "Neverland isn't allowed to use the file. Check its permissions.",
+  "@errorPermission": {
+    "description": "Under a notice: why it failed."
+  },
+  "errorNotFound": "The file is no longer there.",
+  "@errorNotFound": {
+    "description": "Under a notice: why it failed."
+  },
+  "errorDiskFull": "The disk is full. Free some space and try again.",
+  "@errorDiskFull": {
+    "description": "Under a notice: why it failed."
+  },
+  "errorNotebookClosed": "The notebook is closed.",
+  "@errorNotebookClosed": {
+    "description": "Under a notice: why it failed."
+  },
+  "errorNotebookLocked": "The notebook is open in another Neverland window.",
+  "@errorNotebookLocked": {
+    "description": "Under a notice: why it failed."
+  },
+  "errorMediaFormat": "It isn't a picture Neverland can show.",
+  "@errorMediaFormat": {
+    "description": "Under a notice: why a picture could not be added."
+  },
+  "errorMediaSize": "The picture is too large.",
+  "@errorMediaSize": {
+    "description": "Under a notice: why a picture could not be added."
+  },
+  "errorInbox": "The Inbox stays as it is.",
+  "@errorInbox": {
+    "description": "Under a notice: the Inbox cannot be renamed, moved or trashed."
+  },
+  "errorCycle": "A group can't go inside itself.",
+  "@errorCycle": {
+    "description": "Under a notice: why a group could not be moved."
+  },
+  "errorTrashed": "The group is in the Trash.",
+  "@errorTrashed": {
+    "description": "Under a notice: why it failed."
+  },
+  "errorUnknownItem": "The sheet or group is no longer there.",
+  "@errorUnknownItem": {
+    "description": "Under a notice: why it failed."
+  },
+  "errorTimeout": "It took too long. Check the connection and try again.",
+  "@errorTimeout": {
+    "description": "Under a notice: why it failed."
+  },
+  "keyFn": "Fn",
+  "@keyFn": {
+    "description": "A key's name on a keycap, off macOS, as keyboards print it in the language."
+  },
+  "keyCtrl": "Ctrl",
+  "@keyCtrl": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyAlt": "Alt",
+  "@keyAlt": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyShift": "Shift",
+  "@keyShift": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keySuper": "Super",
+  "@keySuper": {
+    "description": "A key's name on a keycap, off macOS: the Windows or system key."
+  },
+  "keyEnter": "Enter",
+  "@keyEnter": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyEsc": "Esc",
+  "@keyEsc": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyBackspace": "Backspace",
+  "@keyBackspace": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyDelete": "Delete",
+  "@keyDelete": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyTab": "Tab",
+  "@keyTab": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keySpace": "Space",
+  "@keySpace": {
+    "description": "A key's name on a keycap."
+  },
+  "keyHome": "Home",
+  "@keyHome": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyEnd": "End",
+  "@keyEnd": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyPageUp": "PgUp",
+  "@keyPageUp": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyPageDown": "PgDn",
+  "@keyPageDown": {
+    "description": "A key's name on a keycap, off macOS."
+  },
+  "keyInsert": "Ins",
+  "@keyInsert": {
+    "description": "A key's name on a keycap."
+  },
+  "keyMenu": "Menu",
+  "@keyMenu": {
+    "description": "A key's name on a keycap: the context menu key."
+  },
+  "keyBack": "Back",
+  "@keyBack": {
+    "description": "A key's name on a keycap: the browser's back key."
+  },
+  "keyForward": "Forward",
+  "@keyForward": {
+    "description": "A key's name on a keycap: the browser's forward key."
+  },
+  "statWords": "{count, plural, one {# word} other {# words}}",
+  "@statWords": {
+    "description": "A count in the footer under a sheet."
+  },
+  "statCharacters": "{count, plural, one {# character} other {# characters}}",
+  "@statCharacters": {
+    "description": "A count in the footer under a sheet."
+  },
+  "statCJK": "{count} CJK",
+  "@statCJK": {
+    "description": "A count in the footer under a sheet: the Chinese, Japanese and Korean characters; count is written with its thousands."
+  },
+  "statOf": "{part} of {whole}",
+  "@statOf": {
+    "description": "A count in the footer while text is selected: the selection's against the sheet's, as 1 word of 1,204 words."
+  },
+  "statCJKOf": "{part} of {whole} CJK",
+  "@statCJKOf": {
+    "description": "The CJK count in the footer while text is selected, as 1 of 3 CJK; part and whole are written with their thousands."
+  },
+  "roleParagraph": "Paragraph",
+  "@roleParagraph": {
+    "description": "Assistive technology: an empty paragraph of a sheet."
+  },
+  "roleHeading": "Heading",
+  "@roleHeading": {
+    "description": "Assistive technology: an empty heading of a sheet."
+  },
+  "roleListItem": "List item",
+  "@roleListItem": {
+    "description": "Assistive technology: an empty list item of a sheet."
+  },
+  "roleCode": "Code",
+  "@roleCode": {
+    "description": "Assistive technology: an empty code block of a sheet."
+  },
+  "roleMath": "Math",
+  "@roleMath": {
+    "description": "Assistive technology: an empty math block of a sheet."
+  },
+  "roleSeparator": "Separator",
+  "@roleSeparator": {
+    "description": "Assistive technology: a divider of a sheet."
+  },
+  "roleFigure": "Figure",
+  "@roleFigure": {
+    "description": "Assistive technology: a picture of a sheet with no caption."
+  },
+  "roleTable": "Table",
+  "@roleTable": {
+    "description": "Assistive technology: a table of a sheet."
+  },
+  "roleCell": "Cell",
+  "@roleCell": {
+    "description": "Assistive technology: an empty cell of a table."
+  },
+  "roleColumnHeader": "Column header",
+  "@roleColumnHeader": {
+    "description": "Assistive technology: an empty header cell of a table."
+  },
+  "describeCode": "code",
+  "@describeCode": {
+    "description": "Assistive technology: what a code block is, where the platform has no role for it."
+  },
+  "describeMath": "math",
+  "@describeMath": {
+    "description": "Assistive technology: what a formula or math block is, where the platform has no role for it."
+  },
+  "newSheetAreaText": "Sheet",
+  "@newSheetAreaText": {
+    "description": "What the area that makes a sheet shows, short for New sheet"
+  },
+  "listSeparator": ", ",
+  "@listSeparator": {
+    "description": "What stands between the items of a list said inline, as the hidden tags of a card"
   }
 }

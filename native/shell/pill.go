@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -38,9 +39,10 @@ const horizonSide = 140
 func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stageRect, rl ribbonLayout, w, k float32, animate bool) {
 	gap := 12 * k
 	// Pressed, Neverland's name goes home, as the field lane's Home does.
-	mark := ui.ButtonBase(c.Key("wordmark")).Absolute().Top(r.Y).Right(w - r.X + gap).Height(r.H).
+	mark := ui.ButtonBase(c.Key("wordmark")).Absolute().Top(0).Right(w-r.X+gap).Height(r.H).
+		Translate(0, r.Y).
 		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label("Neverland")
-	components.Hint(c, semantic, mark, "Home", s.binding(VerbHome), components.HintAbove)
+	components.Hint(c, semantic, mark, locales.Home(), s.binding(VerbHome), components.HintAbove)
 	if mark.Clicked() {
 		s.goHome()
 	}
@@ -60,7 +62,7 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stageRect, rl
 	// the frame began: the pill, taking the keys, may change it.
 	// Carry the pill's vertical offset on an unclipped parent so each
 	// ribbon's Scale transition never scales the horizon translation.
-	ui.Box(c).Key("ribbons").Absolute().Left(0).Top(r.Y).Children(func() {
+	ui.Box(c).Key("ribbons").Absolute().Left(0).Top(0).Translate(0, r.Y).Children(func() {
 		for _, p := range rl.places {
 			s.ribbon(c, semantic, p, k, animate)
 		}
@@ -72,13 +74,6 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stageRect, rl
 type fieldStatsState struct {
 	count, words components.RollingNumber
 	lastWords    int
-}
-
-func nounForm(n int, singular, plural string) string {
-	if n == 1 {
-		return singular
-	}
-	return plural
 }
 
 func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w, gap float32, animate bool) {
@@ -101,16 +96,16 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 	var unit string
 	switch st.mode {
 	case statCommands:
-		unit = nounForm(st.count, "command", "commands")
+		unit = locales.UnitCommands(st.count)
 	case statSettings:
-		unit = nounForm(st.count, "section", "sections")
+		unit = locales.UnitSections(st.count)
 	default:
-		unit = nounForm(st.count, "sheet", "sheets")
+		unit = locales.UnitSheets(st.count)
 		s.field.stats.lastWords = st.words
 	}
-	row := ui.Row(c).Key("field-stats").Absolute().Top(r.Y).Left(r.X+r.W+gap).Height(r.H).
+	row := ui.Row(c).Key("field-stats").Absolute().Top(0).Left(r.X+r.W+gap).Height(r.H).
 		MaxWidth(maxW).AlignItems(ui.Center).IgnoreInput(!s.queryWritten()).Clip().
-		Translate(0, -components.UIOpticalLift(s.Settings.UIFontSize))
+		Translate(0, r.Y-components.UIOpticalLift(s.Settings.UIFontSize))
 	// The place's actions open, they stand where the stats did.
 	acting := map[bool]float32{true: 1}[s.field.acting]
 	standing := map[bool]float32{true: 1}[s.actionsStand()]
@@ -129,7 +124,7 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 		components.AnimatedText(c, "stat-unit", unit, size, lineH, ink, animate)
 
 		wordCount := s.field.stats.lastWords
-		wordUnit := nounForm(wordCount, "word", "words")
+		wordUnit := locales.UnitWords(wordCount)
 		targetShown := float32(0)
 		if st.mode == statLibrary {
 			targetShown = 1
@@ -168,16 +163,17 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 const pillGap = 8
 
 func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stageRect, acts []fieldAction, k float32, animate bool) {
-	pill := ui.Row(c).Key("pill").Absolute().Left(r.X).Top(r.Y).Size(r.W, r.H).
+	pill := ui.Row(c).Key("pill").Absolute().Left(r.X).Top(0).Size(r.W, r.H).
+		Translate(0, r.Y).
 		Radius(r.H / 2).Background(semantic.Surface.Page).
 		PaddingStart(r.H * 0.4).Gap(pillGap * k).AlignItems(ui.Center).
-		Cursor(ui.CursorText).Role(ui.RoleSearch).Label("Search")
+		Cursor(ui.CursorText).Role(ui.RoleSearch).Label(locales.Search())
 	var input ui.Element
 	pill.Children(func() {
 		input = ui.TextInputBase(c.Key("pill-input"), &s.field.words).
 			Grow(1).MinWidth(0).Font(theme.UIFontFamily).
 			FontSize(theme.TextDefault.Size(s.Settings.UIFontSize)).
-			TextColor(semantic.Text.Heading).Placeholder(s.pillPlaceholder()).Label("Search")
+			TextColor(semantic.Text.Heading).Placeholder(s.pillPlaceholder()).Label(locales.Search())
 		input.OnTextKey(s.pillKey)
 		if edit := s.field.edit; edit != nil {
 			s.field.edit = nil
@@ -242,19 +238,19 @@ func (s *State) pillPlaceholder() string {
 	switch {
 	case s.field.opened != nil:
 		// What the key says of its value: "Title has…", "Updated…".
-		return strings.TrimSpace(s.field.opened.Label+" "+s.field.opened.Is) + "…"
+		return s.field.opened.Prompt()
 	case s.InSettings():
-		return "Search Settings"
+		return locales.SearchSettings()
 	case s.commanding():
-		return "Search Commands"
+		return locales.SearchCommands()
 	case s.inTrash():
-		return "Search the Trash"
+		return locales.SearchTrash()
 	}
 	// It says what it searches: the group the field is in, or everything.
 	if g, ok := s.scopeGroup(); ok {
-		return "Search " + g.Name
+		return locales.SearchGroup(g.Title())
 	}
-	return "Search All Sheets"
+	return locales.SearchAllSheets()
 }
 
 // ribbonH and ribbonGap are a ribbon's height and the room around it, at
@@ -336,7 +332,9 @@ func ribbonTransition(animate, above bool, k float32) ui.ElementTransition {
 	if above {
 		shift = 8 * k
 	}
-	gone := &ui.Motion{Y: shift, Opacity: 0, Scale: 0.9}
+	// Stay >= 0.93 so the scale remains in the 1.0 raster bucket across the entire
+	// entrance/exit rather than switching from the 0.917 bucket mid-flight.
+	gone := &ui.Motion{Y: shift, Opacity: 0, Scale: 0.93}
 	return ui.ElementTransition{
 		Animation: &spring, ExitDuration: components.MotionQuick, ExitEase: ui.EaseOut,
 		Position: true, Colors: true, Enter: gone, Exit: gone,

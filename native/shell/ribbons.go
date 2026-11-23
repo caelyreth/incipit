@@ -354,7 +354,7 @@ func (s *State) look(semantic theme.Theme, p ribbonPlace) ribbonLook {
 	case ribbonCondition:
 		l = s.conditionLook(semantic, p.text)
 	case ribbonKey:
-		l.label, l.icon = p.key.Label, components.IconPlus
+		l.label, l.icon = p.key.Label(), components.IconPlus
 		if of := s.completing(); of != nil && of.Name == p.key.Name {
 			l.icon, l.edge = components.IconChevronDown, edgeNone
 			l.ink, l.text, l.fill = semantic.Accent.Foreground, semantic.Accent.Foreground, semantic.Accent.Muted
@@ -414,6 +414,9 @@ func (s *State) conditionLook(semantic theme.Theme, text string) ribbonLook {
 			}
 			if s.Library != nil {
 				if g, ok := s.groupNamed(cond.Value); ok {
+					shown := cond
+					shown.Value = g.Title()
+					l.label = shown.Sentence()
 					l.icon = groupIcon(g)
 					l.ink = groupInk(semantic, g, l.ink)
 				}

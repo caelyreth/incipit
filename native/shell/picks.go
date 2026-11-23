@@ -213,7 +213,7 @@ func (s *State) objectsNamed(ids []string) string {
 		return s.sheetsNamed(sheets)
 	case len(ids) == 1 && len(groups) == 1:
 		if g, ok := s.shownGroup(groups[0]); ok {
-			return locales.Quoted(g.Name)
+			return locales.Quoted(g.Title())
 		}
 	}
 	return objectsCount(len(groups), len(sheets), locales.CountGroups, locales.CountSheets)

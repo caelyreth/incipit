@@ -4,10 +4,6 @@
 package statistics
 
 import (
-	"fmt"
-	"strconv"
-	"strings"
-
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policy"
 	"github.com/caelyreth/neverland/editor/vocab"
@@ -95,55 +91,4 @@ func CountText(text string) Counts {
 	}
 	c.Words = vocab.CountWords(text)
 	return c
-}
-
-// Format is the footer's spelling of the counts. A selection is shown
-// against the page's totals; nil means nothing is selected.
-func Format(page Counts, selection *Counts) string {
-	if selection == nil {
-		return formatCounts(page)
-	}
-	parts := []string{
-		fmt.Sprintf("%s of %s", count(selection.Words, "word"), count(page.Words, "word")),
-		fmt.Sprintf("%s of %s", count(selection.Characters, "character"), count(page.Characters, "character")),
-	}
-	if page.CJK > 0 || selection.CJK > 0 {
-		parts = append(parts, fmt.Sprintf("%s of %s", number(selection.CJK), number(page.CJK)+" CJK"))
-	}
-	return strings.Join(parts, "  ·  ")
-}
-
-func formatCounts(c Counts) string {
-	parts := []string{count(c.Words, "word"), count(c.Characters, "character")}
-	if c.CJK > 0 {
-		parts = append(parts, number(c.CJK)+" CJK")
-	}
-	return strings.Join(parts, "  ·  ")
-}
-
-func count(n int, noun string) string {
-	if n == 1 {
-		return "1 " + noun
-	}
-	return number(n) + " " + noun + "s"
-}
-
-// number groups thousands with commas, as the library's counts do.
-func number(n int) string {
-	digits := strconv.Itoa(n)
-	if len(digits) <= 3 {
-		return digits
-	}
-	var b strings.Builder
-	lead := len(digits) % 3
-	if lead > 0 {
-		b.WriteString(digits[:lead])
-	}
-	for i := lead; i < len(digits); i += 3 {
-		if b.Len() > 0 {
-			b.WriteByte(',')
-		}
-		b.WriteString(digits[i : i+3])
-	}
-	return b.String()
 }

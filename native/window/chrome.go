@@ -1,10 +1,14 @@
 package window
 
 import (
+	"strings"
+
 	"github.com/caelyreth/neverland/app/workspace"
 	"github.com/caelyreth/neverland/editor/doc"
 	"github.com/caelyreth/neverland/editor/policies/find"
 	"github.com/caelyreth/neverland/editor/policies/statistics"
+	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/neverland/native/components"
 	"github.com/caelyreth/neverland/native/page"
 	"github.com/caelyreth/neverland/native/shell"
 )
@@ -75,5 +79,26 @@ func pageStatistics(ed *page.Editor) string {
 		counts := statistics.CountText(text)
 		selection = &counts
 	}
-	return statistics.Format(page, selection)
+	return formatStatistics(page, selection)
+}
+
+// formatStatistics is the footer's spelling of the counts, in the
+// language the app shows. A selection is shown against the page's totals;
+// nil means nothing is selected.
+func formatStatistics(page statistics.Counts, selection *statistics.Counts) string {
+	if selection == nil {
+		parts := []string{locales.StatWords(page.Words), locales.StatCharacters(page.Characters)}
+		if page.CJK > 0 {
+			parts = append(parts, locales.StatCJK(components.Thousands(page.CJK)))
+		}
+		return strings.Join(parts, "  ·  ")
+	}
+	parts := []string{
+		locales.StatOf(locales.StatWords(selection.Words), locales.StatWords(page.Words)),
+		locales.StatOf(locales.StatCharacters(selection.Characters), locales.StatCharacters(page.Characters)),
+	}
+	if page.CJK > 0 || selection.CJK > 0 {
+		parts = append(parts, locales.StatCJKOf(components.Thousands(selection.CJK), components.Thousands(page.CJK)))
+	}
+	return strings.Join(parts, "  ·  ")
 }

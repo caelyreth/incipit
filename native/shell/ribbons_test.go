@@ -43,7 +43,7 @@ func TestEveryKeyOffersItsValues(t *testing.T) {
 				state.toggleList()
 				settle(tester)
 			}
-			pressKey(t, state, tester, k.Label)
+			pressKey(t, state, tester, k.Label())
 			if k.Takes != query.TakesText && k.Takes != query.TakesName || name == "tag" {
 				if len(state.valueRibbons()) == 0 {
 					t.Fatalf("%s should offer its values at once.", name)

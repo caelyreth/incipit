@@ -1,9 +1,7 @@
 package components
 
 import (
-	"strings"
 	"time"
-	"unicode"
 
 	"github.com/caelyreth/neverland/native/theme"
 	"github.com/egoist/mygo/ui"
@@ -25,9 +23,9 @@ const (
 // CreateArea is a dashed area that makes a thing when clicked.
 type CreateArea struct {
 	Key string
-	// Label names what it makes, as "New sheet"; the area shows it without
-	// its "New ".
-	Label string
+	// Label names what it makes, as "New sheet", for those who cannot see
+	// the area; Text is what it shows, said short, as "Sheet".
+	Label, Text string
 	// Icon is IconPlus when empty.
 	Icon IconName
 	// Reveal and LabelReveal fade the icon and the label in from 0 to 1,
@@ -83,24 +81,13 @@ func (a CreateArea) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		if a.Compact {
 			return
 		}
-		CenteredLabel(c, CreatorLabel(a.Label), theme.TextSmall, ink).MinWidth(0).
+		CenteredLabel(c, a.Text, theme.TextSmall, ink).MinWidth(0).
 			Opacity(labelReveal).Translate(a.LabelShift, -UIOpticalLift(scale))
 	})
 	if area.Clicked() && a.Action != nil {
 		a.Action()
 	}
 	return area
-}
-
-// CreatorLabel is what an area making label shows: "New sheet" as
-// "Sheet".
-func CreatorLabel(label string) string {
-	visible := strings.TrimPrefix(label, "New ")
-	if runes := []rune(visible); len(runes) > 0 {
-		runes[0] = unicode.ToUpper(runes[0])
-		visible = string(runes)
-	}
-	return visible
 }
 
 // CreateGap is a place in a run of things where a create area is called

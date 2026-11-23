@@ -46,18 +46,3 @@ func TestThePolicySummaryMatchesADirectCount(t *testing.T) {
 		t.Fatalf("page = %+v", got)
 	}
 }
-
-func TestFormatShowsPageAndSelectionTotals(t *testing.T) {
-	page := Counts{Words: 1204, Characters: 5210, CJK: 3}
-	if got, want := Format(page, nil), "1,204 words  ·  5,210 characters  ·  3 CJK"; got != want {
-		t.Fatalf("page format = %q, want %q", got, want)
-	}
-	selection := Counts{Words: 1, Characters: 4, CJK: 1}
-	if got, want := Format(page, &selection),
-		"1 word of 1,204 words  ·  4 characters of 5,210 characters  ·  1 of 3 CJK"; got != want {
-		t.Fatalf("selection format = %q, want %q", got, want)
-	}
-	if got, want := Format(Counts{}, &Counts{}), "0 words of 0 words  ·  0 characters of 0 characters"; got != want {
-		t.Fatalf("empty selection format = %q, want %q", got, want)
-	}
-}

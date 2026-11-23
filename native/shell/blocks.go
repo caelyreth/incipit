@@ -34,7 +34,7 @@ func (b block) view(s *State, c *ui.Context, semantic theme.Theme, box ui.Elemen
 				s.entryRow(c, semantic, *r.entry, b.trashed, r.h, b.single, m, animate)
 			case r.create:
 				g := *b.group
-				components.CreateArea{Key: "create", Label: locales.NewSheetArea(), Animate: animate, Action: func() {
+				components.CreateArea{Key: "create", Label: locales.NewSheetArea(), Text: locales.NewSheetAreaText(), Animate: animate, Action: func() {
 					s.Library.NewSheet(g.ID, Last)
 					s.ShowDesk()
 				}}.View(c, semantic).Height(r.h).Transition(listTransition(animate, false))
@@ -65,7 +65,7 @@ func (s *State) dividerView(c *ui.Context, semantic theme.Theme, b block, box ui
 
 func (b block) name() string {
 	if b.group != nil {
-		return b.group.Name
+		return b.group.Title()
 	}
 	return locales.Trash()
 }
@@ -232,7 +232,7 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 	id := "group:" + g.ID
 	btn := ui.ButtonBase(c.Key("row-" + id)).WidthPercent(100).Height(m.groupRow).PaddingX(rowPad(m.scale)).
 		Gap(8 * m.k).AlignItems(ui.Center).Radius(theme.DefaultControls.Scaled(m.scale).Radius).
-		FocusRing(false).KeepFocus().Label(g.Name).Transition(listTransition(animate, false))
+		FocusRing(false).KeepFocus().Label(g.Title()).Transition(listTransition(animate, false))
 	s.rowFill(c, semantic, btn, id, animate)
 	// What is dropped on the row is filed in its group, not in the block's,
 	// and held there it goes into it.
@@ -253,7 +253,7 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 	btn.Children(func() {
 		ui.Icon(c, groupIcon(g).SVG()).FontSize(14 * m.k).TextColor(ink).Shrink(0)
 		components.BaselineRow(c).Key("words").Grow(1).MinWidth(0).Gap(8 * m.k).Children(func() {
-			components.Label(c, g.Name, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
+			components.Label(c, g.Title(), theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0).SingleLine()
 			components.Label(c, thousands(g.Count), theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0).FontFeatures("tnum")
 		})
 		taskRing(c, semantic, g.Tasks, m)
@@ -464,9 +464,10 @@ func (s *State) rowTags(c *ui.Context, semantic theme.Theme, tags []string, m bl
 			components.TagChip(c, "#"+tag, theme.TextXSmall, pad, room, semantic.Tag.Background, semantic.Tag.Foreground).Shrink(0)
 		}
 		if hidden := len(tags) - shown; hidden > 0 {
+			rest := strings.Join(tags[shown:], locales.ListSeparator())
 			more := components.TagChip(c, fmt.Sprintf("+%d", hidden), theme.TextXSmall, pad, room, semantic.Tag.Background, semantic.Text.Muted).
-				Shrink(0).Label(strings.Join(tags[shown:], ", "))
-			components.Hint(c, semantic, more, strings.Join(tags[shown:], ", "), "", components.HintAbove)
+				Shrink(0).Label(rest)
+			components.Hint(c, semantic, more, rest, "", components.HintAbove)
 		}
 	})
 }

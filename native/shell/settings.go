@@ -6,6 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/caelyreth/neverland/app/settings"
 	"github.com/caelyreth/neverland/internal/query"
 	"github.com/caelyreth/neverland/locales"
 	"github.com/caelyreth/neverland/native/components"
@@ -363,7 +364,7 @@ func abs32(x float32) float32 { return max(x, -x) }
 // command and its key, where each is changed.
 func (s *State) ShowShortcuts() {
 	s.FindSettings("")
-	s.intoSettings("Keymap", "", stageRect{})
+	s.intoSettings(settings.Keymap.Key(), "", stageRect{})
 }
 
 // sectionLine is what a section's row says of it under its title: its
