@@ -1,33 +1,25 @@
-# Build output
+# build
 /bin/
 /dist/
 /.mygo/
-/result
-/result-*
+/result*
 
-# Locally fetched development assets
-/internal/ui/theme/fonts/NotoSerif-Variable.ttf
-/internal/ui/theme/fonts/NotoSerif-Italic-Variable.ttf
-/internal/ui/theme/fonts/NotoSans-Variable.ttf
-/internal/ui/theme/fonts/NotoSans-Italic-Variable.ttf
-/internal/ui/theme/fonts/NewCMMath-Book.otf
-/internal/text/wordseg/cjk_dictionary.bin
-/assets/icon.png
+# fetched and generated binaries
+*.ttf
+*.otf
+*.bin
+/assets/*.png
 
-# Go
+# go
 *.test
 *.out
 coverage.*
 
-# Nix and local development
+# local
 /.direnv/
 /.cache/
-
-# Editor and OS files
-.DS_Store
-*.swp
-*.swo
-
-# Local scratch
 /tmp/
 
+# editor and os
+.DS_Store
+*.sw[op]
