@@ -65,7 +65,7 @@ type queryField struct {
 func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, input ui.Element) {
 	scale := s.Settings.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
-	text := theme.TextSmall
+	text := theme.RowTitle
 	in := f.In
 	field = ui.Row(c).Key(f.Key+"-field").Height(metrics.Height).MinWidth(0).
 		PaddingStart(theme.Space08.DIPs(scale)).PaddingEnd(theme.Space04.DIPs(scale)).
@@ -81,7 +81,7 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 			ui.Row(c).Key("fixed").Label(f.FixedLabel).Shrink(0).
 				AlignItems(ui.Center).PaddingX(theme.Space04.DIPs(scale)).
 				Radius(metrics.InnerRadius).Background(semantic.Accent.Muted).Children(func() {
-				components.CenteredLabel(c, f.Fixed, theme.TextXSmall, semantic.Accent.Foreground)
+				components.CenteredLabel(c, f.Fixed, theme.RowMeta, semantic.Accent.Foreground)
 			})
 		}
 		input = ui.TextInputBase(c.Key(f.Key), f.Value).
@@ -209,11 +209,11 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 					FocusRing(false).KeepFocus().Selected(in.first+i == in.suggestion).Background(ui.Transparent).Label(item.Label)
 				button.Children(func() {
 					if item.Of == "tag" {
-						components.TagChip(c, "#"+strings.TrimPrefix(item.Label, "#"), theme.TextSmall,
+						components.TagChip(c, "#"+strings.TrimPrefix(item.Label, "#"), theme.RowNote,
 							theme.Space04.DIPs(scale), width, semantic.Tag.Background, semantic.Tag.Foreground)
 						ui.Box(c).Grow(1)
 						if item.Hint != "" {
-							components.CenteredLabel(c, item.Hint, theme.TextXSmall, semantic.Text.Muted).
+							components.CenteredLabel(c, item.Hint, theme.RowMeta, semantic.Text.Muted).
 								Shrink(0)
 						}
 						return
@@ -222,13 +222,13 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 						color := semantic.Text.Default
 						if item.Of == "" {
 							color = semantic.Accent.Foreground
-							components.Label(c, item.Label, theme.TextSmall, color).SingleLine().Shrink(0)
+							components.Label(c, item.Label, theme.RowTitle, color).SingleLine().Shrink(0)
 						} else {
-							components.Label(c, item.Label, theme.TextSmall, color).SingleLine().MinWidth(0)
+							components.Label(c, item.Label, theme.RowTitle, color).SingleLine().MinWidth(0)
 						}
 						ui.Box(c).Grow(1)
 						if item.Hint != "" {
-							components.Label(c, item.Hint, theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(0)
+							components.Label(c, item.Hint, theme.RowMeta, semantic.Text.Muted).SingleLine().Shrink(0)
 						}
 					})
 				})
@@ -240,7 +240,7 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 			if chosen.Help != "" {
 				ui.Box(c).Key("suggestion-rule").WidthPercent(100).Height(1).
 					Margin(pad, 0, pad, 0).Background(semantic.Border.Variant)
-				components.Label(c, chosen.Help, theme.TextXSmall, semantic.Text.Muted).Key("suggestion-help").
+				components.Label(c, chosen.Help, theme.RowNote, semantic.Text.Muted).Key("suggestion-help").
 					WidthPercent(100).PaddingX(theme.Space06.DIPs(scale)).PaddingY(theme.Space02.DIPs(scale)).
 					MaxLines(3)
 			}

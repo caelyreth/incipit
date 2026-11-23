@@ -300,9 +300,9 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 				components.TagChip(c, "#"+tr.name, theme.TextSmall, chipPad, width, semantic.Tag.Background, semantic.Tag.Foreground)
 				if tr.create {
 					ui.Row(c).Gap(theme.Space04.DIPs(scale)).AlignItems(ui.Center).Shrink(0).Children(func() {
-						ui.Icon(c, components.IconPlus.SVG()).FontSize(theme.TextXSmall.Size(scale)).
+						ui.Icon(c, components.IconPlus.SVG()).FontSize(theme.RowMeta.Size(scale)).
 							TextColor(semantic.Text.Muted)
-						components.CenteredLabel(c, locales.Create(), theme.TextXSmall, semantic.Text.Muted)
+						components.CenteredLabel(c, locales.Create(), theme.RowMeta, semantic.Text.Muted)
 					})
 				}
 			})

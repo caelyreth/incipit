@@ -168,7 +168,7 @@ func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stageRect, w, 
 	}
 	s.field.lastNotice = text
 	row.Children(func() {
-		components.CenteredLabel(c, s.field.lastNotice, theme.TextXSmall, semantic.Text.Muted).SingleLine().Shrink(1).MinWidth(0)
+		components.CenteredLabel(c, s.field.lastNotice, theme.RowNote, semantic.Text.Muted).SingleLine().Shrink(1).MinWidth(0)
 		if n == nil {
 			return
 		}
@@ -181,7 +181,7 @@ func (s *State) noticeView(c *ui.Context, semantic theme.Theme, r stageRect, w, 
 			s.undoNotice()
 		}
 		btn.Children(func() {
-			components.CenteredLabel(c, locales.Undo(), theme.TextXSmall, semantic.Accent.Foreground).SingleLine()
+			components.CenteredLabel(c, locales.Undo(), theme.RowNote, semantic.Accent.Foreground).SingleLine()
 		})
 	})
 }

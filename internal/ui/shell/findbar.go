@@ -106,7 +106,7 @@ func (s *State) findBarView(c *ui.Context, semantic theme.Theme, animate bool) {
 		if note != "" && s.FindCount.Total == 0 {
 			color = semantic.Status.Danger.Foreground
 		}
-		components.CenteredLabel(c, note, theme.TextXSmall, color).FontFeatures("tnum").Key("find-count").Role(ui.RoleStatus).
+		components.CenteredLabel(c, note, theme.RowMeta, color).FontFeatures("tnum").Key("find-count").Role(ui.RoleStatus).
 			Shrink(0).FontFeatures("tnum")
 		components.VerticalDivider(c, semantic)
 		step := func(key, label, binding string, icon components.IconName, forward bool) {

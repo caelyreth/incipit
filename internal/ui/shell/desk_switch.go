@@ -37,7 +37,7 @@ import (
 
 const (
 	// switchWidth is the open switcher's width at the reference type size.
-	switchWidth = 420
+	switchWidth = 460
 	// switchClosed and switchNear are how many sheets it lists closed
 	// lately and near the one in front, switchSheets how many in all past
 	// the desk's; switchFound is how many of what words find it lists.
@@ -369,7 +369,7 @@ func (s *State) switcherView(c *ui.Context, semantic theme.Theme, width, list fl
 					s.switchRowView(c, semantic, i, row, animate)
 				}
 				if len(rows) == 0 {
-					components.CenteredLabel(c, locales.NoSheetHolds(), theme.TextSmall, semantic.Text.Muted).
+					components.CenteredLabel(c, locales.NoSheetHolds(), theme.RowNote, semantic.Text.Muted).
 						Key("switch-none").Height(metrics.Height * 1.5).PaddingX(theme.Space08.DIPs(scale))
 				}
 			})
@@ -433,9 +433,9 @@ func (s *State) switchSection(c *ui.Context, semantic theme.Theme, name string) 
 	}
 	ui.Row(c).Key("section-" + name).Height(metrics.InlineHeight).AlignItems(ui.Center).
 		PaddingX(theme.Space08.DIPs(scale)).Gap(theme.Space08.DIPs(scale)).Children(func() {
-		components.CenteredLabel(c, name, theme.TextXSmall, semantic.Text.Muted).Grow(1).MinWidth(0)
+		components.CenteredLabel(c, name, theme.RowNote, semantic.Text.Muted).Grow(1).MinWidth(0)
 		if note != "" {
-			components.CenteredLabel(c, note, theme.TextXSmall, semantic.Text.Muted).Shrink(0).FontFeatures("tnum")
+			components.CenteredLabel(c, note, theme.RowMeta, semantic.Text.Muted).Shrink(0).FontFeatures("tnum")
 		}
 	})
 }
@@ -498,8 +498,8 @@ func (s *State) switchRowView(c *ui.Context, semantic theme.Theme, i int, row sw
 			title = semantic.Text.Heading
 		}
 		ui.Column(c).Key("entry").Grow(1).MinWidth(0).Gap(theme.Space02.DIPs(scale)).Children(func() {
-			components.Label(c, sheetTitle(row.sheet), theme.TextSmall, title).SingleLine().WidthPercent(100)
-			components.Label(c, switchMeta(row, c), theme.TextXSmall, semantic.Text.Muted).SingleLine().WidthPercent(100)
+			components.Label(c, sheetTitle(row.sheet), theme.RowTitle, title).SingleLine().WidthPercent(100)
+			components.Label(c, switchMeta(row, c), theme.RowNote, semantic.Text.Muted).SingleLine().WidthPercent(100)
 		})
 		if row.front {
 			components.BadgeFrame(ui.Row(c).Key("front"), scale).
@@ -542,7 +542,7 @@ func (s *State) switchHints(c *ui.Context, semantic theme.Theme) ui.Element {
 				ui.Box(c).Key(fmt.Sprint("gap-", i)).Width(theme.Space06.DIPs(scale))
 			}
 			components.Keycaps(c, style, hint.keys, "")
-			components.CenteredLabel(c, hint.label, theme.TextXSmall, semantic.Text.Muted)
+			components.CenteredLabel(c, hint.label, theme.RowNote, semantic.Text.Muted)
 		}
 	})
 }

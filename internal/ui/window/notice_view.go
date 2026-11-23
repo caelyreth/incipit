@@ -62,7 +62,7 @@ func noticeToastView(c *ui.Context, semantic theme.Theme, animate bool, shown ui
 			theme.Space12.DIPs(scale), theme.Space12.DIPs(scale)).
 		Transition(noticeTransition(animate, scale)).
 		Children(func() {
-			line := theme.TextSmall.LineHeight(scale)
+			line := theme.RowTitle.LineHeight(scale)
 			// The icon stands on the title's line.
 			ui.Row(c).Height(line).AlignItems(ui.Center).Children(func() {
 				ui.Icon(c, kind.icon().SVG()).FontSize(16 * scale / theme.DefaultUIFontSize).
@@ -70,10 +70,10 @@ func noticeToastView(c *ui.Context, semantic theme.Theme, animate bool, shown ui
 			})
 			ui.Column(c).Grow(1).Shrink(1).MinWidth(0).
 				Gap(theme.Space02.DIPs(scale)).Children(func() {
-				components.Label(c, shown.Title, theme.TextSmall, semantic.Text.Default).
+				components.Label(c, shown.Title, theme.RowTitle, semantic.Text.Default).
 					FontWeight(600)
 				if shown.Description != "" {
-					components.Label(c, shown.Description, theme.TextXSmall, semantic.Text.Muted)
+					components.Label(c, shown.Description, theme.RowNote, semantic.Text.Muted)
 				}
 				if shown.Action == "" {
 					return
