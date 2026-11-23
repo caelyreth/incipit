@@ -117,18 +117,15 @@ func Family(base string, chosen *Face) string {
 const HomeVariable = "NEVERLAND_HOME"
 
 // Dir is where downloaded faces are kept: a Fonts folder in
-// NEVERLAND_HOME when it is set, or in the app's folder of the user's
-// application support, which no sync carries, as the notebook's may be.
-func Dir() (string, error) {
+// NEVERLAND_HOME when it is set, or in userData, the app's folder of the
+// user's application support, which no sync carries, as the notebook's may
+// be.
+func Dir(userData string) (string, error) {
 	if home := os.Getenv(HomeVariable); home != "" {
 		return filepath.Abs(filepath.Join(home, "Fonts"))
 	}
-	config, err := os.UserConfigDir()
-	if err != nil {
-		return "", err
-	}
-	if config == "" {
+	if userData == "" {
 		return "", errors.New("fonts: no folder for application support")
 	}
-	return filepath.Join(config, "Neverland", "Fonts"), nil
+	return filepath.Join(userData, "Fonts"), nil
 }

@@ -23,7 +23,8 @@ func Run() error {
 	if err := theme.RegisterFonts(); err != nil {
 		return err
 	}
-	root, err := storage.Root()
+	documents, _ := mygo.App.Path(mygo.PathDocuments)
+	root, err := storage.Root(documents)
 	if err != nil {
 		return err
 	}
@@ -36,7 +37,8 @@ func Run() error {
 		_ = store.Close()
 		return err
 	}
-	if dir, err := fonts.Dir(); err == nil {
+	userData, _ := mygo.App.Path(mygo.PathUserData)
+	if dir, err := fonts.Dir(userData); err == nil {
 		app.useFonts(openFonts(dir))
 	}
 	// Whatever is pending is written before the app goes, and once more
