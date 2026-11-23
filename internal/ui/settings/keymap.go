@@ -327,7 +327,7 @@ func (s *State) tag(c *ui.Context, semantic theme.Theme, text string) {
 	if s.motion(c) {
 		tag.Transition(tagFade)
 	}
-	settingsTagFrame(tag, scale).
+	components.BadgeFrame(tag, scale).
 		Background(semantic.Surface.Inset).Children(func() {
 		components.CenteredLabel(c, text, theme.TextXSmall, semantic.Text.Muted)
 	})
@@ -350,19 +350,13 @@ func (s *State) policyBadge(c *ui.Context, semantic theme.Theme, shortcut appset
 		Role(ui.RoleButton).Label(locales.OpenPolicy(title)).
 		Focusable().FocusRing(false).Cursor(ui.CursorPointer)
 	hover := components.HoverAmount(badge, badge.Hovered(), s.motion(c))
-	settingsTagFrame(badge, scale).
+	components.BadgeFrame(badge, scale).
 		Background(components.Blend(semantic.Surface.Inset, semantic.Accent.Hint, hover)).Children(func() {
 		components.CenteredLabel(c, title, theme.TextXSmall, semantic.Text.Muted.Mix(semantic.Accent.Foreground, hover))
 	})
 	if badge.Clicked() && s.Find != nil {
 		s.Find(title)
 	}
-}
-
-// settingsTagFrame is a state tag's compact geometry.
-func settingsTagFrame(tag ui.Element, scale float32) ui.Element {
-	return tag.Shrink(0).Height(18 * scale / theme.DefaultUIFontSize).AlignItems(ui.Center).
-		PaddingX(theme.Space06.DIPs(scale)).Radius(9 * scale / theme.DefaultUIFontSize)
 }
 
 // recordShortcut assigns chord to command, unless another action holds it

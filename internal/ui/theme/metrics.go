@@ -29,21 +29,36 @@ func (l Layout) DockClearance() float32 {
 	return l.DockOffset + dock + float32(Space16)
 }
 
+// ControlMetrics are the chrome's sizes by the job they do.
 type ControlMetrics struct {
 	Height       float32
 	InlineHeight float32
-	Icon         float32
-	Radius       float32
-	Row          float32
-	PanelRadius  float32
-	DockRadius   float32
+	// Icon is an icon alone on a control; RowIcon one at the head of a
+	// row, before its words; InlineIcon one beside small words, as in a
+	// chip or a button's label.
+	Icon       float32
+	RowIcon    float32
+	InlineIcon float32
+	Radius     float32
+	// InnerRadius rounds what stands inside a control or a panel: a
+	// segment's thumb, a row of a list, a tile, a token in a field.
+	InnerRadius float32
+	// Badge is a pill badge's height, rounded to its middle.
+	Badge       float32
+	Row         float32
+	PanelRadius float32
+	DockRadius  float32
 }
 
 var DefaultControls = ControlMetrics{
 	Height:       32,
 	InlineHeight: 24,
 	Icon:         18,
+	RowIcon:      16,
+	InlineIcon:   14,
 	Radius:       8,
+	InnerRadius:  6,
+	Badge:        18,
 	Row:          36,
 	PanelRadius:  11,
 	DockRadius:   12,
@@ -56,7 +71,11 @@ func (m ControlMetrics) Scaled(uiFontSize float32) ControlMetrics {
 		Height:       m.Height * scale,
 		InlineHeight: m.InlineHeight * scale,
 		Icon:         m.Icon * scale,
+		RowIcon:      m.RowIcon * scale,
+		InlineIcon:   m.InlineIcon * scale,
 		Radius:       m.Radius * scale,
+		InnerRadius:  m.InnerRadius * scale,
+		Badge:        m.Badge * scale,
 		Row:          m.Row * scale,
 		PanelRadius:  m.PanelRadius * scale,
 		DockRadius:   m.DockRadius * scale,

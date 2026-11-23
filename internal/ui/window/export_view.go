@@ -31,17 +31,21 @@ const exportPreviewLines = 400
 type exportMetrics struct {
 	k, scale             float32
 	pad, gap, row, inset float32
-	radius               float32
+	radius, inner        float32
+	// icon heads a row, inline stands beside small words.
+	icon, inline float32
 }
 
 func newExportMetrics(c *ui.Context) exportMetrics {
 	scale := components.UIFontSize(c)
 	k := scale / theme.DefaultUIFontSize
+	controls := theme.DefaultControls.Scaled(scale)
 	return exportMetrics{
 		k: k, scale: scale,
 		pad: theme.Space24.DIPs(scale), gap: theme.Space12.DIPs(scale),
 		row: 30 * k, inset: theme.Space12.DIPs(scale),
-		radius: theme.DefaultControls.Scaled(scale).PanelRadius,
+		radius: controls.PanelRadius, inner: controls.InnerRadius,
+		icon: controls.RowIcon, inline: controls.InlineIcon,
 	}
 }
 
@@ -175,13 +179,13 @@ func (a *AppState) exportFiles(c *ui.Context, semantic theme.Theme, m exportMetr
 // the usual places and any other.
 func (a *AppState) exportPlace(c *ui.Context, semantic theme.Theme, m exportMetrics, job *exportJob) {
 	button := ui.ButtonBase(c.Key("export-place")).Label(locales.ExportPlace()).Disabled(job.writing).
-		Height(26 * m.k).PaddingStart(8 * m.k).PaddingEnd(6 * m.k).Gap(6 * m.k).Radius(6 * m.k).
+		Height(26 * m.k).PaddingStart(theme.Space08.DIPs(m.scale)).PaddingEnd(theme.Space06.DIPs(m.scale)).Gap(theme.Space06.DIPs(m.scale)).Radius(m.inner).
 		AlignItems(ui.Center).FocusRing(true).Shrink(1).MinWidth(0)
 	if button.Hovered() {
 		button.Background(semantic.Element.Hover)
 	}
 	button.Children(func() {
-		ui.Icon(c, components.IconFolder.SVG()).FontSize(14 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
+		ui.Icon(c, components.IconFolder.SVG()).FontSize(m.inline).TextColor(semantic.Icon.Muted).Shrink(0)
 		components.CenteredLabel(c, filepath.Base(job.dir), theme.TextSmall, semantic.Text.Default).MinWidth(0)
 		ui.Icon(c, components.IconChevronDown.SVG()).FontSize(12 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
 	})
@@ -203,10 +207,10 @@ func (a *AppState) exportPlace(c *ui.Context, semantic theme.Theme, m exportMetr
 // by its kind's icon, the name it will have, whether it was renamed, and
 // its size or what it holds; pressed, the preview shows it.
 func (a *AppState) exportTree(c *ui.Context, semantic theme.Theme, m exportMetrics, job *exportJob) {
-	indent := 16 * m.k
+	indent := theme.Space16.DIPs(m.scale)
 	// The folder the files go into heads them, as the root they stand in.
-	ui.Row(c).WidthPercent(100).Height(m.row).PaddingX(8 * m.k).Gap(8 * m.k).AlignItems(ui.Center).Children(func() {
-		ui.Icon(c, components.IconFolder.SVG()).FontSize(15 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
+	ui.Row(c).WidthPercent(100).Height(m.row).PaddingX(theme.Space08.DIPs(m.scale)).Gap(theme.Space08.DIPs(m.scale)).AlignItems(ui.Center).Children(func() {
+		ui.Icon(c, components.IconFolder.SVG()).FontSize(m.icon).TextColor(semantic.Icon.Muted).Shrink(0)
 		components.CenteredLabel(c, shownPath(job.dir), theme.TextSmall, semantic.Text.Muted).
 			TruncateMiddle().MinWidth(0).Grow(1)
 	})
@@ -215,14 +219,14 @@ func (a *AppState) exportTree(c *ui.Context, semantic theme.Theme, m exportMetri
 		exportFailure(c, semantic, m, job.planErr)
 		return
 	case job.plan == nil:
-		ui.Row(c).PaddingStart(8*m.k + indent).Height(m.row).Gap(8 * m.k).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).PaddingStart(theme.Space08.DIPs(m.scale) + indent).Height(m.row).Gap(theme.Space08.DIPs(m.scale)).AlignItems(ui.Center).Children(func() {
 			ui.Spinner(c).Size(14*m.k, 14*m.k)
 			components.CenteredLabel(c, locales.ExportReading(job.sheets), theme.TextSmall, semantic.Text.Muted)
 		})
 		return
 	}
 	for _, f := range job.plan.Files {
-		a.exportRow(c, semantic, m, job, f, 8*m.k+indent*float32(f.Depth+1))
+		a.exportRow(c, semantic, m, job, f, theme.Space08.DIPs(m.scale)+indent*float32(f.Depth+1))
 	}
 }
 
@@ -230,7 +234,7 @@ func (a *AppState) exportTree(c *ui.Context, semantic theme.Theme, m exportMetri
 func (a *AppState) exportRow(c *ui.Context, semantic theme.Theme, m exportMetrics, job *exportJob, f export.File, lead float32) {
 	chosen := f.Path == job.shown
 	row := ui.ButtonBase(c.Key("file:" + f.Path)).Label(f.Name()).WidthPercent(100).Height(m.row).
-		PaddingStart(lead).PaddingEnd(8 * m.k).Gap(8 * m.k).AlignItems(ui.Center).Radius(6 * m.k).
+		PaddingStart(lead).PaddingEnd(theme.Space08.DIPs(m.scale)).Gap(theme.Space08.DIPs(m.scale)).AlignItems(ui.Center).Radius(m.inner).
 		FocusRing(false).KeepFocus().Selected(chosen)
 	switch {
 	case chosen:
@@ -239,12 +243,11 @@ func (a *AppState) exportRow(c *ui.Context, semantic theme.Theme, m exportMetric
 		row.Background(semantic.Element.Hover)
 	}
 	row.Children(func() {
-		ui.Icon(c, fileIcon(f).SVG()).FontSize(15 * m.k).TextColor(fileInk(semantic, f)).Shrink(0)
+		ui.Icon(c, fileIcon(f).SVG()).FontSize(m.icon).TextColor(fileInk(semantic, f)).Shrink(0)
 		components.CenteredLabel(c, f.Name(), theme.TextSmall, semantic.Text.Default).
 			TruncateMiddle().MinWidth(0).Grow(1)
 		if f.Wanted != "" {
-			badge := ui.Row(c).Shrink(0).Height(18 * m.k).PaddingX(6 * m.k).Radius(9 * m.k).AlignItems(ui.Center).
-				Background(semantic.Status.Warning.Background).Children(func() {
+			badge := components.BadgeFrame(ui.Row(c), m.scale).Background(semantic.Status.Warning.Background).Children(func() {
 				components.CenteredLabel(c, locales.ExportRenamed(), theme.TextXSmall, semantic.Status.Warning.Foreground)
 			})
 			components.Hint(c, semantic, badge, locales.ExportRenamedHint(f.Wanted), "", components.HintAbove)
@@ -293,7 +296,7 @@ func (a *AppState) exportPreview(c *ui.Context, semantic theme.Theme, m exportMe
 		}
 		plan := *job.plan
 		panelHead(c, semantic, m, func() {
-			ui.Icon(c, fileIcon(f).SVG()).FontSize(15 * m.k).TextColor(fileInk(semantic, f)).Shrink(0)
+			ui.Icon(c, fileIcon(f).SVG()).FontSize(m.icon).TextColor(fileInk(semantic, f)).Shrink(0)
 			components.CenteredLabel(c, f.Path, theme.TextSmall, semantic.Text.Default).
 				TruncateStart().MinWidth(0).Grow(1)
 			components.CenteredLabel(c, fileMeasure(plan, f), theme.TextXSmall, semantic.Text.Muted).
@@ -423,7 +426,7 @@ func (a *AppState) exportOptions(c *ui.Context, semantic theme.Theme, job *expor
 // it stopped, beside Cancel and Export.
 func (a *AppState) exportFoot(c *ui.Context, semantic theme.Theme, m exportMetrics, job *exportJob) {
 	ui.Row(c).WidthPercent(100).Gap(m.gap).AlignItems(ui.Center).Shrink(0).Children(func() {
-		ui.Row(c).Grow(1).MinWidth(0).Gap(8 * m.k).AlignItems(ui.Center).Children(func() {
+		ui.Row(c).Grow(1).MinWidth(0).Gap(theme.Space08.DIPs(m.scale)).AlignItems(ui.Center).Children(func() {
 			switch {
 			case job.writing && job.plan != nil:
 				total := len(job.plan.Files)
@@ -447,8 +450,8 @@ func (a *AppState) exportFoot(c *ui.Context, semantic theme.Theme, m exportMetri
 
 // exportFailure says why the export cannot go on, in the danger's ink.
 func exportFailure(c *ui.Context, semantic theme.Theme, m exportMetrics, err error) {
-	ui.Row(c).MinWidth(0).Gap(6 * m.k).AlignItems(ui.Center).PaddingX(8 * m.k).Children(func() {
-		ui.Icon(c, components.IconError.SVG()).FontSize(14 * m.k).TextColor(semantic.Status.Danger.Foreground).Shrink(0)
+	ui.Row(c).MinWidth(0).Gap(theme.Space06.DIPs(m.scale)).AlignItems(ui.Center).PaddingX(theme.Space08.DIPs(m.scale)).Children(func() {
+		ui.Icon(c, components.IconError.SVG()).FontSize(m.inline).TextColor(semantic.Status.Danger.Foreground).Shrink(0)
 		components.Label(c, describeNotice(err), theme.TextSmall, semantic.Status.Danger.Foreground).MinWidth(0).MaxLines(2)
 	})
 }

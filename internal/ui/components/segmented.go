@@ -40,7 +40,7 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	track := TrackSelection(group, SelectionStyle{
 		Fill:   semantic.Surface.Inverse,
 		Border: ui.Transparent,
-		Radius: 6 * scale / theme.DefaultUIFontSize,
+		Radius: metrics.InnerRadius,
 	}, s.Animate)
 	return group.Children(func() {
 		for index, option := range s.Options {
@@ -49,7 +49,7 @@ func (s Segmented) View(c *ui.Context, semantic theme.Theme) ui.Element {
 				Label(option.Label).KeepFocus().
 				Height(metrics.Height-4*scale/theme.DefaultUIFontSize).
 				MinWidth(0).PaddingX(theme.Space08.DIPs(scale)).
-				Radius(6*scale/theme.DefaultUIFontSize).
+				Radius(metrics.InnerRadius).
 				Border(1, ui.Transparent)
 			textColor := semantic.Text.Muted
 			if option.Selected {

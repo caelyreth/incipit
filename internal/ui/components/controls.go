@@ -20,6 +20,15 @@ func TagChip(c *ui.Context, text string, size theme.TextSize, pad, width float32
 	return chip
 }
 
+// BadgeFrame gives el a pill badge's geometry at the UI size scale: its
+// height, its words inset, rounded to its middle. Its fill and words are
+// its own.
+func BadgeFrame(el ui.Element, scale float32) ui.Element {
+	height := theme.DefaultControls.Scaled(scale).Badge
+	return el.Shrink(0).Height(height).PaddingX(theme.Space06.DIPs(scale)).
+		Radius(height / 2).AlignItems(ui.Center)
+}
+
 type Swatch struct {
 	Key      string
 	Label    string

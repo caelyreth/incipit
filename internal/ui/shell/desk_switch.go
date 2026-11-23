@@ -477,7 +477,7 @@ func (s *State) switchRowView(c *ui.Context, semantic theme.Theme, i int, row sw
 	}
 	side := 24 * k
 	item.Children(func() {
-		mark := ui.Box(c).Key("mark").Size(side, side).Shrink(0).Radius(6 * k).
+		mark := ui.Box(c).Key("mark").Size(side, side).Shrink(0).Radius(metrics.InnerRadius).
 			AlignItems(ui.Center).Justify(ui.Center)
 		if row.column != "" {
 			face, ink := semantic.Element.Hover, semantic.Text.Muted
@@ -489,7 +489,7 @@ func (s *State) switchRowView(c *ui.Context, semantic theme.Theme, i int, row sw
 			})
 		} else {
 			mark.Background(semantic.Surface.Inset).Border(1, semantic.Border.Variant).Children(func() {
-				ui.Icon(c, groupIcon(row.group).SVG()).FontSize(14 * k).
+				ui.Icon(c, groupIcon(row.group).SVG()).FontSize(metrics.InlineIcon).
 					TextColor(groupInk(semantic, row.group, semantic.Icon.Muted))
 			})
 		}
@@ -502,8 +502,8 @@ func (s *State) switchRowView(c *ui.Context, semantic theme.Theme, i int, row sw
 			components.Label(c, switchMeta(row, c), theme.TextXSmall, semantic.Text.Muted).SingleLine().WidthPercent(100)
 		})
 		if row.front {
-			ui.Row(c).Key("front").Shrink(0).Height(18 * k).PaddingX(theme.Space06.DIPs(scale)).Radius(9 * k).
-				AlignItems(ui.Center).Background(semantic.Element.Hover).Children(func() {
+			components.BadgeFrame(ui.Row(c).Key("front"), scale).
+				Background(semantic.Element.Hover).Children(func() {
 				components.CenteredLabel(c, locales.InFront(), theme.TextXSmall, semantic.Text.Muted)
 			})
 		} else if at {
