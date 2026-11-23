@@ -55,8 +55,14 @@ func (a *AppState) exportView(c *ui.Context) {
 	if job == nil || a.Shell == nil {
 		return
 	}
+	// A window of its own, it takes the app's theme as the main window's
+	// view does: its UI size, its face and its colors, through a change.
+	semantic, changing := a.colors.At(a.Shell.Settings, c.Now())
+	c.SetTheme(a.Shell.Settings.MyGoThemeFor(semantic))
+	if changing {
+		c.AnimationFrame()
+	}
 	a.exportKeys(c, job)
-	semantic := a.Shell.Settings.Semantic()
 	m := newExportMetrics(c)
 	ui.Column(c).WidthPercent(100).HeightPercent(100).Background(semantic.Surface.Background).
 		Padding(m.pad, m.pad, m.pad, m.pad).Gap(theme.Space16.DIPs(m.scale)).Children(func() {
