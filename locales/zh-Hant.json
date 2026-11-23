@@ -94,7 +94,7 @@
   "interfaceDescription": "Neverland 視窗本身的配色、字級與語言；文稿內容保有各自的格式與語言。",
   "interfaceKeywords": "Theme Colors Starfield Daybreak Dark Light UI Font Size Language Translation Locale 主題 配色 色彩 星野 破曉 深色 淺色 介面 字級 大小 語言 翻譯 語系",
   "theme": "主題",
-  "themeDescription": "「星野」為 Cosmofi 深色配色方案；「破曉」為對應的淺色方案。跟隨系統時，系統為深色則用「星野」，淺色則用「破曉」。",
+  "themeDescription": "「星野」為深色，「破曉」為淺色；跟隨系統則隨這台電腦。",
   "themeStarfield": "星野",
   "themeDaybreak": "破曉",
   "themeSystem": "跟隨系統",

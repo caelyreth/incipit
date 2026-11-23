@@ -94,7 +94,7 @@
   "interfaceDescription": "Neverland のウインドウ自体の配色、文字サイズ、言語を設定します。シートの内容はそのまま保たれます。",
   "interfaceKeywords": "Theme Colors Starfield Daybreak Dark Light UI Font Size Language Translation Locale テーマ カラー 配色 スターフィールド デイブレイク ダーク ライト UI 文字サイズ 言語 翻訳 ロケール",
   "theme": "テーマ",
-  "themeDescription": "スターフィールドは Cosmofi のダーク配色、デイブレイクはそのライト配色です。システムはシステムの外観に合わせ、ダークではスターフィールド、ライトではデイブレイクになります。",
+  "themeDescription": "スターフィールドはダーク、デイブレイクはライト。システムはこのコンピュータに合わせます。",
   "themeStarfield": "スターフィールド",
   "themeDaybreak": "デイブレイク",
   "themeSystem": "システム",

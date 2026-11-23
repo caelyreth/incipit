@@ -1315,13 +1315,13 @@ func (msgs Messages) Theme() string {
 	return Catalog.Format(msgs.locale, "theme", nil)
 }
 
-// ThemeDescription says "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart. System follows the system: Starfield while i…"
+// ThemeDescription says "Starfield is dark, Daybreak is light; System follows your computer."
 // in the language the app shows.
 //
 // Starfield and Daybreak are the themes' names.
 func ThemeDescription() string { return In(i18n.Locale()).ThemeDescription() }
 
-// ThemeDescription says "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart. System follows the system: Starfield while i…"
+// ThemeDescription says "Starfield is dark, Daybreak is light; System follows your computer."
 // in the language of msgs.
 //
 // Starfield and Daybreak are the themes' names.
