@@ -3,7 +3,7 @@
 No font is stored in Git. Fetch them with:
 
 ```sh
-go tool fetchassets
+go tool fetch
 ```
 
 The same command is wired as `go generate ./internal/ui/theme`. It downloads each
@@ -39,7 +39,7 @@ SC, TC, HK and JP, and downloads the one the person chooses,
 Google Fonts' static builds at weights 400 and 700 from `fonts.gstatic.com`,
 or its mirror `fonts.gstatic.cn` when that fails, verified by the SHA-256
 pinned in `internal/app/fonts/catalog.go`, and keeps it on that machine. The catalog
-is written by `go tool fontcatalog`, which asks Google Fonts' CSS
+is written by `go tool fonts`, which asks Google Fonts' CSS
 API for the current files and pins each. With none chosen, Chinese and
 Japanese, and every other script, are drawn in the system's fonts. The Noto Serif faces
 are licensed under the SIL Open Font License 1.1 in `OFL.txt`.

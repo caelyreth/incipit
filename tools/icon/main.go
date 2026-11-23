@@ -5,7 +5,7 @@
 // macOS's icon grid. The document is the source; the PNG is built, as Git
 // stores no binaries.
 //
-//	go tool brandicon assets/profile.icon assets/icon.png
+//	go tool icon assets/profile.icon assets/icon.png
 package main
 
 import (
@@ -77,11 +77,11 @@ func main() {
 	full := flag.Bool("full", false, "fill the whole canvas, square, as the document's own artwork")
 	flag.Parse()
 	if flag.NArg() != 2 {
-		fmt.Fprintln(os.Stderr, "usage: brandicon [-full] <document.icon> <icon.png>")
+		fmt.Fprintln(os.Stderr, "usage: icon [-full] <document.icon> <icon.png>")
 		os.Exit(2)
 	}
 	if err := run(flag.Arg(0), flag.Arg(1), *full); err != nil {
-		fmt.Fprintln(os.Stderr, "brandicon:", err)
+		fmt.Fprintln(os.Stderr, "icon:", err)
 		os.Exit(1)
 	}
 }

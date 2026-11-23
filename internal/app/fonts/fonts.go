@@ -3,7 +3,7 @@
 // language's glyph forms, their static builds at the weights the page
 // draws, downloaded only when the person chooses one, from Google Fonts'
 // static hosts, verified against the SHA-256 pinned in the catalog
-// (tools/fontcatalog), and kept on this machine, not in the notebook.
+// (tools/fonts), and kept on this machine, not in the notebook.
 // The one chosen draws what the Latin face, Noto Serif or Noto Sans as the
 // style is, does not; with none, the system's fonts draw it.
 package fonts

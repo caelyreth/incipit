@@ -61,10 +61,10 @@ require (
 )
 
 tool (
-	github.com/caelyreth/neverland/tools/brandicon
-	github.com/caelyreth/neverland/tools/cjkdict
-	github.com/caelyreth/neverland/tools/fetchassets
-	github.com/caelyreth/neverland/tools/fontcatalog
-	github.com/caelyreth/neverland/tools/localesync
+	github.com/caelyreth/neverland/tools/dictionary
+	github.com/caelyreth/neverland/tools/fetch
+	github.com/caelyreth/neverland/tools/fonts
+	github.com/caelyreth/neverland/tools/icon
+	github.com/caelyreth/neverland/tools/locales
 	github.com/egoist/mygo/cmd/mygo
 )

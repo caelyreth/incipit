@@ -1,10 +1,10 @@
-// Command fetchassets installs the binary assets Git does not store: the
+// Command fetch installs the binary assets Git does not store: the
 // fonts, each from a pinned URL, verified against its SHA-256, and the
 // word segmenter's CJK dictionary, built from ICU's pinned word list by
-// cjkdict. An asset already present and verified is kept. It runs from
+// go tool dictionary. An asset already present and verified is kept. It runs from
 // anywhere in the repository, as go generate runs it:
 //
-//	go tool fetchassets
+//	go tool fetch
 package main
 
 import (
@@ -65,13 +65,13 @@ func main() {
 		}
 	}
 	// ICU release-78.3 cjdict.txt, indexed in Neverland's format for the
-	// word segmenter, both pinned (tools/cjkdict). go generate names the
+	// word segmenter, both pinned (tools/dictionary). go generate names the
 	// toolchain it runs in GOROOT.
 	goCmd := "go"
 	if r := os.Getenv("GOROOT"); r != "" {
 		goCmd = filepath.Join(r, "bin", "go")
 	}
-	cmd := exec.Command(goCmd, "tool", "cjkdict")
+	cmd := exec.Command(goCmd, "tool", "dictionary")
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		log.Fatalf("the CJK dictionary: %v", err)

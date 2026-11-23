@@ -1,12 +1,12 @@
-// Command cjkdict writes internal/text/wordseg/cjk_dictionary.bin, the word
+// Command dictionary writes internal/text/wordseg/cjk_dictionary.bin, the word
 // segmenter's Chinese and Japanese dictionary, from ICU's own word list:
 // it downloads cjdict.txt at the ICU release pinned below, verifies it,
 // and indexes it in Neverland's format, which it verifies too, so that
 // every build holds the same bytes. A dictionary already written and
-// verified is kept. Run it from the repository's root, as fetchassets
-// does:
+// verified is kept. Run it from the repository's root, as go tool
+// fetch does:
 //
-//	go tool cjkdict
+//	go tool dictionary
 //
 // The format (wordseg's cjk.go reads it): "NVCJ", a little-endian uint32
 // version, the uint32 count of words, count+1 uint32 offsets of the words

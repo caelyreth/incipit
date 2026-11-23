@@ -1,4 +1,4 @@
-// Command localesync keeps the app's catalogs in step with its source,
+// Command locales keeps the app's catalogs in step with its source,
 // locales/en.json: each other language holds every message the source
 // does, in the source's order, and no other. A message a language has
 // keeps its words; one it lacks is the source's, to be translated, with
@@ -7,7 +7,7 @@
 // Run it from the repository's root after changing en.json, then
 // `go tool mygo generate`:
 //
-//	go tool localesync
+//	go tool locales
 package main
 
 import (

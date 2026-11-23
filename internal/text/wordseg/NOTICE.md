@@ -14,9 +14,9 @@ data. It removes the Thai, Lao, Khmer, and Burmese engines and their
 dictionaries, plus PiG's application-specific strip state and WTF-8
 adapter.
 
-The dictionary is no longer PiG's: `tools/cjkdict` builds it from ICU's
+The dictionary is no longer PiG's: `tools/dictionary` builds it from ICU's
 own word list, in Neverland's format (described in that command), and
-`go tool fetchassets` runs it. The index's words and costs are those of
+`go tool fetch` runs it. The index's words and costs are those of
 PiG's former `cjk_dictionary.bin`, byte for byte, after the format's
 header.
 
