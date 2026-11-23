@@ -3,6 +3,7 @@
   "slug": "neverland",
   "identifier": "com.caelyreth.neverland",
   "version": "0.1.0",
+  "icon": "brand/icon.png",
   "main": "./cmd/neverland",
   "out": "dist",
   "linux": {
@@ -11,5 +12,8 @@
   "i18n": {
     "dir": "locales",
     "source": "en"
+  },
+  "macos": {
+    "icon": "brand/Profile.icon"
   }
 }

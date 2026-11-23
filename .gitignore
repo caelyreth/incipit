@@ -12,6 +12,7 @@
 /native/theme/fonts/NotoSans-Italic-Variable.ttf
 /native/theme/fonts/NewCMMath-Book.otf
 /internal/wordseg/cjk_dictionary.bin
+/brand/icon.png
 
 # Go
 *.test
