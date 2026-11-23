@@ -132,7 +132,7 @@ func (s *State) horizonStats(c *ui.Context, semantic theme.Theme, r stageRect, w
 		sec := ui.Row(c).Key("stat-words-group").Height(lineH).AlignItems(ui.Center).Clip()
 		shown := targetShown
 		if animate {
-			shown = sec.AnimateTo("shown", targetShown, components.Spring(components.MotionPanel))
+			shown = sec.AnimateTo("shown", targetShown, components.Glide(components.MotionPanel))
 		} else {
 			sec.Jump("shown", targetShown)
 		}
@@ -327,7 +327,7 @@ func ribbonTransition(animate, above bool, k float32) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	spring := components.Spring(components.MotionScene)
+	spring := components.Settle(components.MotionScene)
 	shift := -8 * k
 	if above {
 		shift = 8 * k

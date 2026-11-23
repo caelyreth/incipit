@@ -1,5 +1,7 @@
 package shell
 
+import "github.com/caelyreth/neverland/internal/ui/components"
+
 // A query changing moves the field from what it drew to its new layout,
 // all of it on one value going from 0 to 1. What stays goes from where it
 // was to where it stands now; what comes in and what goes out come from
@@ -9,7 +11,10 @@ package shell
 // results go back into their card and what returns comes in from nearer;
 // a change across, as typing, fades in place. What goes out is gone by
 // half way, and what comes in shows from a quarter on, so the two never
-// stand over each other at full strength.
+// stand over each other at full strength. What travels glides to its place
+// (components.GlideEase), what comes in from close by settles into it, a
+// little past and back (components.SettleEase), and what fades fades
+// evenly.
 
 // stageFrame is a result as drawn: laid out at stageSize, shown at stageRect, as opaque
 // as Shown.
@@ -56,6 +61,7 @@ func stageShift(from, to []stageFrame, enter, exit stageRect, d stageDepth, visT
 	if d == stageSwap {
 		return stageSwapFrames(from, to, visTop, visBot, t)
 	}
+	move, arrive := components.GlideEase(t), components.SettleEase(t)
 	in, out := d.scales()
 	was := make(map[string]stageFrame, len(from))
 	for _, f := range from {
@@ -75,7 +81,7 @@ func stageShift(from, to []stageFrame, enter, exit stageRect, d stageDepth, visT
 			if end.Empty() {
 				end = f.Rect.Scaled(out)
 			}
-			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(f.Rect, end, t), Shown: stageLerp(f.Shown, 0, min(1, t*2))})
+			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(f.Rect, end, move), Shown: stageLerp(f.Shown, 0, min(1, t*2))})
 		}
 	}
 	for _, f := range to {
@@ -91,11 +97,11 @@ func stageShift(from, to []stageFrame, enter, exit stageRect, d stageDepth, visT
 			// edges together: its frame grows or shrinks to its new size
 			// while what it holds stands at that size within (the drawing
 			// shows more or less of it, never stretches it).
-			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(start.Rect, f.Rect, t), Shown: stageLerp(start.Shown, f.Shown, t)})
+			frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(start.Rect, f.Rect, move), Shown: stageLerp(start.Shown, f.Shown, t)})
 			continue
 		}
 		fade := max(0, (t-0.25)/0.75)
-		frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(start.Rect, f.Rect, t), Shown: stageLerp(start.Shown, f.Shown, fade)})
+		frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(start.Rect, f.Rect, arrive), Shown: stageLerp(start.Shown, f.Shown, fade)})
 	}
 	return frames
 }
@@ -162,11 +168,11 @@ func stageSwapFrames(from, to []stageFrame, visTop, visBot, t float32) []stageFr
 		}
 		start := swapIn + swapSpread*float32(min(r, swapStagger))/swapStagger
 		k := max(0, min(1, (t-start)/swapEach))
-		// Eased out: quick to come, slow to settle.
-		k = swapEase(k)
+		// It rises and settles into its place as what moves does, and
+		// shows quickly.
 		rise := f.Rect
 		rise.Y += 14
-		frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(rise, f.Rect, k), Shown: f.Shown * k})
+		frames = append(frames, stageFrame{ID: f.ID, Size: f.Size, Rect: stageLerpRect(rise, f.Rect, components.SettleEase(k)), Shown: f.Shown * swapEase(k)})
 	}
 	return frames
 }

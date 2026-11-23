@@ -66,7 +66,7 @@ func (a CreateArea) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		press = 1
 	}
 	if a.Animate {
-		press = Follow(area, "press", press, MotionImmediate)
+		press = Follow(area, "press", press, MotionQuick)
 		area.Scale(1-0.02*press, 1-0.02*press)
 	}
 	// At rest the outline only hints; under the pointer it takes the

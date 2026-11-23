@@ -195,7 +195,7 @@ type Kind struct{}
 var (
 	chromeFollow = settleFrequency(components.MotionNormal)
 	carryPart    = settleFrequency(components.MotionPanel)
-	pressFollow  = settleFrequency(components.MotionImmediate)
+	pressFollow  = settleFrequency(components.MotionQuick)
 )
 
 func settleFrequency(d time.Duration) float32 { return float32(2 * math.Pi / d.Seconds()) }

@@ -430,7 +430,7 @@ func TestFieldToListAnimatesPillFromItsPlace(t *testing.T) {
 			if abs(ys[0]-startPill.Y) > 1 {
 				t.Fatalf("frame 0 pill Y jumped from %v to %v (expected start at Field place)", startPill.Y, ys[0])
 			}
-			if ys[len(ys)-1] >= endPill.Y-1 || ys[1] >= endPill.Y-1 {
+			if ys[1] >= endPill.Y-1 || ys[4] >= endPill.Y-1 {
 				t.Fatalf("pill should animate gradually rather than snapping straight to foot (%v): sample=%v", endPill.Y, ys[:5])
 			}
 			for i := 1; i < len(ys); i++ {

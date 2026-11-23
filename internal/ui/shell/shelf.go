@@ -118,7 +118,7 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 	}
 	lit := map[bool]float32{true: 1}[over]
 	if animate {
-		settle := components.MotionSettle
+		settle := components.MotionPanel
 		if out > 0 {
 			settle = components.MotionPanel
 		}

@@ -248,7 +248,7 @@ func (b ToolBar) menu(c *ui.Context, semantic theme.Theme, panel ui.Element, g T
 	panel.Padding(pad, pad, pad, pad).MinWidth(220 * scale / theme.DefaultUIFontSize).
 		Role(ui.RoleMenu).Label(g.Label)
 	if b.Animate {
-		spring := Spring(MotionNormal)
+		spring := Settle(MotionNormal)
 		rise := -theme.Space04.DIPs(scale)
 		panel.Transition(ui.ElementTransition{
 			Animation: &spring, Enter: &ui.Motion{Y: rise, Opacity: 0},

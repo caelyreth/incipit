@@ -2,7 +2,6 @@ package shell
 
 import (
 	"slices"
-	"time"
 
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/egoist/mygo/ui"
@@ -109,11 +108,11 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 		// Its first frame draws where everything was; the spring starts on
 		// the next, so the time this one takes is not a leap.
 		t = 0
-	case animate && s.field.now.depth == stageSwap:
-		// A swap is longer, its cards coming one after another on it.
-		t = field.AnimateTo("shift", 1, components.Spring(swapFor))
 	case animate:
-		t = field.AnimateTo("shift", 1, components.Spring(components.MotionScene))
+		// A change runs on an even clock, the scene's length: each card
+		// shapes its own way along it (stageShift), so nothing is eased
+		// twice, slow to start and slow again to land.
+		t = field.AnimateTo("shift", 1, ui.Animation{Duration: components.MotionScene, Ease: ui.Linear})
 	}
 	s.field.changeT, s.field.swapT = -1, -1
 	if t >= 1 {
@@ -153,13 +152,10 @@ func (s *State) along(el ui.Element, key string, now, target float32) float32 {
 			from = now
 			s.field.starts[key] = from
 		}
-		return el.Jump(key, from+(target-from)*t)
+		return el.Jump(key, from+(target-from)*components.GlideEase(t))
 	}
-	return el.AnimateTo(key, target, components.Spring(components.MotionScene))
+	return el.AnimateTo(key, target, components.Glide(components.MotionScene))
 }
-
-// swapFor is how long turning between the views takes, all of it.
-const swapFor = 620 * time.Millisecond
 
 // scopeGroup is the group the field is in, where a sheet may be filed:
 // none at the top, in the trash, or in a smart folder.

@@ -177,7 +177,7 @@ func emptyTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	spring := components.Spring(components.MotionScene)
+	spring := components.Settle(components.MotionScene)
 	gone := &ui.Motion{Opacity: 0}
 	return ui.ElementTransition{Animation: &spring, Enter: gone, Exit: gone}
 }
@@ -222,7 +222,7 @@ func (s *State) deskStrip(c *ui.Context, semantic theme.Theme, animate bool) {
 			natural = s.desk.spans[n-1].End()
 		}
 		flow := ui.Row(c).Key("desk-flow").FillHeight().AlignItems(ui.Stretch)
-		extent := components.Settled(flow, "extent", natural, components.MotionEnter, animate)
+		extent := components.Settled(flow, "extent", natural, components.MotionPanel, animate)
 		flow.MinWidth(max(viewport.W, extent))
 		s.desk.over.Apply(c, flow, animate)
 		// The columns' places are counted from where the first stands.
@@ -322,7 +322,7 @@ func deskMotion(animate bool) ui.Animation {
 	if !animate {
 		return ui.Animation{Duration: 1}
 	}
-	return components.Spring(components.MotionEnter)
+	return components.Glide(components.MotionPanel)
 }
 
 // columnWidth is a sheet's column's width on a desk inner wide holding
@@ -407,7 +407,7 @@ func columnTransition(enter, animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	spring := components.Bouncy(components.MotionEnter)
+	spring := components.Settle(components.MotionPanel)
 	gone := &ui.Motion{Collapse: true, Opacity: 0}
 	tr := ui.ElementTransition{Animation: &spring, Position: true, Exit: gone}
 	if enter {

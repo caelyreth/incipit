@@ -106,7 +106,7 @@ func groupTransition(animate bool) ui.ElementTransition {
 		return ui.ElementTransition{Duration: 1}
 	}
 	gone := &ui.Motion{Opacity: 0, Scale: 0.8, Collapse: true}
-	spring := Bouncy(MotionDock)
+	spring := Settle(MotionScene)
 	return ui.ElementTransition{Animation: &spring, Position: true, Colors: true, Enter: gone, Exit: gone}
 }
 
@@ -122,7 +122,7 @@ func dockTransition(animate, move bool) ui.ElementTransition {
 		return ui.ElementTransition{Duration: 1}
 	}
 	pop := &ui.Motion{Scale: 0.9, Opacity: 0}
-	spring := Bouncy(MotionDock)
+	spring := Settle(MotionScene)
 	return ui.ElementTransition{
 		Animation: &spring, Position: move, Size: true, Colors: true,
 		Enter: pop, Exit: pop,

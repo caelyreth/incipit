@@ -6,26 +6,18 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// Motion takes one of four durations, by how much moves: a press, a tint
+// or a hover; a control; a panel, a popover, a fold or a column; the
+// scene. Timers that wait for the hand, as a dwell or a double press,
+// are not motion and keep their own.
 const (
-	MotionImmediate = 60 * time.Millisecond
-	MotionQuick     = 120 * time.Millisecond
-	MotionNormal    = 200 * time.Millisecond
-	MotionPanel     = 240 * time.Millisecond
-	MotionScene     = 450 * time.Millisecond
-	// MotionSettle is how long a panel, a fold or the chrome takes to settle
-	// on its spring: a spring's tail is long and soft, so it reads about as
-	// quick as MotionPanel's curve.
-	MotionSettle = 340 * time.Millisecond
-	// MotionEnter is how long a view takes to come in of its own accord,
-	// as a column made or opened beside the others, and how long what
-	// scrolls to show it takes to get there, so the two arrive together;
-	// the others close up behind one that goes on it too.
-	MotionEnter = 300 * time.Millisecond
-	// MotionDock is how long a dock takes to grow, shrink or move as its
-	// groups come and go.
-	MotionDock = 420 * time.Millisecond
-	// bounce is how far past its end a Bouncy spring goes, as a share.
-	bounce = 0.2
+	MotionQuick  = 90 * time.Millisecond
+	MotionNormal = 200 * time.Millisecond
+	MotionPanel  = 280 * time.Millisecond
+	MotionScene  = 420 * time.Millisecond
+	// settleBounce is how far a Settle goes past its place and back: a
+	// damping ratio of 0.75, about three hundredths of the way.
+	settleBounce = 0.25
 )
 
 // MotionEnabled is the app's effective motion policy for a window: visible
@@ -51,26 +43,42 @@ const (
 	HoverOut = MotionNormal
 )
 
-// Spring is how every state-driven value in the app moves: a spring that
-// arrives in about settle without overshooting. Changing its target while
-// it moves takes over at the value's current speed, so a toggle pressed
-// again mid-flight, or any state change that interrupts another, carries
-// on smoothly from where things are instead of restarting a curve.
-func Spring(settle time.Duration) ui.Animation {
+// Settle is how what travels moves, its place, size or scale: a spring
+// that leaves at once and comes to its place with a small, magnetic
+// overshoot, about settle long. A new target on the way takes over at the
+// value's speed, so what is interrupted carries on from where it is.
+func Settle(settle time.Duration) ui.Animation {
+	return ui.Animation{Spring: ui.SpringOptions{Duration: settle, Bounce: settleBounce}}
+}
+
+// Glide is how what fades, tints or grows in place moves: a spring that
+// never overshoots, as a color or an opacity past its end means nothing.
+func Glide(settle time.Duration) ui.Animation {
 	return ui.Animation{Spring: ui.SpringOptions{Duration: settle}}
 }
 
-// Bouncy is a spring that settles in about settle, going a little past
-// its end and back: for what moves of its own accord and should feel
-// alive doing it, as a dock growing or a column coming in, not for what
-// follows the hand.
-func Bouncy(settle time.Duration) ui.Animation {
-	return ui.Animation{Spring: ui.SpringOptions{Duration: settle, Bounce: bounce}}
+// SettleEase is t of the way along a Settle as a curve, for what arrives
+// a short way on a clock of its own, as the field's cards coming in:
+// quick to leave, a little past its place, and back at 1.
+func SettleEase(t float32) float32 {
+	t = max(0, min(t, 1))
+	const c1 = 0.9
+	u := t - 1
+	return 1 + (c1+1)*u*u*u + c1*u*u
 }
 
-// Follow returns element's value under key following target on Spring.
+// GlideEase is t of the way along a Glide as a curve, for what travels
+// far on a clock of its own: quick to leave and landing softly, never
+// past its place, where a settle's overshoot would carry it a long way.
+func GlideEase(t float32) float32 {
+	t = max(0, min(t, 1))
+	u := 1 - t
+	return 1 - u*u*u
+}
+
+// Follow returns element's value under key gliding to target.
 func Follow(element ui.Element, key any, target float32, settle time.Duration) float32 {
-	return element.AnimateTo(key, target, Spring(settle))
+	return element.AnimateTo(key, target, Glide(settle))
 }
 
 // HoverAmount is element's hover tint from 0 to 1, eased in quickly and

@@ -195,7 +195,7 @@ func (s *State) suggestions(c *ui.Context, semantic theme.Theme, in *queryInput,
 		}
 		var spring *ui.Animation
 		if animate {
-			sp := components.Spring(components.MotionNormal)
+			sp := components.Settle(components.MotionNormal)
 			spring = &sp
 		}
 		panel.Children(func() {

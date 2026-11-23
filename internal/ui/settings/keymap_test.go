@@ -411,7 +411,7 @@ func TestRecorderFoldsOpenAndShut(t *testing.T) {
 		t.Fatal(err)
 	}
 	tester.Frame()
-	tester.Advance(components.MotionSettle / 4)
+	tester.Advance(components.MotionPanel / 4)
 	opening, _ := tester.Find("Toggle Typewriter mode")
 	tester.Advance(time.Second)
 	open, _ := tester.Find("Toggle Typewriter mode")
@@ -420,7 +420,7 @@ func TestRecorderFoldsOpenAndShut(t *testing.T) {
 	}
 	tester.Key(0, ui.KeyEscape)
 	tester.Frame()
-	tester.Advance(components.MotionSettle / 4)
+	tester.Advance(components.MotionPanel / 4)
 	closing, _ := tester.Find("Toggle Typewriter mode")
 	if !tester.HasText("Press keys…") || !(closing.Y < open.Y && closing.Y > rows.Y+0.5) {
 		t.Fatalf("recorder vanished instead of folding: rows at %v, %#v", closing.Y, tester.Texts())

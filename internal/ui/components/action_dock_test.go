@@ -119,10 +119,10 @@ func TestActionDockGrowsAsAGroupComes(t *testing.T) {
 	from := width()
 	more = true
 	tester.Frame()
-	tester.Advance(MotionDock / 3)
+	tester.Advance(MotionScene / 3)
 	tester.Frame()
 	between := width()
-	tester.Advance(MotionDock * 3)
+	tester.Advance(MotionScene * 3)
 	tester.Frame()
 	to := width()
 	if !(from < between && between < to) {

@@ -89,7 +89,7 @@ func (s *State) contentsRail(c *ui.Context, semantic theme.Theme, mid, top, bott
 	}
 	strip := ui.Box(c).Key("contents-rail").Absolute().Left(0).Right(0).Top(top).Height(bottom - top).
 		Role(ui.RoleGroup).Label(locales.Contents()).
-		Transition(appearingIf(animate, motionPlace, &ui.Motion{Opacity: 0, X: -8 * k}, &ui.Motion{Opacity: 0}))
+		Transition(appearingIf(animate, components.MotionNormal, &ui.Motion{Opacity: 0, X: -8 * k}, &ui.Motion{Opacity: 0}))
 	_, py, over := strip.PointerPosition()
 	near := map[bool]float32{true: 1}[over]
 	if animate {

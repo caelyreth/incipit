@@ -62,7 +62,7 @@ func (n *RollingNumber) View(c *ui.Context, key string, value int, size, lineH f
 		n.entries = []rollEntry{{seq: n.seq, value: n.current, active: true, mounted: true}}
 	}
 	targetW, _ := c.MeasureText(0, ui.Span{Text: Thousands(n.current), Font: theme.UIFontFamily, Size: size, Features: "tnum"})
-	spring := Spring(MotionPanel)
+	spring := Settle(MotionPanel)
 	box := ui.Box(c.Key(key)).Height(lineH).Clip()
 	w := targetW
 	if animate {
@@ -124,7 +124,7 @@ func AnimatedText(c *ui.Context, key, text string, size, lineH float32, ink ui.C
 	box := ui.Box(c.Key(key)).Height(lineH).Clip()
 	w := targetW
 	if animate {
-		w = box.AnimateTo("w", targetW, Spring(MotionPanel))
+		w = box.AnimateTo("w", targetW, Settle(MotionPanel))
 	} else {
 		box.Jump("w", targetW)
 	}

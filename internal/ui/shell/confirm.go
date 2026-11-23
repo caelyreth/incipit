@@ -153,7 +153,7 @@ func (s *State) lingering(c *ui.Context, key string, shown, animate bool, fn fun
 	}
 	p := target
 	if animate {
-		p = max(0, min(components.Follow(box, "shown", target, motionList), 1))
+		p = max(0, min(components.Follow(box, "shown", target, components.MotionNormal), 1))
 	}
 	if p < 0.01 {
 		box.Hidden(true)

@@ -302,7 +302,7 @@ func (s *State) keycaps(c *ui.Context, semantic theme.Theme, chord keymap.Chord,
 }
 
 var (
-	keySpring = components.Spring(components.MotionNormal)
+	keySpring = components.Settle(components.MotionNormal)
 	// keyTransition moves a run of keys to its new width; their ring eases
 	// on its own spring (keyRing).
 	keyTransition = ui.ElementTransition{Animation: &keySpring, Size: true}

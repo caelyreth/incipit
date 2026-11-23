@@ -18,7 +18,7 @@ func (s *State) statsClear(c *ui.Context, semantic theme.Theme, size, lineH floa
 	sec := ui.Row(c).Key("stat-clear-group").Height(lineH).AlignItems(ui.Center).Clip()
 	shown := target
 	if animate {
-		shown = sec.AnimateTo("shown", target, components.Spring(components.MotionPanel))
+		shown = sec.AnimateTo("shown", target, components.Glide(components.MotionPanel))
 	} else {
 		sec.Jump("shown", target)
 	}

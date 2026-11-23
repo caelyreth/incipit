@@ -244,7 +244,7 @@ func (el *Element) tagPickerView(c *ui.Context, services ui.Services) {
 		tp.above = r.Y+r.H+gap+most > el.viewport.H && r.Y-gap-most >= 0
 		tp.placed = true
 	}
-	spring := components.Spring(components.MotionNormal)
+	spring := components.Settle(components.MotionNormal)
 	rise := -theme.Space04.DIPs(scale)
 	panel := ui.Column(c).Key("tag-picker").Absolute().
 		Left(max(0, min(r.X-border-pad-inset-chipPad, el.viewport.W-width))).

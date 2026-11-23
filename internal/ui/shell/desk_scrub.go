@@ -226,7 +226,7 @@ const guardDim = 0.55
 
 // switchMotion is how long the scrubber takes to grow into the switcher
 // and back.
-const switchMotion = components.MotionSettle
+const switchMotion = components.MotionPanel
 
 func lerp(a, b, t float32) float32 { return a + (b-a)*t }
 

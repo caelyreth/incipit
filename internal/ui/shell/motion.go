@@ -14,24 +14,19 @@ import (
 //
 // Motion moves, scales, fades and tints; text keeps its layout while its
 // transform carries it between places.
-const (
-	// motionPlace moves the place chips from one place to the next.
-	motionPlace = 220 * time.Millisecond
-	// motionList moves rows as others come and go, and opens and
-	// closes them in place.
-	motionList = 150 * time.Millisecond
-	// motionArm turns a button to ask for its second click.
-	motionArm = components.MotionQuick
-)
+// motionArm turns a button to ask for its second click.
+const motionArm = components.MotionQuick
 
-// listTransition is how rows come, go and make room.
+// listTransition is how rows come, go and make room: gliding, as a row
+// folding open past its height and back would only wobble.
 func listTransition(animate, size bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
+	glide := components.Glide(components.MotionNormal)
 	return ui.ElementTransition{
-		Duration: motionList,
-		Position: true, Size: size,
+		Animation: &glide,
+		Position:  true, Size: size,
 		Enter: collapsing, Exit: collapsing,
 	}
 }
@@ -54,13 +49,13 @@ func popTransition(animate bool) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: 1}
 	}
-	spring := components.Bouncy(components.MotionPanel)
+	spring := components.Settle(components.MotionPanel)
 	gone := &ui.Motion{Scale: 0.9, Opacity: 0}
-	return ui.ElementTransition{Animation: &spring, ExitDuration: motionList, Colors: true, Enter: gone, Exit: gone}
+	return ui.ElementTransition{Animation: &spring, ExitDuration: components.MotionQuick, Colors: true, Enter: gone, Exit: gone}
 }
 
 func unfoldAnimation() ui.Animation {
-	return ui.Animation{Duration: motionList, Ease: ui.EaseOut}
+	return components.Glide(components.MotionNormal)
 }
 
 // unfoldTransition opens something called up in a list, pushing the rows

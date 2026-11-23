@@ -586,7 +586,7 @@ func (s *State) landingLine(c *ui.Context, semantic theme.Theme, r stageRect, la
 	s.field.landing = stageRect{X: x, Y: y, H: h}
 	grow := shown
 	if animate {
-		glide := components.Spring(components.MotionQuick)
+		glide := components.Settle(components.MotionNormal)
 		if s.field.landingShown < 0.01 {
 			// Coming in, it stands where it lands at once, and grows there.
 			place.Jump("x", x)
@@ -595,7 +595,7 @@ func (s *State) landingLine(c *ui.Context, semantic theme.Theme, r stageRect, la
 		}
 		x, y, h = place.AnimateTo("x", x, glide), place.AnimateTo("y", y, glide), place.AnimateTo("h", h, glide)
 		shown = components.Follow(place, "shown", shown, components.MotionQuick)
-		grow = place.AnimateTo("grow", grow, components.Bouncy(components.MotionQuick))
+		grow = place.AnimateTo("grow", grow, components.Settle(components.MotionNormal))
 	}
 	s.field.landingShown = shown
 	if shown <= 0.001 {
@@ -615,7 +615,7 @@ func (s *State) partOf(el ui.Element, id string, animate bool) float32 {
 	if !animate {
 		return to
 	}
-	v := el.AnimateTo("part-"+id, to, components.Spring(components.MotionQuick))
+	v := el.AnimateTo("part-"+id, to, components.Settle(components.MotionNormal))
 	if v != 0 {
 		s.field.parted = true
 	}

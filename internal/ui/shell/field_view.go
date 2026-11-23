@@ -101,10 +101,10 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	idlePillW, openPillW := min(280*k, maxPillW), min(440*k, maxPillW)
 	activePill := s.field.open || (s.field.focus && !s.OnDesk() && !s.field.hidden)
 	targetPillW := idlePillW
-	pillAnim := components.Spring(components.MotionNormal)
+	pillAnim := components.Settle(components.MotionNormal)
 	if activePill {
 		targetPillW = openPillW
-		pillAnim = components.Bouncy(components.MotionEnter)
+		pillAnim = components.Settle(components.MotionPanel)
 	}
 	pillW := targetPillW
 	if animate {
@@ -364,7 +364,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	ribbonAnim := ui.Animation{Duration: components.MotionQuick, Ease: ui.EaseOut}
 	if rawExtra > 0 {
 		ribbonTarget = 1
-		ribbonAnim = components.Spring(components.MotionScene)
+		ribbonAnim = components.Settle(components.MotionScene)
 	}
 	ribbonFade := ribbonTarget
 	if animate && !first {

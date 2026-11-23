@@ -12,7 +12,7 @@ import (
 const toastWidth = 340
 
 // toastSpring moves toasts in, out and along as others come and go.
-var toastSpring = components.Spring(components.MotionNormal)
+var toastSpring = components.Settle(components.MotionNormal)
 
 // View shows what was posted since the last frame, and the toasts showing,
 // at the window's bottom right, bottom clear of the window's foot. Call it

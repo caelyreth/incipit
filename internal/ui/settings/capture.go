@@ -72,7 +72,7 @@ func (s *State) captureLine(c *ui.Context, semantic theme.Theme, line captureLin
 		Padding(0, theme.Space06.DIPs(scale), 0, theme.Space12.DIPs(scale)).Radius(metrics.Radius).
 		Background(semantic.Surface.Inset).Clip()
 	if animate {
-		edge = capture.AnimateColor("edge", edge, components.Spring(components.MotionNormal))
+		edge = capture.AnimateColor("edge", edge, components.Glide(components.MotionNormal))
 	}
 	capture.Border(1, edge)
 	// The same line may close and open again before its fold shuts: each

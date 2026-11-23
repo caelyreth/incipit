@@ -167,7 +167,7 @@ func (s *State) keyChip(
 	font := ui.Font{Family: theme.UIFontFamily, Size: geometry.glyph, Features: "tnum"}
 	swap := float32(1)
 	if animate {
-		swap = components.Follow(chip, "swap", 1, components.MotionSettle)
+		swap = components.Follow(chip, "swap", 1, components.MotionPanel)
 	}
 	if st.key != key {
 		caps, width := layoutCaps(labels, font, geometry)
@@ -177,7 +177,7 @@ func (s *State) keyChip(
 			// would wait for some other rebuild to move.
 			st.leaving, st.leavingW = st.at(swap)
 			chip.Jump("swap", 0)
-			swap = components.Follow(chip, "swap", 1, components.MotionSettle)
+			swap = components.Follow(chip, "swap", 1, components.MotionPanel)
 		}
 		st.key, st.shown, st.shownW = key, caps, width
 	}

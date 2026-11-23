@@ -424,7 +424,7 @@ func bookmarkTransition(animate bool, k float32) ui.ElementTransition {
 	if !animate {
 		return ui.ElementTransition{Duration: -1}
 	}
-	spring := components.Spring(components.MotionPanel)
+	spring := components.Settle(components.MotionPanel)
 	gone := &ui.Motion{X: -12 * k, Opacity: 0, Collapse: true}
 	return ui.ElementTransition{
 		Animation: &spring, ExitDuration: components.MotionQuick, ExitEase: ui.EaseOut,

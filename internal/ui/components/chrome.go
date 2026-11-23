@@ -40,7 +40,7 @@ func Settled(el ui.Element, key any, natural float32, settle time.Duration, anim
 		el.Jump(key, natural)
 		return natural
 	}
-	motion := Spring(settle)
+	motion := Glide(settle)
 	if natural >= *held {
 		motion = ui.Animation{Duration: 1}
 	}

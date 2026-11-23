@@ -173,25 +173,25 @@ func newSpring(v float32, now time.Time, of valueKind) motion.Spring {
 	return motion.NewSpring(v, now)
 }
 
-// The page's springs arrive as the app's do (components.Spring), one pace
+// The page's springs glide as the app's do (components.Glide), one pace
 // for one kind of thing wherever it moves: controls (grips, hints, lights,
 // a guide's fade) in MotionNormal; caret and selection glides crisper still;
 // heading size morphs settle promptly on unit precision; the layout settling
 // (a flow's extents, fades and glides, a picture shown, math drawn anew) in
-// MotionSettle; a carry's parting in MotionPanel; a hover in HoverIn and out
+// MotionPanel; a carry's parting in MotionPanel; a hover in HoverIn and out
 // in HoverOut, what leaves a flow fading as a hover does; a press in
-// MotionImmediate.
+// MotionQuick.
 var (
 	chromeFollow    = settleFrequency(components.MotionNormal)
 	placeFollow     = settleFrequency(components.MotionNormal)
 	caretFollow     = settleFrequency(105 * time.Millisecond)
 	selectionFollow = settleFrequency(120 * time.Millisecond)
-	layoutSettle    = settleFrequency(components.MotionSettle)
+	layoutSettle    = settleFrequency(components.MotionPanel)
 	headingSettle   = settleFrequency(180 * time.Millisecond)
 	carryPart       = settleFrequency(components.MotionPanel)
 	hoverIn         = settleFrequency(components.HoverIn)
 	hoverOut        = settleFrequency(components.HoverOut)
-	pressFollow     = settleFrequency(components.MotionImmediate)
+	pressFollow     = settleFrequency(components.MotionQuick)
 )
 
 // settleFrequency is the frequency of a critically damped spring whose
