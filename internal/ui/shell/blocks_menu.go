@@ -67,8 +67,8 @@ func (s *State) groupMenu(semantic theme.Theme, g GroupItem, trashed bool) func(
 		if !g.Smart() {
 			s.verbItem(m, VerbRename, locales.RenameEllipsis(), components.IconPen, true, func() { s.startRename(g.ID) })
 		}
-		// Its colors stand in a row of swatches, where the system's menus
-		// have one, else in a submenu, each beside a disc of its hue.
+		// Its colors stand in a row of swatches on macOS, elsewhere in a
+		// submenu, each beside a disc of its hue.
 		components.MenuItem(m.Palette(locales.Color(), func(m *ui.Menu) {
 			for color := TintMoonveil; color < TintHalo+len(theme.AllAccents); color++ {
 				if m.Item(tintName(color)).Swatch(tintInk(semantic, color)).Radio(g.Color == color).Chosen() {
