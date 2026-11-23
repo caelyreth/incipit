@@ -251,11 +251,17 @@ func groupIcon(group GroupItem) components.IconName {
 // groupInk is a group's color: its hue's, or the text's; the Inbox has
 // none of its own, and is drawn in ink.
 func groupInk(semantic theme.Theme, group GroupItem, ink ui.Color) ui.Color {
-	switch {
-	case group.Inbox:
+	if group.Inbox {
 		return ink
-	case group.Color >= TintHalo && group.Color < TintHalo+len(semantic.Families):
-		return semantic.Families[group.Color-TintHalo].Foreground
+	}
+	return tintInk(semantic, group.Color)
+}
+
+// tintInk is the color a group's tint wears: its hue's, or Moonveil's,
+// the text's.
+func tintInk(semantic theme.Theme, color int) ui.Color {
+	if color >= TintHalo && color < TintHalo+len(semantic.Families) {
+		return semantic.Families[color-TintHalo].Foreground
 	}
 	return semantic.Text.Default
 }

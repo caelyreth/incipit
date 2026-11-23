@@ -90,7 +90,7 @@ func (s *State) blockHead(c *ui.Context, semantic theme.Theme, b block, fr stage
 			// arriving as any row is.
 			id := "group:" + g.ID
 			s.rowFill(c, semantic, head, id, animate)
-			head.ContextMenu(s.rowMenu(id, s.groupMenu(*g, b.trashed)))
+			head.ContextMenu(s.rowMenu(id, s.groupMenu(semantic, *g, b.trashed)))
 			if !b.trashed && !g.Inbox {
 				s.dragFrom(head, groupDrag{id: g.ID})
 			}
@@ -241,7 +241,7 @@ func (s *State) groupRow(c *ui.Context, semantic theme.Theme, g GroupItem, fr st
 		s.fileInto(g, dropped)
 	}
 	s.springLoad(c, id, g, over, fr.Rect)
-	btn.ContextMenu(s.rowMenu(id, s.groupMenu(g, false)))
+	btn.ContextMenu(s.rowMenu(id, s.groupMenu(semantic, g, false)))
 	if !g.Inbox {
 		s.dragFrom(btn, groupDrag{id: g.ID})
 	}

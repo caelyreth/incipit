@@ -35,7 +35,8 @@ func (s *State) fileInto(g GroupItem, dropped shellDrag) {
 
 func deleteKey(id string) string { return "delete-" + id }
 
-func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
+// groupMenu is the menu of the group g, its colors in semantic's hues.
+func (s *State) groupMenu(semantic theme.Theme, g GroupItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if trashed {
 			if components.MenuItem(m.Item(locales.PutBack()), components.IconUndo).Chosen() {
@@ -66,9 +67,11 @@ func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 		if !g.Smart() {
 			s.verbItem(m, VerbRename, locales.RenameEllipsis(), components.IconPen, true, func() { s.startRename(g.ID) })
 		}
-		components.MenuItem(m.Submenu(locales.Color(), func(m *ui.Menu) {
+		// Its colors stand in a row of swatches, where the system's menus
+		// have one, else in a submenu, each beside a disc of its hue.
+		components.MenuItem(m.Palette(locales.Color(), func(m *ui.Menu) {
 			for color := TintMoonveil; color < TintHalo+len(theme.AllAccents); color++ {
-				if m.Item(tintName(color)).Checked(g.Color == color).Chosen() {
+				if m.Item(tintName(color)).Swatch(tintInk(semantic, color)).Radio(g.Color == color).Chosen() {
 					s.styleGroup(g, g.Icon, color)
 				}
 			}
