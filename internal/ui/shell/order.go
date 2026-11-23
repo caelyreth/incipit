@@ -83,16 +83,17 @@ func (s *State) reveal(c *ui.Context, frames []stageFrame, f found) {
 // inView scrolls the field as far as brings r, in the field, clear into
 // its viewport.
 func (s *State) inView(r stageRect) {
-	y := s.field.base - s.field.scroll + r.Y
+	at := s.scrollAt()
+	y := s.field.base - at + r.Y
 	over, under := s.field.viewTop, s.field.viewBottom
-	to := s.field.scroll
+	to := at
 	switch {
 	case y < over:
 		to -= over - y
 	case y+r.H > under:
 		to += min(y+r.H-under, y-over)
 	}
-	if to != s.field.scroll {
+	if to != at {
 		s.field.home, s.field.homeTo = true, max(s.field.lo, min(to, s.field.hi))
 	}
 }

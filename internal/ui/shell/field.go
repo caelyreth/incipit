@@ -228,8 +228,9 @@ type fieldState struct {
 	places []placeScroll
 	// pin is how far the pill stands at the window's foot, as a list's
 	// does, rather than at its horizon; fieldPillY keeps where the pill
-	// stood on screen in the field when turning to a list.
-	pin, fieldPillY float32
+	// stood on screen in the field when turning to a list; pillY is where
+	// the pill was last drawn, down from the window's top.
+	pin, fieldPillY, pillY float32
 }
 
 // fieldRoom is the room the field is laid out in: its width and height,

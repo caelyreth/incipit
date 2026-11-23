@@ -215,11 +215,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	switch {
 	case s.field.rest == nil:
 		s.field.place = place
-		s.scrollTo(view, frames, s.placeHome(listed))
+		s.scrollTo(view, s.placeHome(listed))
 	case place != s.field.place:
-		s.field.places = remember(s.field.places, s.field.place, s.field.scroll)
+		s.field.places = remember(s.field.places, s.field.place, s.scrollAt())
 		s.field.place = place
-		s.scrollTo(view, frames, recall(s.field.places, place, s.placeHome(listed)))
+		s.scrollTo(view, recall(s.field.places, place, s.placeHome(listed)))
 	case !s.field.home:
 		to := max(s.field.lo, min(s.field.scroll, s.field.hi))
 		if atEnd {
@@ -274,6 +274,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	// The room the query's own ribbons take goes along with the change
 	// that brings them, as the pill does.
+	heldAbove, heldBelow := rl.heldAbove, rl.heldBelow
 	if animate && !first {
 		rl.heldAbove = s.along(view, "held-above", s.field.heldAbove, rl.heldAbove)
 		rl.heldBelow = s.along(view, "held-below", s.field.heldBelow, rl.heldBelow)
@@ -306,6 +307,21 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	s.field.pin = pin
 	py := fieldPy + (footY-fieldPy)*pin
+	// While a change is made, the pill goes straight from where it was
+	// drawn to where it stands once the change is done, on the change's
+	// clock: where it stands is held at the window's top or foot by the
+	// room its ribbons take and moved by the poise and the scroll, each
+	// going along on its own, and so taken together they would leap or go
+	// past its place and back.
+	if animate && !first && s.field.changeT >= 0 {
+		restY := h - foot - pill.H - heldBelow
+		if !listed {
+			free := h/2 - poise.Y - (s.scrollAt() - s.field.over.Offset()) - pill.H/2
+			restY = max(top+heldAbove, min(free, restY))
+		}
+		py = s.along(view, "pill-y", s.field.pillY, restY)
+	}
+	s.field.pillY = py
 	s.field.away = map[bool]float32{true: 1}[away]
 	if animate {
 		s.field.away = components.Follow(view, "away", s.field.away, components.MotionQuick)

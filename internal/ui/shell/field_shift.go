@@ -120,6 +120,11 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 	}
 	s.field.changeT, s.field.swapT = -1, -1
 	if t >= 1 {
+		// The frame a change ends on lands what goes along with it, as
+		// the cards land, rather than leaving each its own spring to end.
+		if s.field.from != nil {
+			s.field.changeT = 1
+		}
 		s.field.from = nil
 		s.field.drawn = frames
 		return frames

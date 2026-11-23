@@ -260,3 +260,64 @@ func TestFieldLaneControlsStayPutAcrossSettingsSubviews(t *testing.T) {
 	settle(tester)
 	checkSteady("settings live search", "Hide settings")
 }
+
+// A category scrolled in and closed, and opened again, moves the pill
+// straight to where it stands, each way: the field's scroll goes along
+// the change with what it draws, so the pill neither leaps first nor goes
+// past its place and back.
+func TestTheScrollRememberedGoesAlongTheChange(t *testing.T) {
+	// Scrolled so far the pill stays at the window's top, and only a
+	// little, the pill short of it.
+	for _, times := range []int{12, 1} {
+		scrollRememberedGoesAlong(t, times)
+	}
+}
+
+func scrollRememberedGoesAlong(t *testing.T, times int) {
+	t.Helper()
+	state, _, tester := onField(t, 420, 700)
+	state.AppSettings = &fakeSettings{tall: 600, showTheme: true}
+	settle(tester)
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if err := tester.Click("Appearance"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	for range times {
+		tester.Scroll(210, 400, 0, 40)
+		tester.Frame()
+	}
+	tester.Scroll(210, 400, 0, 0)
+	settle(tester)
+	if state.field.scroll < 20 {
+		t.Fatalf("The category should have scrolled, but went %v (%v..%v, %v).", state.field.scroll, state.field.lo, state.field.hi, shownBlocks(state))
+	}
+	straight := func(press, how string) {
+		t.Helper()
+		start, _ := tester.Find("Search")
+		if err := tester.Click(press); err != nil {
+			t.Fatal(err)
+		}
+		ys := []float32{start.Y}
+		for range 60 {
+			tester.Advance(16 * time.Millisecond)
+			tester.Frame()
+			pill, _ := tester.Find("Search")
+			ys = append(ys, pill.Y)
+		}
+		end := ys[len(ys)-1]
+		for i := 1; i < len(ys); i++ {
+			if (end-ys[0])*(ys[i]-ys[i-1]) < -0.25 {
+				t.Fatalf("%s, the pill should go straight from %v to %v, but went back: %v.", how, ys[0], end, ys)
+			}
+			if abs(ys[i]-ys[i-1]) > abs(end-ys[0])/2+1 {
+				t.Fatalf("%s, the pill should not leap, but went %v to %v: %v.", how, ys[i-1], ys[i], ys)
+			}
+		}
+	}
+	straight("Remove Appearance", "Closed")
+	straight("Appearance", "Opened again")
+}
