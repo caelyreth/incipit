@@ -24,9 +24,13 @@ func Menus(c *ui.Context, semantic theme.Theme) {
 	inset := theme.Space04.DIPs(scale) + 1
 	pad := theme.Space02.DIPs(scale)
 	across := 2 * c.Theme().Spacing
+	// Its rim half as strong as a popover's: the material and the shadow
+	// set it apart.
+	rim := semantic.Border.Default
+	rim.A /= 2
 	c.SetMenuStyle(ui.PopoverMenuOptions{
 		Panel: func(panel ui.Element) {
-			ElevatedSurface(panel, semantic, scale, PopoverElevation).Padding(inset)
+			ElevatedSurface(panel, semantic, scale, PopoverElevation).Padding(inset).Border(Rim, rim)
 		},
 		Item: func(item ui.Element) {
 			item.Radius(controls.PanelRadius-inset).FontSize(size).FixedLineHeight(line).Padding(pad, across)
