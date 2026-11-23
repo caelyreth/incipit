@@ -80,7 +80,7 @@ func (f queryField) View(s *State, c *ui.Context, semantic theme.Theme) (field, 
 			// query runs, and no key takes it away.
 			ui.Row(c).Key("fixed").Label(f.FixedLabel).Shrink(0).
 				AlignItems(ui.Center).PaddingX(theme.Space04.DIPs(scale)).
-				Radius(metrics.Radius - 2).Background(semantic.Accent.Muted).Children(func() {
+				Radius(metrics.InnerRadius).Background(semantic.Accent.Muted).Children(func() {
 				components.CenteredLabel(c, f.Fixed, theme.TextXSmall, semantic.Accent.Foreground)
 			})
 		}
