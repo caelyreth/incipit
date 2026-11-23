@@ -130,6 +130,8 @@ func themeName(theme ThemeChoice) string {
 	switch theme {
 	case Daybreak:
 		return "daybreak"
+	case System:
+		return "system"
 	default:
 		return "starfield"
 	}
@@ -141,6 +143,8 @@ func parseTheme(name string) (ThemeChoice, bool) {
 		return Starfield, true
 	case "daybreak":
 		return Daybreak, true
+	case "system":
+		return System, true
 	default:
 		return 0, false
 	}

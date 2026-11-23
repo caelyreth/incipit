@@ -16,7 +16,10 @@ type State struct {
 	Query string
 	Data  appsettings.Data
 	Theme theme.Settings
-	Apply func(appsettings.Change)
+	// Appearance is the theme chosen, System among them, which Theme shows
+	// resolved.
+	Appearance appsettings.ThemeChoice
+	Apply      func(appsettings.Change)
 	// Recording hears when a shortcut recording starts and ends, so the
 	// host can stand its menu's keys down meanwhile. Reserved names what
 	// keeps a key for itself, as a menu item of the system's, which no

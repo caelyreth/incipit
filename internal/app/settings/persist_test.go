@@ -64,3 +64,26 @@ func TestSettingsDecodeLeavesTheStateOnFailure(t *testing.T) {
 		t.Fatal("unknown theme was accepted")
 	}
 }
+
+// System is kept as chosen, and shows Starfield while the system is dark,
+// Daybreak while it is light.
+func TestSystemThemeKeptAndResolved(t *testing.T) {
+	state := DefaultState()
+	if _, err := state.Apply(NewAppearanceChange(AppearanceChange{Kind: SetTheme, Theme: uint8(System)})); err != nil {
+		t.Fatal(err)
+	}
+	data, err := state.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored State
+	if err := restored.Decode(data); err != nil {
+		t.Fatal(err)
+	}
+	if restored.Appearance.Appearance != System {
+		t.Fatalf("restored theme %v, want System", restored.Appearance.Appearance)
+	}
+	if System.Resolved(true) != Starfield || System.Resolved(false) != Daybreak || Daybreak.Resolved(true) != Daybreak {
+		t.Fatal("System resolves to the wrong palette")
+	}
+}

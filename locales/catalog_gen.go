@@ -1315,13 +1315,13 @@ func (msgs Messages) Theme() string {
 	return Catalog.Format(msgs.locale, "theme", nil)
 }
 
-// ThemeDescription says "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart."
+// ThemeDescription says "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart. System follows the system: Starfield while i…"
 // in the language the app shows.
 //
 // Starfield and Daybreak are the themes' names.
 func ThemeDescription() string { return In(i18n.Locale()).ThemeDescription() }
 
-// ThemeDescription says "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart."
+// ThemeDescription says "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart. System follows the system: Starfield while i…"
 // in the language of msgs.
 //
 // Starfield and Daybreak are the themes' names.
@@ -1355,6 +1355,22 @@ func ThemeDaybreak() string { return In(i18n.Locale()).ThemeDaybreak() }
 // The light theme's name.
 func (msgs Messages) ThemeDaybreak() string {
 	return Catalog.Format(msgs.locale, "themeDaybreak", nil)
+}
+
+// ThemeSystem says "System"
+// in the language the app shows.
+//
+// The theme that follows the system's appearance: Starfield while it is
+// dark, Daybreak while it is light.
+func ThemeSystem() string { return In(i18n.Locale()).ThemeSystem() }
+
+// ThemeSystem says "System"
+// in the language of msgs.
+//
+// The theme that follows the system's appearance: Starfield while it is
+// dark, Daybreak while it is light.
+func (msgs Messages) ThemeSystem() string {
+	return Catalog.Format(msgs.locale, "themeSystem", nil)
 }
 
 // UiFontSize says "UI Font Size"

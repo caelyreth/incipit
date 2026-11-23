@@ -26,7 +26,9 @@ func TestLanguageOffersEachByItsOwnName(t *testing.T) {
 			t.Fatalf("no %q in %v", text, tester.Texts())
 		}
 	}
-	for _, label := range []string{"日本語", "System", "简体中文"} {
+	// The language's System is pressed by its note: the theme has a System
+	// too.
+	for _, label := range []string{"日本語", "Follows the languages of this computer", "简体中文"} {
 		if err := tester.Click(label); err != nil {
 			t.Fatalf("%s: %v", label, err)
 		}

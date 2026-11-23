@@ -54,11 +54,11 @@ func Run() error {
 			log.Printf("saving the notebook: %v", err)
 		}
 	})
-	mygo.Theme.SetSource(themeSource(app.Shell.Settings))
+	mygo.Theme.SetSource(themeSource(app.Product.Appearance.Appearance))
 
 	mygo.App.WhenReady(func() {
 		app.language = mygo.App.ChosenLocale()
-		app.refreshSettingsData()
+		app.followSystem()
 		mygo.App.OnLocaleChanged(func(string) { app.localeChanged() })
 		mygo.App.SetMenu(app.MainMenu())
 		app.Notices.SetWake(app.wake)

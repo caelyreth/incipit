@@ -63,6 +63,10 @@ type AppState struct {
 	recording bool
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
+	// systemDark is whether the system's appearance is dark, which the
+	// System theme follows, as last read while it was chosen; running is
+	// set once the app runs and can ask.
+	systemDark, running bool
 	// fonts are the faces for Chinese and Japanese, kept and coming.
 	fonts *fontState
 	// language is the language the app chose to show (mygo.App.ChosenLocale),
@@ -418,6 +422,7 @@ func (a *AppState) refreshShell() {
 func (a *AppState) refreshSettingsData() {
 	a.Settings.Data = a.Product.Data()
 	a.Settings.Theme = a.Shell.Settings
+	a.Settings.Appearance = a.Product.Appearance.Appearance
 	a.Settings.Animate = a.Product.Presentation.Motion
 	a.Settings.Recording = a.setRecording
 	a.Settings.Reserved = a.reservedKey
@@ -474,6 +479,14 @@ func (a *AppState) saveSettings() {
 // views blend their colors over ThemeTransition, and the native chrome,
 // window backgrounds and traffic lights follow the new scheme.
 func (a *AppState) applyAppearance() {
+	mygo.Theme.SetSource(themeSource(a.Product.Appearance.Appearance))
+	a.readSystem()
+	a.showAppearance()
+}
+
+// showAppearance moves the windows to the theme the settings resolve to,
+// the native appearance left as it is.
+func (a *AppState) showAppearance() {
 	a.Shell.Settings = a.appearanceSettings()
 	target := a.Shell.Settings.Semantic()
 	if a.Product.Presentation.Motion {
@@ -481,7 +494,6 @@ func (a *AppState) applyAppearance() {
 	} else {
 		a.colors.Jump(target)
 	}
-	mygo.Theme.SetSource(themeSource(a.Shell.Settings))
 	if window := a.mainWindow; window != nil && !window.IsDestroyed() {
 		_ = window.SetBackgroundColor(colorHex(target.Surface.Background))
 		window.Invalidate()
@@ -510,13 +522,50 @@ func (a *AppState) setPresentation(mode appsettings.Presentation, on bool) {
 	a.refreshSettingsData()
 }
 
-// themeSource is the native appearance matching settings, so traffic
+// themeSource is the native appearance of the theme chosen, so traffic
 // lights, menus and window chrome agree with the painted theme.
-func themeSource(settings theme.Settings) mygo.ThemeSource {
-	if settings.Appearance == theme.Daybreak {
+func themeSource(choice appsettings.ThemeChoice) mygo.ThemeSource {
+	switch choice {
+	case appsettings.Daybreak:
 		return mygo.ThemeLight
+	case appsettings.System:
+		return mygo.ThemeSystem
 	}
 	return mygo.ThemeDark
+}
+
+// followSystem reads the system's appearance and follows it from then on:
+// with the System theme the app turns to Starfield or Daybreak as it
+// changes. At launch the theme shows at once, before the window does.
+func (a *AppState) followSystem() {
+	a.running = true
+	a.readSystem()
+	a.Shell.Settings = a.appearanceSettings()
+	a.colors.Jump(a.Shell.Settings.Semantic())
+	a.refreshSettingsData()
+	// It is told as the system's appearance changes, and as the app sets
+	// its own (applyAppearance), which this must not set again.
+	mygo.Theme.OnUpdated(func() {
+		if a.Product.Appearance.Appearance != appsettings.System {
+			return
+		}
+		dark := mygo.Theme.IsDark()
+		if dark == a.systemDark {
+			return
+		}
+		a.systemDark = dark
+		a.showAppearance()
+		a.refreshSettingsData()
+	})
+}
+
+// readSystem reads whether the system's appearance is dark while the
+// System theme is chosen: only then does the app follow the system's, the
+// others forcing their own.
+func (a *AppState) readSystem() {
+	if a.running && a.Product.Appearance.Appearance == appsettings.System {
+		a.systemDark = mygo.Theme.IsDark()
+	}
 }
 
 // appearanceSettings is the display the settings choose, the prose in the
@@ -528,7 +577,7 @@ func (a *AppState) appearanceSettings() theme.Settings {
 	settings.UIFontSize = values.UIFontSize
 	settings.ProseFontSize = values.ProseFontSize
 	settings.LineSpacing = values.LineSpacing
-	settings.Appearance = theme.Appearance(values.ThemeNumber())
+	settings.Appearance = theme.Appearance(values.ThemeNumber(a.systemDark))
 	return settings
 }
 

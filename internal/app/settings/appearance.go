@@ -9,13 +9,28 @@ import (
 // ThemeChoice selects one of Neverland's coherent built-in palettes.
 type ThemeChoice uint8
 
+// System follows the system's appearance, a fixed pair: Starfield while
+// it is dark, Daybreak while it is light.
 const (
 	Starfield ThemeChoice = iota + 1
 	Daybreak
+	System
 )
 
 func (a ThemeChoice) Valid() bool {
-	return a == Starfield || a == Daybreak
+	return a == Starfield || a == Daybreak || a == System
+}
+
+// Resolved is the palette the choice shows while the system is dark or
+// not.
+func (a ThemeChoice) Resolved(dark bool) ThemeChoice {
+	if a != System {
+		return a
+	}
+	if dark {
+		return Starfield
+	}
+	return Daybreak
 }
 
 const (
@@ -51,10 +66,10 @@ type AppearanceSettings struct {
 	CJKForms string
 }
 
-// ThemeNumber returns the stable one-based module representation used by the
-// declarative settings view.
-func (s AppearanceSettings) ThemeNumber() uint8 {
-	return uint8(s.Appearance)
+// ThemeNumber returns the stable one-based number of the palette shown
+// while the system is dark or not, for the declarative settings view.
+func (s AppearanceSettings) ThemeNumber(dark bool) uint8 {
+	return uint8(s.Appearance.Resolved(dark))
 }
 
 func DefaultAppearance() AppearanceSettings {

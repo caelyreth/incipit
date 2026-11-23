@@ -45,19 +45,23 @@ func (s *State) appearanceSection(c *ui.Context, semantic theme.Theme, sec Secti
 				Label:       locales.Theme(),
 				Description: locales.ThemeDescription(),
 				Control: func() {
-					options := make([]components.SegmentOption, 0, 2)
-					for index, name := range []string{"Starfield", "Daybreak"} {
-						value := index + 1
-						label := locales.ThemeStarfield()
-						if value == 2 {
-							label = locales.ThemeDaybreak()
-						}
+					choices := []struct {
+						key    string
+						label  string
+						choice appsettings.ThemeChoice
+					}{
+						{"starfield", locales.ThemeStarfield(), appsettings.Starfield},
+						{"daybreak", locales.ThemeDaybreak(), appsettings.Daybreak},
+						{"system", locales.ThemeSystem(), appsettings.System},
+					}
+					options := make([]components.SegmentOption, 0, len(choices))
+					for _, ch := range choices {
 						options = append(options, components.SegmentOption{
-							Key: "theme-" + name, Label: label,
-							Selected: s.Theme.Appearance == theme.Appearance(value),
+							Key: "theme-" + ch.key, Label: ch.label,
+							Selected: s.Appearance == ch.choice,
 							Action: func() {
 								s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
-									Kind: appsettings.SetTheme, Theme: uint8(value),
+									Kind: appsettings.SetTheme, Theme: uint8(ch.choice),
 								}))
 							},
 						})

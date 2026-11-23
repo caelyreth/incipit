@@ -331,7 +331,7 @@
   "@theme": {
     "description": "A setting: the colors."
   },
-  "themeDescription": "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart.",
+  "themeDescription": "Starfield is the dark Cosmofi scheme; Daybreak is its light counterpart. System follows the system: Starfield while it is dark, Daybreak while it is light.",
   "@themeDescription": {
     "description": "Starfield and Daybreak are the themes' names."
   },
@@ -342,6 +342,10 @@
   "themeDaybreak": "Daybreak",
   "@themeDaybreak": {
     "description": "The light theme's name."
+  },
+  "themeSystem": "System",
+  "@themeSystem": {
+    "description": "The theme that follows the system's appearance: Starfield while it is dark, Daybreak while it is light."
   },
   "uiFontSize": "UI Font Size",
   "@uiFontSize": {
