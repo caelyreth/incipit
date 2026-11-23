@@ -108,11 +108,15 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 		// Its first frame draws where everything was; the spring starts on
 		// the next, so the time this one takes is not a leap.
 		t = 0
-	case animate:
-		// A change runs on an even clock, the scene's length: each card
-		// shapes its own way along it (stageShift), so nothing is eased
-		// twice, slow to start and slow again to land.
+	case animate && s.field.now.depth == stageSwap:
+		// A swap runs on an even clock, the scene's length: each card
+		// shapes its own way along it (stageSwapFrames), so nothing is
+		// eased twice, slow to start and slow again to land.
 		t = field.AnimateTo("shift", 1, ui.Animation{Duration: components.MotionScene, Ease: ui.Linear})
+	case animate:
+		// A change of the query glides on a spring, which the cards follow
+		// as it goes: unhurried, and never past their places.
+		t = field.AnimateTo("shift", 1, components.Glide(components.MotionScene))
 	}
 	s.field.changeT, s.field.swapT = -1, -1
 	if t >= 1 {
@@ -152,7 +156,12 @@ func (s *State) along(el ui.Element, key string, now, target float32) float32 {
 			from = now
 			s.field.starts[key] = from
 		}
-		return el.Jump(key, from+(target-from)*components.GlideEase(t))
+		// On a swap's even clock it glides; a query's change is shaped
+		// already.
+		if s.field.now.depth == stageSwap {
+			t = components.GlideEase(t)
+		}
+		return el.Jump(key, from+(target-from)*t)
 	}
 	return el.AnimateTo(key, target, components.Glide(components.MotionScene))
 }
