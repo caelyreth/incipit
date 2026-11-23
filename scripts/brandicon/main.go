@@ -5,7 +5,7 @@
 // macOS's icon grid. The document is the source; the PNG is built, as Git
 // stores no binaries.
 //
-//	go run ./scripts/brandicon brand/Profile.icon brand/icon.png
+//	go run ./scripts/brandicon assets/profile.icon assets/icon.png
 package main
 
 import (
