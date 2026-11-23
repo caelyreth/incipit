@@ -67,6 +67,8 @@ func (a *AppState) MainMenu() *mygo.Menu {
 				ellipsis(command(keymap.Rename)),
 				command(keymap.Pin),
 				mygo.Separator(),
+				ellipsis(command(keymap.Export)),
+				mygo.Separator(),
 				command(keymap.SplitPage),
 				mygo.Separator(),
 				command(keymap.ClosePage),

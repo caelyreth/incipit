@@ -66,6 +66,10 @@
   "@commandRename": {
     "description": "A command: renames a group."
   },
+  "commandExport": "Export",
+  "@commandExport": {
+    "description": "Command: export the sheet in front, or the group or sheet selected, as files"
+  },
   "commandPin": "Pin",
   "@commandPin": {
     "description": "A command: pins a sheet or group to the top."
@@ -2907,5 +2911,53 @@
   "listSeparator": ", ",
   "@listSeparator": {
     "description": "What stands between the items of a list said inline, as the hidden tags of a card"
+  },
+  "exportEllipsis": "Export…",
+  "@exportEllipsis": {
+    "description": "Menu item: export a sheet or a group as files"
+  },
+  "exportTitle": "Export “{name}”",
+  "@exportTitle": {
+    "description": "Title of the export window; name is the sheet's or the group's"
+  },
+  "exportSheetSummary": "A Markdown file, with its pictures copied into an assets folder beside it.",
+  "@exportSheetSummary": {
+    "description": "What exporting a sheet writes"
+  },
+  "exportGroupSummary": "A folder of Markdown files for its {sheets, plural, one {# sheet} other {# sheets}}, its groups as folders inside.",
+  "@exportGroupSummary": {
+    "description": "What exporting a group writes; sheets counts every sheet in it and its groups"
+  },
+  "exportFormat": "Format",
+  "@exportFormat": {
+    "description": "Export window: the row choosing the file format"
+  },
+  "exportMarkdown": "Markdown",
+  "@exportMarkdown": {
+    "description": "The Markdown file format"
+  },
+  "exportDestination": "Save To",
+  "@exportDestination": {
+    "description": "Export window: the row choosing the folder written into"
+  },
+  "chooseEllipsis": "Choose…",
+  "@chooseEllipsis": {
+    "description": "Button that opens a folder picker"
+  },
+  "export": "Export",
+  "@export": {
+    "description": "Export window: the button that writes the files"
+  },
+  "chooseExportFolder": "Choose Where to Export",
+  "@chooseExportFolder": {
+    "description": "Title of the folder picker for an export"
+  },
+  "exported": "Exported “{name}”",
+  "@exported": {
+    "description": "Notice after an export; name is the sheet's or group's"
+  },
+  "couldntExport": "Couldn’t Export “{name}”",
+  "@couldntExport": {
+    "description": "Notice title when an export fails"
   }
 }

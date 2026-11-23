@@ -53,6 +53,28 @@ func (s *State) subject() []string {
 	return nil
 }
 
+// ExportSubject is what Export acts on: the sheet in front on the desk,
+// else the one group or sheet that is the verbs' subject, out of the
+// trash.
+func (s *State) ExportSubject() (string, bool) {
+	if s == nil || s.Library == nil {
+		return "", false
+	}
+	if s.OnDesk() {
+		for _, page := range s.Open {
+			if page.Column == s.ActiveColumn {
+				return "sheet:" + page.ID, true
+			}
+		}
+		return "", false
+	}
+	subject := s.subject()
+	if !s.libraryShown() || s.inTrash() || len(subject) != 1 {
+		return "", false
+	}
+	return subject[0], true
+}
+
 // libraryShown reports whether the field shows the library, which the
 // library's verbs act on.
 func (s *State) libraryShown() bool {

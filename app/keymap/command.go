@@ -105,6 +105,7 @@ const (
 	FormatTools  CommandID = "page.format-tools"
 	FindPage     CommandID = "page.find"
 	FindInSheet  CommandID = "page.find-in-sheet"
+	Export       CommandID = "page.export"
 
 	NewGroup   CommandID = "library.new-group"
 	Duplicate  CommandID = "library.duplicate"
@@ -191,6 +192,7 @@ func appCommands() []Command {
 		{ID: FormatTools, Label: locales.CommandShowFormatting(), Scope: ScopePages, Default: NewChord(".", ModifiersPrimary)},
 		{ID: FindPage, Label: locales.CommandGoToSheet(), Scope: ScopePages, Default: NewChord("p", ModifiersPrimary)},
 		{ID: FindInSheet, Label: locales.CommandFind(), Scope: ScopePages, Default: NewChord("f", ModifiersPrimary)},
+		{ID: Export, Label: locales.CommandExport(), Scope: ScopePages, Default: NewChord("e", ModifiersPrimary|ModifiersShift)},
 		{ID: NewGroup, Label: locales.CommandNewGroup(), Scope: ScopeLibrary, Default: NewChord("n", ModifiersPrimary|ModifiersShift)},
 		{ID: Duplicate, Label: locales.CommandDuplicate(), Scope: ScopeLibrary, Default: NewChord("d", ModifiersPrimary)},
 		{ID: Rename, Label: locales.CommandRename(), Scope: ScopeLibrary, Default: NewChord("r", ModifiersPrimary)},

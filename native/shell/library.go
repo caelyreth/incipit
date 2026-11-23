@@ -202,6 +202,10 @@ type Library interface {
 	RestoreGroup(id string)
 	DeleteGroup(id string)
 	EmptyTrash()
+
+	// Export asks where to write an object, "group:" or "sheet:" and its
+	// ID, out of the notebook as files, and writes it there.
+	Export(id string)
 }
 
 // A group's tint is TintMoonveil, the neutral family the text is set in,

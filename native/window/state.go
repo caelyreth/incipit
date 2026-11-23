@@ -37,6 +37,11 @@ type AppState struct {
 	sessionsRev uint64
 	projected   *projections
 	mainWindow  *mygo.Window
+	// exporting is the export its window shows, while it is open, and
+	// exportDir the folder last exported into this session.
+	exporting    *exportJob
+	exportWindow *mygo.Window
+	exportDir    string
 	// menu is the application menu; recording stands its keys down while
 	// the settings record a shortcut.
 	menu       *mygo.Menu

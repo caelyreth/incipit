@@ -36,6 +36,11 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 		}
 	},
 	keymap.FindPage: func(a *AppState) { a.findPage() },
+	keymap.Export: func(a *AppState) {
+		if id, ok := a.Shell.ExportSubject(); ok {
+			a.Export(id)
+		}
+	},
 	keymap.FindInSheet: func(a *AppState) {
 		if !a.Shell.OnDesk() {
 			a.findPage()
@@ -91,6 +96,9 @@ func (a *AppState) commandState(id keymap.CommandID, label string) shell.VerbSta
 	case id == keymap.Field:
 		state.Label = map[bool]string{true: locales.CommandShowField(), false: locales.ShowDesk()}[desk]
 		state.Enabled = desk || open > 0
+	case id == keymap.Export:
+		_, state.Enabled = sh.ExportSubject()
+		state.Enabled = state.Enabled && a.exporting == nil
 	case id == keymap.Typewriter:
 		state.Checked = a.Product.Presentation.Typewriter
 	case id == keymap.Motion:

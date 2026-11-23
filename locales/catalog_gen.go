@@ -281,6 +281,22 @@ func (msgs Messages) CommandRename() string {
 	return Catalog.Format(msgs.locale, "commandRename", nil)
 }
 
+// CommandExport says "Export"
+// in the language the app shows.
+//
+// Command: export the sheet in front, or the group or sheet selected, as
+// files
+func CommandExport() string { return In(i18n.Locale()).CommandExport() }
+
+// CommandExport says "Export"
+// in the language of msgs.
+//
+// Command: export the sheet in front, or the group or sheet selected, as
+// files
+func (msgs Messages) CommandExport() string {
+	return Catalog.Format(msgs.locale, "commandExport", nil)
+}
+
 // CommandPin says "Pin"
 // in the language the app shows.
 //
@@ -10563,4 +10579,174 @@ func ListSeparator() string { return In(i18n.Locale()).ListSeparator() }
 // of a card
 func (msgs Messages) ListSeparator() string {
 	return Catalog.Format(msgs.locale, "listSeparator", nil)
+}
+
+// ExportEllipsis says "Export…"
+// in the language the app shows.
+//
+// Menu item: export a sheet or a group as files
+func ExportEllipsis() string { return In(i18n.Locale()).ExportEllipsis() }
+
+// ExportEllipsis says "Export…"
+// in the language of msgs.
+//
+// Menu item: export a sheet or a group as files
+func (msgs Messages) ExportEllipsis() string {
+	return Catalog.Format(msgs.locale, "exportEllipsis", nil)
+}
+
+// ExportTitle says "Export “{name}”"
+// in the language the app shows.
+//
+// Title of the export window; name is the sheet's or the group's
+func ExportTitle(name string) string { return In(i18n.Locale()).ExportTitle(name) }
+
+// ExportTitle says "Export “{name}”"
+// in the language of msgs.
+//
+// Title of the export window; name is the sheet's or the group's
+func (msgs Messages) ExportTitle(name string) string {
+	return Catalog.Format(msgs.locale, "exportTitle", map[string]any{"name": name})
+}
+
+// ExportSheetSummary says "A Markdown file, with its pictures copied into an assets folder beside it."
+// in the language the app shows.
+//
+// What exporting a sheet writes
+func ExportSheetSummary() string { return In(i18n.Locale()).ExportSheetSummary() }
+
+// ExportSheetSummary says "A Markdown file, with its pictures copied into an assets folder beside it."
+// in the language of msgs.
+//
+// What exporting a sheet writes
+func (msgs Messages) ExportSheetSummary() string {
+	return Catalog.Format(msgs.locale, "exportSheetSummary", nil)
+}
+
+// ExportGroupSummary says "A folder of Markdown files for its {sheets, plural, one {# sheet} other {# sheets}}, its groups as folders inside."
+// in the language the app shows.
+//
+// What exporting a group writes; sheets counts every sheet in it and its
+// groups
+func ExportGroupSummary(sheets int) string { return In(i18n.Locale()).ExportGroupSummary(sheets) }
+
+// ExportGroupSummary says "A folder of Markdown files for its {sheets, plural, one {# sheet} other {# sheets}}, its groups as folders inside."
+// in the language of msgs.
+//
+// What exporting a group writes; sheets counts every sheet in it and its
+// groups
+func (msgs Messages) ExportGroupSummary(sheets int) string {
+	return Catalog.Format(msgs.locale, "exportGroupSummary", map[string]any{"sheets": sheets})
+}
+
+// ExportFormat says "Format"
+// in the language the app shows.
+//
+// Export window: the row choosing the file format
+func ExportFormat() string { return In(i18n.Locale()).ExportFormat() }
+
+// ExportFormat says "Format"
+// in the language of msgs.
+//
+// Export window: the row choosing the file format
+func (msgs Messages) ExportFormat() string {
+	return Catalog.Format(msgs.locale, "exportFormat", nil)
+}
+
+// ExportMarkdown says "Markdown"
+// in the language the app shows.
+//
+// The Markdown file format
+func ExportMarkdown() string { return In(i18n.Locale()).ExportMarkdown() }
+
+// ExportMarkdown says "Markdown"
+// in the language of msgs.
+//
+// The Markdown file format
+func (msgs Messages) ExportMarkdown() string {
+	return Catalog.Format(msgs.locale, "exportMarkdown", nil)
+}
+
+// ExportDestination says "Save To"
+// in the language the app shows.
+//
+// Export window: the row choosing the folder written into
+func ExportDestination() string { return In(i18n.Locale()).ExportDestination() }
+
+// ExportDestination says "Save To"
+// in the language of msgs.
+//
+// Export window: the row choosing the folder written into
+func (msgs Messages) ExportDestination() string {
+	return Catalog.Format(msgs.locale, "exportDestination", nil)
+}
+
+// ChooseEllipsis says "Choose…"
+// in the language the app shows.
+//
+// Button that opens a folder picker
+func ChooseEllipsis() string { return In(i18n.Locale()).ChooseEllipsis() }
+
+// ChooseEllipsis says "Choose…"
+// in the language of msgs.
+//
+// Button that opens a folder picker
+func (msgs Messages) ChooseEllipsis() string {
+	return Catalog.Format(msgs.locale, "chooseEllipsis", nil)
+}
+
+// Export says "Export"
+// in the language the app shows.
+//
+// Export window: the button that writes the files
+func Export() string { return In(i18n.Locale()).Export() }
+
+// Export says "Export"
+// in the language of msgs.
+//
+// Export window: the button that writes the files
+func (msgs Messages) Export() string {
+	return Catalog.Format(msgs.locale, "export", nil)
+}
+
+// ChooseExportFolder says "Choose Where to Export"
+// in the language the app shows.
+//
+// Title of the folder picker for an export
+func ChooseExportFolder() string { return In(i18n.Locale()).ChooseExportFolder() }
+
+// ChooseExportFolder says "Choose Where to Export"
+// in the language of msgs.
+//
+// Title of the folder picker for an export
+func (msgs Messages) ChooseExportFolder() string {
+	return Catalog.Format(msgs.locale, "chooseExportFolder", nil)
+}
+
+// Exported says "Exported “{name}”"
+// in the language the app shows.
+//
+// Notice after an export; name is the sheet's or group's
+func Exported(name string) string { return In(i18n.Locale()).Exported(name) }
+
+// Exported says "Exported “{name}”"
+// in the language of msgs.
+//
+// Notice after an export; name is the sheet's or group's
+func (msgs Messages) Exported(name string) string {
+	return Catalog.Format(msgs.locale, "exported", map[string]any{"name": name})
+}
+
+// CouldntExport says "Couldn’t Export “{name}”"
+// in the language the app shows.
+//
+// Notice title when an export fails
+func CouldntExport(name string) string { return In(i18n.Locale()).CouldntExport(name) }
+
+// CouldntExport says "Couldn’t Export “{name}”"
+// in the language of msgs.
+//
+// Notice title when an export fails
+func (msgs Messages) CouldntExport(name string) string {
+	return Catalog.Format(msgs.locale, "couldntExport", map[string]any{"name": name})
 }

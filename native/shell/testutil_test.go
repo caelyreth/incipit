@@ -339,6 +339,7 @@ func (f *fakeLibrary) NewSmartGroup(name, query string) string {
 func (f *fakeLibrary) RestoreGroup(id string) { f.call("restore group " + id) }
 func (f *fakeLibrary) DeleteGroup(id string)  { f.call("delete group " + id) }
 func (f *fakeLibrary) EmptyTrash()            { f.call("empty trash") }
+func (f *fakeLibrary) Export(id string)       { f.call("export " + id) }
 
 func libraryState() (*State, *fakeLibrary) {
 	state := openState()
