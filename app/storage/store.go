@@ -130,8 +130,12 @@ func (s *Store) open() error {
 		return err
 	}
 	// A sweep that cannot finish tries again at the next launch: it never
-	// stops the notebook opening.
-	_ = s.sweepMedia()
+	// stops the notebook opening. A notebook just repaired is not swept:
+	// the damaged one moved aside may name pictures the one opened does
+	// not.
+	if !s.Recovery.Repaired() {
+		_ = s.sweepMedia(ctx, time.Now())
+	}
 	return nil
 }
 

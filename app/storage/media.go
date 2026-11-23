@@ -34,7 +34,8 @@ import (
 // A file takes its name only once it is complete and synced, and its row
 // is written only after that, so the notebook never names a file that is
 // not whole. A file left without a row, by a crash between the two, is
-// removed when the notebook next opens.
+// removed when the notebook next opens, as is a picture nothing names any
+// more (media_sweep.go).
 
 const (
 	mediaDir = "Media"
@@ -213,36 +214,4 @@ func (s *Store) loadMedia(ctx context.Context) error {
 		s.media[media.Hash] = media
 	}
 	return rows.Err()
-}
-
-// sweepMedia removes the files the notebook has no row for: a crash
-// between a file and its row, or a partial file.
-func (s *Store) sweepMedia() error {
-	folders, err := os.ReadDir(filepath.Join(s.root, mediaDir))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	for _, folder := range folders {
-		if !folder.IsDir() {
-			continue
-		}
-		path := filepath.Join(s.root, mediaDir, folder.Name())
-		files, err := os.ReadDir(path)
-		if err != nil {
-			return err
-		}
-		for _, file := range files {
-			hash := strings.TrimSuffix(file.Name(), filepath.Ext(file.Name()))
-			if known, ok := s.media[hash]; ok && filepath.Base(s.MediaFile(known)) == file.Name() {
-				continue
-			}
-			if err := os.Remove(filepath.Join(path, file.Name())); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return err
-			}
-		}
-	}
-	return nil
 }
