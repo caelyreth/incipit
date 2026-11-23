@@ -321,3 +321,39 @@ func scrollRememberedGoesAlong(t *testing.T, times int) {
 	straight("Remove Appearance", "Closed")
 	straight("Appearance", "Opened again")
 }
+
+// Words written in the pill and taken away quickly move the pill and the
+// cards from the frame after each, though the sections they find lay
+// themselves out over the frames that follow: the change goes on toward
+// where they come to stand, never standing still while they do and then
+// leaping.
+func TestWordsTakenAwayQuicklyMoveThePillAtOnce(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	state.AppSettings = &fakeSettings{tall: 240, grow: 12, showTheme: true}
+	settle(tester)
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	pillY := func() float32 {
+		pill, _ := tester.Find("Search")
+		return pill.Y
+	}
+	for _, write := range []func(){
+		func() { tester.Type("m") },
+		func() { tester.Type("o") },
+		func() { tester.Key(0, ui.KeyBackspace) },
+		func() { tester.Key(0, ui.KeyBackspace) },
+	} {
+		before := pillY()
+		write()
+		ys := []float32{before}
+		for range 6 {
+			tester.Advance(16 * time.Millisecond)
+			ys = append(ys, pillY())
+		}
+		if ys[2] == ys[4] && ys[len(ys)-1] != ys[2] {
+			t.Fatalf("%q: the pill should move as the sections lay themselves out, but stood: %v.", state.FieldQuery(), ys)
+		}
+	}
+}

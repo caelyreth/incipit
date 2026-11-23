@@ -37,7 +37,17 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 	if s.field.shown == nil {
 		s.field.shown, s.field.shownShape = map[string]card{}, map[string]shape{}
 	}
-	if !slices.Equal(frames, s.field.rest) {
+	// The same cards laid out again while a change is under way, with no
+	// action of their own, as the settings measure themselves as they come
+	// in, go on with that change toward where they now stand: begun anew
+	// at each, the change would stand still while they measure, and then
+	// leap.
+	retarget := s.field.from != nil && s.field.next == (change{}) &&
+		slices.EqualFunc(frames, s.field.rest, func(a, b stageFrame) bool { return a.ID == b.ID })
+	switch {
+	case retarget:
+		s.field.rest = frames
+	case !slices.Equal(frames, s.field.rest):
 		// The field's first layout stands at once: there is nothing for it
 		// to come from.
 		first := s.field.rest == nil
@@ -93,7 +103,7 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 		} else {
 			s.field.hold = true
 		}
-	} else {
+	default:
 		// An action that brought nothing new to lay out is spent: what is
 		// written next is writing, not it.
 		s.field.next = change{}

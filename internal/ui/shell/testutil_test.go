@@ -380,7 +380,11 @@ func abs(x float32) float32 { return max(x, -x) }
 // Editor/Pairs and Editor/Markdown, Keymap/Keys and Keymap/Pages, found by
 // their titles; Keys grows as tall as tall says.
 type fakeSettings struct {
-	tall        float32
+	tall float32
+	// grow is how much taller each section lays itself out each frame it
+	// is drawn, as far as tall, as the settings' own do as they come in.
+	grow        float32
+	drawn       map[string]int
 	away        int
 	themeClicks int
 	showTheme   bool
@@ -413,6 +417,19 @@ func (f *fakeSettings) Sections(words string) []SettingsSection {
 
 func (f *fakeSettings) SectionView(c *ui.Context, _ theme.Theme, id, _ string) {
 	ui.Text(c, id+" rows")
+	if f.grow > 0 {
+		if f.drawn == nil {
+			f.drawn = map[string]int{}
+		}
+		f.drawn[id]++
+		if h := float32(f.drawn[id]) * f.grow; h < f.tall {
+			ui.Box(c).Height(h)
+			c.AnimationFrame()
+		} else {
+			ui.Box(c).Height(f.tall)
+		}
+		return
+	}
 	if id == "Appearance/Theme" && f.showTheme {
 		btn := ui.ButtonBase(c.Key("choose-theme")).Size(160, 40).Label("Choose Theme")
 		if btn.Clicked() {
