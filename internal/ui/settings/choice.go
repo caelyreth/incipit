@@ -33,14 +33,15 @@ func (s *State) choiceView(c *ui.Context, semantic theme.Theme, o choiceOption) 
 				Grow(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Space12.DIPs(scale)).
 				Padding(inner, inner, inner, inner).
 				Radius(theme.DefaultControls.Scaled(scale).Radius).FocusRing(true)
-			if option.Hovered() && !o.chosen {
+			hovered := option.Hovered() && !o.chosen
+			if hovered {
 				option.Background(semantic.GhostElement.Hover)
 			}
 			option.Children(func() {
 				if o.mark != nil {
 					o.mark()
 				} else {
-					radio(c, semantic, o.chosen, k)
+					radio(c, semantic, o.chosen, hovered, k)
 				}
 				ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Space02.DIPs(scale)).Children(func() {
 					components.Label(c, o.label, theme.TextDefault, semantic.Text.Default).SingleLine()
@@ -63,12 +64,17 @@ func (s *State) choiceView(c *ui.Context, semantic theme.Theme, o choiceOption) 
 }
 
 // radio is an option's mark: a ring, filled with the accent's dot when
-// chosen.
-func radio(c *ui.Context, semantic theme.Theme, on bool, k float32) {
+// chosen. Over a hovered row, whose fill is the ring's faint ink, the
+// ring takes the stronger border, so it still shows.
+func radio(c *ui.Context, semantic theme.Theme, on, hovered bool, k float32) {
 	size := 16 * k
 	ring := ui.Box(c.Key("radio")).Size(size, size).Shrink(0).Radius(size / 2).AlignItems(ui.Center).Justify(ui.Center)
 	if !on {
-		ring.Border(1.5*k, semantic.Border.Variant)
+		ink := semantic.Border.Variant
+		if hovered {
+			ink = semantic.Border.Default
+		}
+		ring.Border(1.5*k, ink)
 		return
 	}
 	ring.Background(semantic.Accent.Foreground).Children(func() {
