@@ -139,7 +139,7 @@ func (s *State) keepAsList(g GroupItem, listed bool) {
 
 // keepItem is a menu's Always Show as List for g, checked while it does.
 func (s *State) keepItem(m *ui.Menu, g GroupItem) {
-	if m.Item(locales.AlwaysShowAsList()).Checked(g.Listed).Chosen() {
+	if components.MenuItem(m.Item(locales.AlwaysShowAsList()), components.IconList).Checked(g.Listed).Chosen() {
 		s.keepAsList(g, !g.Listed)
 	}
 }

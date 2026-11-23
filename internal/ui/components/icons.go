@@ -59,6 +59,10 @@ const (
 	IconTypewriter      IconName = "align-vertical-justify-center"
 	IconUndo            IconName = "undo-2"
 	IconWarning         IconName = "triangle-alert"
+	IconExport          IconName = "share"
+	IconDuplicate       IconName = "files"
+	IconColumns         IconName = "columns-2"
+	IconPalette         IconName = "palette"
 )
 
 var AllIcons = [...]IconName{
@@ -107,6 +111,10 @@ var AllIcons = [...]IconName{
 	IconTypewriter,
 	IconUndo,
 	IconWarning,
+	IconExport,
+	IconDuplicate,
+	IconColumns,
+	IconPalette,
 }
 
 // GroupIcons are the icons a group can wear, in the order the picker

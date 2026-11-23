@@ -618,7 +618,7 @@ func (s *State) ribbonMenu(text string) func(*ui.Menu) {
 		if i < 0 {
 			return
 		}
-		if m.Item(locales.ChangeEllipsis()).Chosen() {
+		if components.MenuItem(m.Item(locales.ChangeEllipsis()), components.IconPen).Chosen() {
 			s.rewrite(i)
 		}
 		c, _ := condition(text)
@@ -626,14 +626,14 @@ func (s *State) ribbonMenu(text string) func(*ui.Menu) {
 		if m.Item(turn).Shortcut(ui.Alt, 0).Chosen() {
 			s.turn(i)
 		}
-		if s.mode() == modeLibrary && !s.inTrash() && m.Item(locales.KeepAsBookmark()).Chosen() {
+		if s.mode() == modeLibrary && !s.inTrash() && components.MenuItem(m.Item(locales.KeepAsBookmark()), components.IconBookmark).Chosen() {
 			s.saveQuery(text)
 		}
 		if g, ok := s.scopeGroup(); ok && conditionKey(text) == "in" && !s.inTrash() {
 			s.keepItem(m, g)
 		}
 		m.Separator()
-		if m.Item(locales.Remove()).Chosen() {
+		if components.MenuItem(m.Item(locales.Remove()), components.IconClose).Chosen() {
 			s.broaden(i)
 		}
 	}

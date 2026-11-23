@@ -5,6 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/locales"
 )
 
@@ -182,10 +183,14 @@ func (s *State) DoVerb(id string) {
 	}
 }
 
-// verbItem adds the verb id to a menu, under its own name or label, with
-// its key, done on the subject the menu was opened for.
-func (s *State) verbItem(m *ui.Menu, id, label string, enabled bool, run func()) {
-	it := m.Item(label).ID(id).Disabled(!enabled)
+// verbItem adds the verb id to a menu, under its own name or label, beside
+// icon, with its key, done on the subject the menu was opened for.
+func (s *State) verbItem(m *ui.Menu, id, label string, icon components.IconName, enabled bool, run func()) {
+	it := components.MenuItem(m.Item(label), icon).ID(id).Disabled(!enabled)
+	// Emptying the trash is the one verb that is not undone.
+	if id == VerbEmptyTrash {
+		it.Danger()
+	}
 	if s.KeyOf != nil {
 		if mods, key, ok := s.KeyOf(id); ok {
 			it.Shortcut(mods, key)

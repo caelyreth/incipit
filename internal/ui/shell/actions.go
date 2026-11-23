@@ -38,15 +38,15 @@ func (s *State) actionsMenu(m *ui.Menu, acts []fieldAction) {
 	for _, a := range acts {
 		switch {
 		case a.menu != nil:
-			m.Submenu(a.label, a.menu)
+			components.MenuItem(m.Submenu(a.label, a.menu), a.icon)
 		case a.danger:
-			if m.Item(a.label + "…").Chosen() {
+			if components.MenuItem(m.Item(a.label+"…"), a.icon).Danger().Chosen() {
 				s.field.acting = true
 				s.closeKey()
 				s.arm(a.id)
 			}
 		default:
-			if m.Item(a.label).Chosen() {
+			if components.MenuItem(m.Item(a.label), a.icon).Chosen() {
 				a.run()
 			}
 		}

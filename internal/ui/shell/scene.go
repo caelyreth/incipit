@@ -166,7 +166,7 @@ func (s *State) openSheetsMenu(m *ui.Menu) {
 		}
 	}
 	m.Separator()
-	s.verbItem(m, "page.new", locales.NewSheet(), s.Library != nil, func() {
+	s.verbItem(m, "page.new", locales.NewSheet(), components.IconNewSheet, s.Library != nil, func() {
 		s.Library.NewSheet(s.CurrentGroup(), Last)
 		s.ShowDesk()
 	})

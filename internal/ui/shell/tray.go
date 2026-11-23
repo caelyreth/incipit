@@ -143,7 +143,7 @@ func (s *State) trayView(c *ui.Context, semantic theme.Theme, h, k float32, hidd
 		sh.menu = func(m *ui.Menu) {
 			s.sheetsMenu(ids, func() { s.outOfTray(ids) })(m)
 			m.Separator()
-			if m.Item(locales.EmptyTray()).Chosen() {
+			if components.MenuItem(m.Item(locales.EmptyTray()), components.IconTray).Chosen() {
 				s.outOfTray(ids)
 			}
 		}
@@ -191,7 +191,7 @@ func (s *State) trayCard(c *ui.Context, semantic theme.Theme, sh SheetItem, widt
 	btn.ContextMenu(func(m *ui.Menu) {
 		s.sheetMenu(sh, false)(m)
 		m.Separator()
-		if m.Item(locales.PutBack()).Chosen() {
+		if components.MenuItem(m.Item(locales.PutBack()), components.IconUndo).Chosen() {
 			s.outOfTray([]string{sh.ID})
 		}
 	})
@@ -217,7 +217,7 @@ func (s *State) trayCard(c *ui.Context, semantic theme.Theme, sh SheetItem, widt
 func (s *State) sheetsMenu(ids []string, done func()) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		n := len(ids)
-		if m.Item(locales.OpenSheets(n)).Chosen() {
+		if components.MenuItem(m.Item(locales.OpenSheets(n)), components.IconFileText).Chosen() {
 			for _, sh := range ids {
 				s.Library.OpenSheet(sh, true)
 			}
@@ -230,7 +230,7 @@ func (s *State) sheetsMenu(ids []string, done func()) func(*ui.Menu) {
 			done()
 		}, "")
 		m.Separator()
-		if m.Item(locales.MoveSheetsToTrash(n)).Chosen() {
+		if components.MenuItem(m.Item(locales.MoveSheetsToTrash(n)), components.IconTrash).Chosen() {
 			s.trashSheets(ids)
 			done()
 		}

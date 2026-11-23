@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo/ui"
@@ -37,83 +38,83 @@ func deleteKey(id string) string { return "delete-" + id }
 func (s *State) groupMenu(g GroupItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if trashed {
-			if m.Item(locales.PutBack()).Chosen() {
+			if components.MenuItem(m.Item(locales.PutBack()), components.IconUndo).Chosen() {
 				s.restoreGroup(g)
 			}
 			m.Separator()
-			if m.Item(deleteGroupLabel(g)).Chosen() {
+			if components.MenuItem(m.Item(deleteGroupLabel(g)), components.IconTrash).Danger().Chosen() {
 				s.arm(deleteKey("group:" + g.ID))
 			}
 			return
 		}
 		if !g.Smart() {
-			if m.Item(locales.NewSheet()).Chosen() {
+			if components.MenuItem(m.Item(locales.NewSheet()), components.IconNewSheet).Chosen() {
 				s.Library.NewSheet(g.ID, Last)
 				s.ShowDesk()
 			}
 		}
-		s.verbItem(m, verbExport, locales.ExportEllipsis(), true, func() { s.Library.Export("group:" + g.ID) })
+		s.verbItem(m, verbExport, locales.ExportEllipsis(), components.IconExport, true, func() { s.Library.Export("group:" + g.ID) })
 		if g.Inbox {
 			return
 		}
-		if !g.Smart() && m.Item(locales.NewGroupInside()).Chosen() {
+		if !g.Smart() && components.MenuItem(m.Item(locales.NewGroupInside()), components.IconNewGroup).Chosen() {
 			s.newGroup(g.ID)
 		}
 		m.Separator()
 		s.pinItem(m, "group:"+g.ID, g.Pinned)
 		s.keepItem(m, g)
 		if !g.Smart() {
-			s.verbItem(m, VerbRename, locales.RenameEllipsis(), true, func() { s.startRename(g.ID) })
+			s.verbItem(m, VerbRename, locales.RenameEllipsis(), components.IconPen, true, func() { s.startRename(g.ID) })
 		}
-		m.Submenu(locales.Color(), func(m *ui.Menu) {
+		components.MenuItem(m.Submenu(locales.Color(), func(m *ui.Menu) {
 			for color := TintMoonveil; color < TintHalo+len(theme.AllAccents); color++ {
 				if m.Item(tintName(color)).Checked(g.Color == color).Chosen() {
 					s.styleGroup(g, g.Icon, color)
 				}
 			}
-		})
+		}), components.IconPalette)
 		s.moveMenu(m, func(target string) { s.moveGroup(g.ID, target) }, g.ID)
 		m.Separator()
-		s.verbItem(m, VerbTrash, trashGroupLabel(g), true, func() { s.trashGroup(g) })
+		s.verbItem(m, VerbTrash, trashGroupLabel(g), components.IconTrash, true, func() { s.trashGroup(g) })
 	}
 }
 
 // pinItem is the menu's Pin, or Unpin, of the object id, which then
 // stands where its pin puts it, brought into view.
 func (s *State) pinItem(m *ui.Menu, id string, pinned bool) {
-	s.verbItem(m, VerbPin, map[bool]string{true: locales.Unpin(), false: locales.Pin()}[pinned], true, func() { s.pin(id, !pinned) })
+	s.verbItem(m, VerbPin, map[bool]string{true: locales.Unpin(), false: locales.Pin()}[pinned], components.IconPin, true, func() { s.pin(id, !pinned) })
 }
 
 func (s *State) sheetMenu(sh SheetItem, trashed bool) func(*ui.Menu) {
 	return func(m *ui.Menu) {
 		if trashed {
-			s.verbItem(m, VerbTrash, locales.PutBack(), true, func() { s.restoreSheets([]string{sh.ID}) })
+			s.verbItem(m, VerbTrash, locales.PutBack(), components.IconUndo, true, func() { s.restoreSheets([]string{sh.ID}) })
 			m.Separator()
-			if m.Item(locales.DeleteImmediately()).Chosen() {
+			if components.MenuItem(m.Item(locales.DeleteImmediately()), components.IconTrash).Danger().Chosen() {
 				s.arm(deleteKey("sheet:" + sh.ID))
 			}
 			return
 		}
-		if m.Item(locales.Open()).Chosen() {
+		if components.MenuItem(m.Item(locales.Open()), components.IconFileText).Chosen() {
 			s.Library.OpenSheet(sh.ID, false)
 			s.ShowDesk()
 		}
-		if m.Item(locales.OpenAlongside()).Chosen() {
+		if components.MenuItem(m.Item(locales.OpenAlongside()), components.IconColumns).Chosen() {
 			s.Library.OpenSheet(sh.ID, true)
 			s.ShowDesk()
 		}
 		if g := s.Library.SheetGroup(sh.ID); g != "" && g != s.scope() {
-			if m.Item(locales.ShowInGroup()).Chosen() {
+			if components.MenuItem(m.Item(locales.ShowInGroup()), components.IconFolderSearch).Chosen() {
 				s.showInGroup(sh.ID)
 			}
 		}
 		m.Separator()
-		s.verbItem(m, VerbDuplicate, locales.Duplicate(), true, func() { s.duplicate([]string{sh.ID}) })
+		s.verbItem(m, VerbDuplicate, locales.Duplicate(), components.IconDuplicate, true, func() { s.duplicate([]string{sh.ID}) })
 		s.pinItem(m, "sheet:"+sh.ID, sh.Pinned)
 		s.moveMenu(m, func(group string) { s.moveSheets([]string{sh.ID}, group) }, "")
-		s.verbItem(m, verbExport, locales.ExportEllipsis(), true, func() { s.Library.Export("sheet:" + sh.ID) })
+		s.verbItem(m, verbExport, locales.ExportEllipsis(), components.IconExport, true, func() { s.Library.Export("sheet:" + sh.ID) })
 		m.Separator()
-		s.verbItem(m, VerbTrash, locales.MoveToTrash(), true, func() { s.trashSheets([]string{sh.ID}) })
+		s.verbItem(m, VerbTrash, locales.MoveToTrash(), components.IconTrash, true, func() { s.trashSheets([]string{sh.ID}) })
 	}
 }
 
@@ -145,27 +146,27 @@ func (s *State) deskMenu(page Page) func(*ui.Menu) {
 			}
 			return it
 		}
-		if key(m.Item(locales.SplitSheet()), "page.split").Chosen() {
+		if key(components.MenuItem(m.Item(locales.SplitSheet()), components.IconColumns), "page.split").Chosen() {
 			s.SplitColumn(page.Column)
 		}
 		m.Separator()
-		if key(m.Item(locales.CloseSheet()), "page.close").Chosen() {
+		if key(components.MenuItem(m.Item(locales.CloseSheet()), components.IconClose), "page.close").Chosen() {
 			s.CloseColumn(page.Column)
 		}
 		if key(m.Item(locales.CloseOtherSheets()), "page.close-others").Disabled(len(s.Open) < 2).Chosen() {
 			s.closeOthers(page.Column)
 		}
 		m.Separator()
-		if m.Item(locales.ShowInGroup()).Chosen() {
+		if components.MenuItem(m.Item(locales.ShowInGroup()), components.IconFolderSearch).Chosen() {
 			s.showInGroup(page.ID)
 		}
 		if s.Library != nil {
-			if m.Item(locales.Duplicate()).Chosen() {
+			if components.MenuItem(m.Item(locales.Duplicate()), components.IconDuplicate).Chosen() {
 				s.duplicate([]string{page.ID})
 			}
 			// Its key exports the sheet in front, so only that one's
 			// menu shows it.
-			export := m.Item(locales.ExportEllipsis())
+			export := components.MenuItem(m.Item(locales.ExportEllipsis()), components.IconExport)
 			if page.Column == s.ActiveColumn {
 				key(export, verbExport)
 			}
@@ -173,7 +174,7 @@ func (s *State) deskMenu(page Page) func(*ui.Menu) {
 				s.Library.Export("sheet:" + page.ID)
 			}
 			m.Separator()
-			if m.Item(locales.MoveToTrash()).Chosen() {
+			if components.MenuItem(m.Item(locales.MoveToTrash()), components.IconTrash).Chosen() {
 				s.trashSheets([]string{page.ID})
 			}
 		}

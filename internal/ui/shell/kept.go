@@ -177,9 +177,9 @@ func (s *State) trashButton(c *ui.Context, semantic theme.Theme, x, y, size, k f
 		s.toggleTrash()
 	}
 	btn.ContextMenu(func(m *ui.Menu) {
-		s.verbItem(m, VerbShowTrash, label, true, s.toggleTrash)
+		s.verbItem(m, VerbShowTrash, label, components.IconTrash, true, s.toggleTrash)
 		m.Separator()
-		s.verbItem(m, VerbEmptyTrash, locales.EmptyTrashEllipsis(), s.Verb(VerbEmptyTrash).Enabled, func() { s.DoVerb(VerbEmptyTrash) })
+		s.verbItem(m, VerbEmptyTrash, locales.EmptyTrashEllipsis(), components.IconTrash, s.Verb(VerbEmptyTrash).Enabled, func() { s.DoVerb(VerbEmptyTrash) })
 	})
 	btn.Absolute().Left(x).Top(y)
 	over, dropped, ok := dragOn(btn, t)
@@ -200,10 +200,10 @@ func (s *State) homeButton(c *ui.Context, semantic theme.Theme, size float32, an
 		s.goHome()
 	}
 	btn.ContextMenu(func(m *ui.Menu) {
-		s.verbItem(m, VerbHome, locales.Home(), true, s.goHome)
+		s.verbItem(m, VerbHome, locales.Home(), components.IconHome, true, s.goHome)
 		m.Separator()
-		s.verbItem(m, VerbBack, locales.Back(), s.canGo(-1), func() { s.goPlace(-1) })
-		s.verbItem(m, VerbForward, locales.Forward(), s.canGo(1), func() { s.goPlace(1) })
+		s.verbItem(m, VerbBack, locales.Back(), components.IconBack, s.canGo(-1), func() { s.goPlace(-1) })
+		s.verbItem(m, VerbForward, locales.Forward(), components.IconChevronRight, s.canGo(1), func() { s.goPlace(1) })
 	})
 	return btn
 }
@@ -365,11 +365,11 @@ func (s *State) bookmark(c *ui.Context, semantic theme.Theme, r keptRow, current
 		s.dragFrom(btn, groupDrag{id: g.ID})
 	}
 	btn.ContextMenu(func(m *ui.Menu) {
-		if m.Item(locales.RenameEllipsis()).Chosen() {
+		if components.MenuItem(m.Item(locales.RenameEllipsis()), components.IconPen).Chosen() {
 			s.startRename(g.ID)
 		}
 		m.Separator()
-		if m.Item(locales.Delete()).Chosen() {
+		if components.MenuItem(m.Item(locales.Delete()), components.IconTrash).Chosen() {
 			s.deleteBookmark(g.ID)
 		}
 	})

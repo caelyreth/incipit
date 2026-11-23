@@ -262,7 +262,7 @@ func groupInk(semantic theme.Theme, group GroupItem, ink ui.Color) ui.Color {
 
 // moveMenu adds a Move To submenu of where things can be moved.
 func (s *State) moveMenu(m *ui.Menu, move func(group string), exclude ...string) {
-	m.Submenu(locales.MoveTo(), s.moveTargets(move, exclude...))
+	components.MenuItem(m.Submenu(locales.MoveTo(), s.moveTargets(move, exclude...)), components.IconFolder)
 }
 
 // moveTargets is a menu of the groups to move into, the top level where

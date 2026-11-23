@@ -352,8 +352,8 @@ func (s *State) settingsButton(c *ui.Context, semantic theme.Theme, size float32
 		s.ShowSettings()
 	}
 	btn.ContextMenu(func(m *ui.Menu) {
-		s.verbItem(m, "app.settings", locales.Settings(), true, s.ShowSettings)
-		s.verbItem(m, "app.shortcuts", locales.KeyboardShortcuts(), true, s.ShowShortcuts)
+		s.verbItem(m, "app.settings", locales.Settings(), components.IconSettings, true, s.ShowSettings)
+		s.verbItem(m, "app.shortcuts", locales.KeyboardShortcuts(), components.IconKeyboard, true, s.ShowShortcuts)
 	})
 	return btn
 }
