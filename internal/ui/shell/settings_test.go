@@ -323,13 +323,13 @@ func scrollRememberedGoesAlong(t *testing.T, times int) {
 }
 
 // Words written in the pill and taken away quickly move the pill and the
-// cards from the frame after each, though the sections they find lay
-// themselves out over the frames that follow: the change goes on toward
-// where they come to stand, never standing still while they do and then
-// leaping.
-func TestWordsTakenAwayQuicklyMoveThePillAtOnce(t *testing.T) {
+// cards from the frame after each, though the sections they find measure
+// themselves over the frames that follow: the change goes on toward where
+// they come to stand from where they are drawn, never standing still while
+// they measure, nor leaping as they do.
+func TestWordsTakenAwayQuicklyMoveWithoutStandingOrLeaping(t *testing.T) {
 	state, _, tester := onField(t, 1260, 850)
-	state.AppSettings = &fakeSettings{tall: 240, grow: 12, showTheme: true}
+	state.AppSettings = &fakeSettings{tall: 240, grow: 24, showTheme: true}
 	settle(tester)
 	if err := tester.Click("Show settings"); err != nil {
 		t.Fatal(err)
@@ -338,6 +338,27 @@ func TestWordsTakenAwayQuicklyMoveThePillAtOnce(t *testing.T) {
 	pillY := func() float32 {
 		pill, _ := tester.Find("Search")
 		return pill.Y
+	}
+	// Where each card is drawn in the field, by id.
+	drawn := func() map[string]stageRect {
+		at := map[string]stageRect{}
+		for _, fr := range state.field.drawn {
+			r := fr.Rect
+			r.X += state.field.poise.X
+			r.Y += state.field.origin.Y
+			at[fr.ID] = r
+		}
+		return at
+	}
+	// A leap is a step far longer than the one before it, of the card or
+	// of the pill.
+	type step struct{ x, y float32 }
+	leaps := func(what string, was, now, next step) {
+		t.Helper()
+		before, after := max(abs(now.x-was.x), abs(now.y-was.y)), max(abs(next.x-now.x), abs(next.y-now.y))
+		if after > 2*before+6 {
+			t.Errorf("%q: %s should go on as it went, not leap %v after going %v.", state.FieldQuery(), what, after, before)
+		}
 	}
 	for _, write := range []func(){
 		func() { tester.Type("m") },
@@ -348,12 +369,25 @@ func TestWordsTakenAwayQuicklyMoveThePillAtOnce(t *testing.T) {
 		before := pillY()
 		write()
 		ys := []float32{before}
-		for range 6 {
+		frames := []map[string]stageRect{drawn()}
+		for range 8 {
 			tester.Advance(16 * time.Millisecond)
 			ys = append(ys, pillY())
+			frames = append(frames, drawn())
+		}
+		// From the frame after the change, which stands where it was.
+		for i := 3; i < len(frames); i++ {
+			leaps("the pill", step{0, ys[i-2]}, step{0, ys[i-1]}, step{0, ys[i]})
+			for id, r := range frames[i] {
+				a, okA := frames[i-2][id]
+				b, okB := frames[i-1][id]
+				if okA && okB {
+					leaps(id, step{a.X, a.Y}, step{b.X, b.Y}, step{r.X, r.Y})
+				}
+			}
 		}
 		if ys[2] == ys[4] && ys[len(ys)-1] != ys[2] {
-			t.Fatalf("%q: the pill should move as the sections lay themselves out, but stood: %v.", state.FieldQuery(), ys)
+			t.Fatalf("%q: the pill should move as the sections measure themselves, but stood: %v.", state.FieldQuery(), ys)
 		}
 	}
 }

@@ -196,10 +196,12 @@ type fieldState struct {
 	swapFrom stagePoint
 	// changeT is how far the change the field is making has gone, on its
 	// one clock, below 0 while it makes none; swapT is the same of a swap
-	// alone. starts are where what goes along with a change stood as it
-	// began (along), by name.
-	changeT, swapT float32
-	starts         map[string]float32
+	// alone; changeFrom is how far it had gone when it was last turned
+	// toward where its cards now stand, from where they were drawn then.
+	// starts are where what goes along with a change stood as it began or
+	// was last turned (along), by name.
+	changeT, swapT, changeFrom float32
+	starts                     map[string]alongStart
 	// heldAbove and heldBelow are the room the query's own ribbons take
 	// about the pill, as drawn.
 	heldAbove, heldBelow float32

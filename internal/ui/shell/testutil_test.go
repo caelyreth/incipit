@@ -381,10 +381,11 @@ func abs(x float32) float32 { return max(x, -x) }
 // their titles; Keys grows as tall as tall says.
 type fakeSettings struct {
 	tall float32
-	// grow is how much taller each section lays itself out each frame it
-	// is drawn, as far as tall, as the settings' own do as they come in.
+	// grow is how much taller each section lays itself out each 16 ms
+	// from when it is first drawn, as far as tall, as the settings' own
+	// measure themselves over the frames after they come in.
 	grow        float32
-	drawn       map[string]int
+	drawn       map[string]time.Time
 	away        int
 	themeClicks int
 	showTheme   bool
@@ -419,10 +420,12 @@ func (f *fakeSettings) SectionView(c *ui.Context, _ theme.Theme, id, _ string) {
 	ui.Text(c, id+" rows")
 	if f.grow > 0 {
 		if f.drawn == nil {
-			f.drawn = map[string]int{}
+			f.drawn = map[string]time.Time{}
 		}
-		f.drawn[id]++
-		if h := float32(f.drawn[id]) * f.grow; h < f.tall {
+		if _, ok := f.drawn[id]; !ok {
+			f.drawn[id] = c.Now()
+		}
+		if h := f.grow * (1 + float32(c.Now().Sub(f.drawn[id])/(16*time.Millisecond))); h < f.tall {
 			ui.Box(c).Height(h)
 			c.AnimationFrame()
 		} else {

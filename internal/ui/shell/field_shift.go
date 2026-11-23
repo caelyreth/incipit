@@ -41,17 +41,24 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 	// action of their own, as the settings measure themselves as they come
 	// in, go on with that change toward where they now stand: begun anew
 	// at each, the change would stand still while they measure, and then
-	// leap.
-	retarget := s.field.from != nil && s.field.next == (change{}) &&
+	// leap. They go on from where they are drawn over what is left of its
+	// clock, so nothing leaps as they turn and all lands as it ends.
+	moved := !slices.Equal(frames, s.field.rest)
+	retarget := moved && s.field.from != nil && s.field.next == (change{}) &&
 		slices.EqualFunc(frames, s.field.rest, func(a, b stageFrame) bool { return a.ID == b.ID })
 	switch {
 	case retarget:
 		s.field.rest = frames
-	case !slices.Equal(frames, s.field.rest):
+		// A swap's cards rise each on its own part of the clock, from
+		// where the swap began.
+		if s.field.now.depth != stageSwap {
+			s.field.from, s.field.changeFrom = s.field.drawn, max(0, s.field.changeT)
+		}
+	case moved:
 		// The field's first layout stands at once: there is nothing for it
 		// to come from.
 		first := s.field.rest == nil
-		s.field.from = s.field.drawn
+		s.field.from, s.field.changeFrom = s.field.drawn, 0
 		s.field.now = s.field.next
 		s.field.next = change{}
 		s.field.rest = frames
@@ -97,7 +104,7 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 		}
 		field.Jump("shift", 0)
 		// What goes along with the change starts from where it stands.
-		s.field.starts = map[string]float32{}
+		s.field.starts = map[string]alongStart{}
 		if first || !animate {
 			field.Jump("shift", 1)
 		} else {
@@ -149,7 +156,7 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 			exit = fr.Rect
 		}
 	}
-	s.field.drawn = stageShift(s.field.from, frames, s.field.now.enter, exit, s.field.now.depth, visTop, visBot, t)
+	s.field.drawn = stageShift(s.field.from, frames, s.field.now.enter, exit, s.field.now.depth, visTop, visBot, rest(t, s.field.changeFrom))
 	return s.field.drawn
 }
 
@@ -157,26 +164,40 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 // closes the open key, then puts the suggestions away, then takes the
 // words away, then the last condition, and with none left goes back to
 // the desk.
+// alongStart is where what goes along with a change stood, from, as the
+// change had gone t of its way, going to to.
+type alongStart struct{ from, to, t float32 }
+
+// rest is how far along what is left of a clock, from t0 on, t is.
+func rest(t, t0 float32) float32 {
+	if t0 >= 1 {
+		return 1
+	}
+	return max(0, (t-t0)/(1-t0))
+}
+
 // along is what goes along with the field's change, named key, standing
 // at now and going to target: while a change is made, on the change's own
 // clock, from where it stood as the change began, so it arrives with the
-// cards and nothing is left to catch up; between changes, on a spring of
-// its own, as what is written grows the room about the pill. The pill's
-// place, its pin to a list's foot, the room its ribbons take and the
-// field's scroll home all go so.
+// cards and nothing is left to catch up; its target turned while the
+// change is under way, or first asked for part way, it goes on from where
+// it stands over what is left of the clock, never leaping toward it.
+// Between changes, it goes on a spring of its own, as what is written
+// grows the room about the pill. The pill's place, its pin to a list's
+// foot, the room its ribbons take and the field's scroll home all go so.
 func (s *State) along(el ui.Element, key string, now, target float32) float32 {
 	if t := s.field.changeT; t >= 0 {
-		from, ok := s.field.starts[key]
-		if !ok {
-			from = now
-			s.field.starts[key] = from
-		}
 		// On a swap's even clock it glides; a query's change is shaped
 		// already.
 		if s.field.now.depth == stageSwap {
 			t = components.GlideEase(t)
 		}
-		return el.Jump(key, from+(target-from)*t)
+		st, ok := s.field.starts[key]
+		if !ok || abs32(st.to-target) > 1e-3 {
+			st = alongStart{from: now, to: target, t: t}
+			s.field.starts[key] = st
+		}
+		return el.Jump(key, st.from+(target-st.from)*rest(t, st.t))
 	}
 	return el.AnimateTo(key, target, components.Glide(components.MotionScene))
 }
