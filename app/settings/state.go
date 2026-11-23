@@ -124,7 +124,7 @@ func (s State) Data() Data {
 			}
 			shortcut := Shortcut{
 				Command:    command.ID,
-				Label:      command.Label,
+				Label:      command.Label(),
 				Scope:      scope,
 				Group:      scope.Title(),
 				Policy:     command.Policy,

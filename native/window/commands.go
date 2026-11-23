@@ -16,12 +16,12 @@ func (a *AppState) commandCatalog() []shell.Command {
 			continue
 		}
 		for _, command := range declared {
-			if command.Scope != scope || command.ID == keymap.Commands || !a.commandState(command.ID, command.Label).Enabled {
+			if command.Scope != scope || command.ID == keymap.Commands || !a.commandState(command.ID, command.Label()).Enabled {
 				continue
 			}
 			commands = append(commands, shell.Command{
 				ID:      string(command.ID),
-				Label:   a.commandState(command.ID, command.Label).Label,
+				Label:   a.commandState(command.ID, command.Label()).Label,
 				Group:   scope.Title(),
 				Binding: bindingLabel(keys, command.ID),
 				Keys:    bindingKeys(keys, command.ID),

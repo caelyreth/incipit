@@ -129,8 +129,10 @@ const (
 
 // Command is one declared command.
 type Command struct {
-	ID    CommandID
-	Label string
+	ID CommandID
+	// Words is the key of its label's words: a policy's text key, or a
+	// message of the app's catalog; Label reads them.
+	Words string
 	Scope Scope
 	// Default is the key the command starts with; a zero chord is none.
 	Default Chord
@@ -151,11 +153,16 @@ func Declared(catalog policy.Catalog) []Command {
 			continue
 		}
 		chord, _ := ParseChord(c.Key)
-		out = append(out, Command{ID: CommandID(c.ID), Label: phrases.Text(c.Label), Scope: ScopeEditing,
+		out = append(out, Command{ID: CommandID(c.ID), Words: c.Label, Scope: ScopeEditing,
 			Default: chord, Policy: c.Policy})
 	}
 	return append(out, app...)
 }
+
+// Label is the command's name in the language the app shows now: read
+// each time, never kept, so a keymap made in one language names its
+// commands in the next.
+func (c Command) Label() string { return phrases.Text(c.Words) }
 
 // ParseChord reads a key as policies declare it: modifiers by name, then
 // the key, joined by "+", as "primary+b" or "shift+tab". Empty is no key.
@@ -176,41 +183,41 @@ func ParseChord(spec string) (Chord, bool) {
 	return chord, chord.Valid()
 }
 
-// appCommands are the app's own: pages, the window and its tools,
-// labeled in the language the app shows.
+// appCommands are the app's own: pages, the window and its tools, their
+// labels the app's catalog's.
 func appCommands() []Command {
 	return []Command{
-		{ID: NewPage, Label: locales.CommandNewSheet(), Scope: ScopePages, Default: NewChord("n", ModifiersPrimary)},
-		{ID: NextPage, Label: locales.CommandNextSheet(), Scope: ScopePages,
+		{ID: NewPage, Words: "commandNewSheet", Scope: ScopePages, Default: NewChord("n", ModifiersPrimary)},
+		{ID: NextPage, Words: "commandNextSheet", Scope: ScopePages,
 			Default: NewChord("]", ModifiersPrimary|ModifiersShift)},
-		{ID: PreviousPage, Label: locales.CommandPreviousSheet(), Scope: ScopePages,
+		{ID: PreviousPage, Words: "commandPreviousSheet", Scope: ScopePages,
 			Default: NewChord("[", ModifiersPrimary|ModifiersShift)},
-		{ID: ClosePage, Label: locales.CommandCloseSheet(), Scope: ScopePages, Default: NewChord("w", ModifiersPrimary)},
-		{ID: CloseOthers, Label: locales.CommandCloseOtherSheets(), Scope: ScopePages,
+		{ID: ClosePage, Words: "commandCloseSheet", Scope: ScopePages, Default: NewChord("w", ModifiersPrimary)},
+		{ID: CloseOthers, Words: "commandCloseOtherSheets", Scope: ScopePages,
 			Default: NewChord("w", ModifiersPrimary|ModifiersAlt)},
-		{ID: SplitPage, Label: locales.CommandSplitSheet(), Scope: ScopePages, Default: NewChord("\\", ModifiersPrimary)},
-		{ID: FormatTools, Label: locales.CommandShowFormatting(), Scope: ScopePages, Default: NewChord(".", ModifiersPrimary)},
-		{ID: FindPage, Label: locales.CommandGoToSheet(), Scope: ScopePages, Default: NewChord("p", ModifiersPrimary)},
-		{ID: FindInSheet, Label: locales.CommandFind(), Scope: ScopePages, Default: NewChord("f", ModifiersPrimary)},
-		{ID: Export, Label: locales.CommandExport(), Scope: ScopePages, Default: NewChord("e", ModifiersPrimary|ModifiersShift)},
-		{ID: NewGroup, Label: locales.CommandNewGroup(), Scope: ScopeLibrary, Default: NewChord("n", ModifiersPrimary|ModifiersShift)},
-		{ID: Duplicate, Label: locales.CommandDuplicate(), Scope: ScopeLibrary, Default: NewChord("d", ModifiersPrimary)},
-		{ID: Rename, Label: locales.CommandRename(), Scope: ScopeLibrary, Default: NewChord("r", ModifiersPrimary)},
-		{ID: Pin, Label: locales.CommandPin(), Scope: ScopeLibrary},
-		{ID: Trash, Label: locales.CommandMoveToTrash(), Scope: ScopeLibrary, Default: NewChord("backspace", ModifiersPrimary)},
-		{ID: EmptyTrash, Label: locales.CommandEmptyTrash(), Scope: ScopeLibrary,
+		{ID: SplitPage, Words: "commandSplitSheet", Scope: ScopePages, Default: NewChord("\\", ModifiersPrimary)},
+		{ID: FormatTools, Words: "commandShowFormatting", Scope: ScopePages, Default: NewChord(".", ModifiersPrimary)},
+		{ID: FindPage, Words: "commandGoToSheet", Scope: ScopePages, Default: NewChord("p", ModifiersPrimary)},
+		{ID: FindInSheet, Words: "commandFind", Scope: ScopePages, Default: NewChord("f", ModifiersPrimary)},
+		{ID: Export, Words: "commandExport", Scope: ScopePages, Default: NewChord("e", ModifiersPrimary|ModifiersShift)},
+		{ID: NewGroup, Words: "commandNewGroup", Scope: ScopeLibrary, Default: NewChord("n", ModifiersPrimary|ModifiersShift)},
+		{ID: Duplicate, Words: "commandDuplicate", Scope: ScopeLibrary, Default: NewChord("d", ModifiersPrimary)},
+		{ID: Rename, Words: "commandRename", Scope: ScopeLibrary, Default: NewChord("r", ModifiersPrimary)},
+		{ID: Pin, Words: "commandPin", Scope: ScopeLibrary},
+		{ID: Trash, Words: "commandMoveToTrash", Scope: ScopeLibrary, Default: NewChord("backspace", ModifiersPrimary)},
+		{ID: EmptyTrash, Words: "commandEmptyTrash", Scope: ScopeLibrary,
 			Default: NewChord("backspace", ModifiersPrimary|ModifiersShift)},
-		{ID: ViewList, Label: locales.CommandViewAsList(), Scope: ScopeLibrary, Default: NewChord("l", ModifiersPrimary)},
-		{ID: Back, Label: locales.CommandBack(), Scope: ScopeLibrary, Default: NewChord("[", ModifiersPrimary)},
-		{ID: Forward, Label: locales.CommandForward(), Scope: ScopeLibrary, Default: NewChord("]", ModifiersPrimary)},
-		{ID: Home, Label: locales.CommandHome(), Scope: ScopeWindow, Default: NewChord("h", ModifiersPrimary|ModifiersShift)},
-		{ID: ShowTrash, Label: locales.CommandTrash(), Scope: ScopeWindow},
-		{ID: Field, Label: locales.CommandShowField(), Scope: ScopeWindow, Default: NewChord("0", ModifiersPrimary)},
-		{ID: Typewriter, Label: locales.CommandTypewriterMode(), Scope: ScopeWindow,
+		{ID: ViewList, Words: "commandViewAsList", Scope: ScopeLibrary, Default: NewChord("l", ModifiersPrimary)},
+		{ID: Back, Words: "commandBack", Scope: ScopeLibrary, Default: NewChord("[", ModifiersPrimary)},
+		{ID: Forward, Words: "commandForward", Scope: ScopeLibrary, Default: NewChord("]", ModifiersPrimary)},
+		{ID: Home, Words: "commandHome", Scope: ScopeWindow, Default: NewChord("h", ModifiersPrimary|ModifiersShift)},
+		{ID: ShowTrash, Words: "commandTrash", Scope: ScopeWindow},
+		{ID: Field, Words: "commandShowField", Scope: ScopeWindow, Default: NewChord("0", ModifiersPrimary)},
+		{ID: Typewriter, Words: "commandTypewriterMode", Scope: ScopeWindow,
 			Default: NewChord("t", ModifiersPrimary|ModifiersAlt)},
-		{ID: Motion, Label: locales.CommandMotion(), Scope: ScopeWindow, Default: NewChord("m", ModifiersPrimary|ModifiersAlt)},
-		{ID: Commands, Label: locales.CommandCommands(), Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
-		{ID: Settings, Label: locales.CommandSettings(), Scope: ScopeApp, Default: NewChord(",", ModifiersPrimary)},
-		{ID: Shortcuts, Label: locales.CommandKeyboardShortcuts(), Scope: ScopeApp, Default: NewChord("/", ModifiersPrimary)},
+		{ID: Motion, Words: "commandMotion", Scope: ScopeWindow, Default: NewChord("m", ModifiersPrimary|ModifiersAlt)},
+		{ID: Commands, Words: "commandCommands", Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
+		{ID: Settings, Words: "commandSettings", Scope: ScopeApp, Default: NewChord(",", ModifiersPrimary)},
+		{ID: Shortcuts, Words: "commandKeyboardShortcuts", Scope: ScopeApp, Default: NewChord("/", ModifiersPrimary)},
 	}
 }

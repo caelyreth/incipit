@@ -1,6 +1,7 @@
 package page
 
 import (
+	"github.com/egoist/mygo/i18n"
 	"time"
 
 	"github.com/caelyreth/neverland/app/keymap"
@@ -53,16 +54,19 @@ type toolsState struct {
 	// back along.
 	rise float32
 	// drawn are each surface's tools as last drawn, and labels the
-	// commands' names, for the program they were read from.
+	// commands' names, for the program and the language they were read in.
 	drawn    map[vocab.Surface]drawnTools
 	labels   map[vocab.CommandID]string
 	labelsOf *policy.Program
+	labelsIn string
 }
 
-// drawnTools are a surface's tools as drawn from the offers at a version.
+// drawnTools are a surface's tools as drawn from the offers at a version,
+// with a keymap, in a language.
 type drawnTools struct {
 	version uint64
 	keys    *keymap.Keymap
+	lang    string
 	groups  []components.ToolGroup
 }
 
@@ -79,12 +83,13 @@ func (el *Element) ToggleSelectionTools() {
 }
 
 // Tools are the commands offered for the selection on surface, as tool
-// groups, drawn again only as the engine or the keymap changes.
+// groups, drawn again only as the engine, the keymap or the language
+// changes.
 func (el *Element) Tools(surface vocab.Surface) []components.ToolGroup {
 	ed := el.Editor
 	t := &el.tools
-	version := ed.Engine.Version()
-	if d, ok := t.drawn[surface]; ok && d.version == version && d.keys == el.Keys {
+	version, lang := ed.Engine.Version(), i18n.Locale()
+	if d, ok := t.drawn[surface]; ok && d.version == version && d.keys == el.Keys && d.lang == lang {
 		return d.groups
 	}
 	labels := el.commandLabels()
@@ -104,7 +109,7 @@ func (el *Element) Tools(surface vocab.Surface) []components.ToolGroup {
 	if t.drawn == nil {
 		t.drawn = map[vocab.Surface]drawnTools{}
 	}
-	t.drawn[surface] = drawnTools{version: version, keys: el.Keys, groups: groups}
+	t.drawn[surface] = drawnTools{version: version, keys: el.Keys, lang: lang, groups: groups}
 	return groups
 }
 
@@ -125,14 +130,15 @@ func toolShape(s vocab.OfferShape) components.ToolShape {
 	return components.ToolActions
 }
 
-// commandLabels are the commands' names, as the keymap lists them.
+// commandLabels are the commands' names, as the keymap lists them, in the
+// language the app shows: kept while the program and the language stand.
 func (el *Element) commandLabels() map[vocab.CommandID]string {
 	t := &el.tools
-	prog := el.Editor.Engine.Program()
-	if t.labels == nil || t.labelsOf != prog {
-		t.labels, t.labelsOf = map[vocab.CommandID]string{}, prog
+	prog, lang := el.Editor.Engine.Program(), i18n.Locale()
+	if t.labels == nil || t.labelsOf != prog || t.labelsIn != lang {
+		t.labels, t.labelsOf, t.labelsIn = map[vocab.CommandID]string{}, prog, lang
 		for _, c := range keymap.Declared(prog.Catalog()) {
-			t.labels[vocab.CommandID(c.ID)] = c.Label
+			t.labels[vocab.CommandID(c.ID)] = c.Label()
 		}
 	}
 	return t.labels

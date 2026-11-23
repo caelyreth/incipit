@@ -22,7 +22,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 	a.undoField = nil
 	command := func(id keymap.CommandID) *mygo.MenuItem {
 		declared, _ := a.Product.Keymap.Command(id)
-		item := &mygo.MenuItem{ID: string(id), Label: declared.Label, Click: a.menuClick(func() {
+		item := &mygo.MenuItem{ID: string(id), Label: declared.Label(), Click: a.menuClick(func() {
 			if err := a.routeCommand(id); err != nil {
 				a.fail(locales.CouldntRunCommand(), err)
 			}
@@ -173,7 +173,7 @@ type offerItem struct {
 func (a *AppState) offeredItems() []*mygo.MenuItem {
 	labels := map[keymap.CommandID]string{}
 	for _, c := range keymap.Declared(a.Product.Program.Catalog()) {
-		labels[c.ID] = c.Label
+		labels[c.ID] = c.Label()
 	}
 	var out []*mygo.MenuItem
 	for _, g := range a.Product.Program.Offered() {
@@ -237,7 +237,7 @@ func (a *AppState) syncMenu() {
 	desk := a.Shell.OnDesk()
 	for id, item := range a.menuItems {
 		declared, _ := keys.Command(id)
-		state := a.commandState(id, declared.Label)
+		state := a.commandState(id, declared.Label())
 		accelerator := ""
 		if chord, ok := keys.ChordFor(id); ok && !a.recording && (declared.Scope != keymap.ScopeLibrary || !desk) {
 			accelerator, _ = keymap.Accelerator(chord, keymap.PlatformCurrent)
