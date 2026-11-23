@@ -18,6 +18,11 @@ This policy covers:
 - The Neverland wordmark, application icon, favicon, and associated visual
   assets included in official releases or the repository.
 
+The artwork in [`assets/`](/assets) (the application icon's Icon Composer
+document and the images drawn from it) is Copyright 2026 Yu (Caelyreth), all
+rights reserved. It is not licensed under AGPL-3.0 with the source code. A
+modified version you distribute must replace it with artwork of its own.
+
 ## Permitted Uses
 
 You may use the Neverland name and marks for truthful, non-confusing
