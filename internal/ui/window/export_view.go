@@ -43,7 +43,7 @@ func newExportMetrics(c *ui.Context) exportMetrics {
 	return exportMetrics{
 		k: k, scale: scale,
 		pad: theme.Space24.DIPs(scale), gap: theme.Space12.DIPs(scale),
-		row: 30 * k, inset: theme.Space12.DIPs(scale),
+		row: controls.Height, inset: theme.Space12.DIPs(scale),
 		radius: controls.PanelRadius, inner: controls.InnerRadius,
 		icon: controls.RowIcon, inline: controls.InlineIcon,
 	}
@@ -185,14 +185,14 @@ func (a *AppState) exportFiles(c *ui.Context, semantic theme.Theme, m exportMetr
 // the usual places and any other.
 func (a *AppState) exportPlace(c *ui.Context, semantic theme.Theme, m exportMetrics, job *exportJob) {
 	button := ui.ButtonBase(c.Key("export-place")).Label(locales.ExportPlace()).Disabled(job.writing).
-		Height(26 * m.k).PaddingStart(theme.Space08.DIPs(m.scale)).PaddingEnd(theme.Space06.DIPs(m.scale)).Gap(theme.Space06.DIPs(m.scale)).Radius(m.inner).
+		Height(theme.DefaultControls.Scaled(m.scale).InlineHeight).PaddingStart(theme.Space08.DIPs(m.scale)).PaddingEnd(theme.Space06.DIPs(m.scale)).Gap(theme.Space06.DIPs(m.scale)).Radius(m.inner).
 		AlignItems(ui.Center).FocusRing(true).Shrink(1).MinWidth(0)
 	if button.Hovered() {
 		button.Background(semantic.Element.Hover)
 	}
 	button.Children(func() {
 		ui.Icon(c, components.IconFolder.SVG()).FontSize(m.inline).TextColor(semantic.Icon.Muted).Shrink(0)
-		components.CenteredLabel(c, filepath.Base(job.dir), theme.TextSmall, semantic.Text.Default).MinWidth(0)
+		components.CenteredLabel(c, filepath.Base(job.dir), theme.RowNote, semantic.Text.Default).MinWidth(0)
 		ui.Icon(c, components.IconChevronDown.SVG()).FontSize(12 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
 	})
 	components.Hint(c, semantic, button, shownPath(job.dir), "", components.HintBelow)
@@ -217,7 +217,7 @@ func (a *AppState) exportTree(c *ui.Context, semantic theme.Theme, m exportMetri
 	// The folder the files go into heads them, as the root they stand in.
 	ui.Row(c).WidthPercent(100).Height(m.row).PaddingX(theme.Space08.DIPs(m.scale)).Gap(theme.Space08.DIPs(m.scale)).AlignItems(ui.Center).Children(func() {
 		ui.Icon(c, components.IconFolder.SVG()).FontSize(m.icon).TextColor(semantic.Icon.Muted).Shrink(0)
-		components.CenteredLabel(c, shownPath(job.dir), theme.TextSmall, semantic.Text.Muted).
+		components.CenteredLabel(c, shownPath(job.dir), theme.RowNote, semantic.Text.Muted).
 			TruncateMiddle().MinWidth(0).Grow(1)
 	})
 	switch {
@@ -227,7 +227,7 @@ func (a *AppState) exportTree(c *ui.Context, semantic theme.Theme, m exportMetri
 	case job.plan == nil:
 		ui.Row(c).PaddingStart(theme.Space08.DIPs(m.scale) + indent).Height(m.row).Gap(theme.Space08.DIPs(m.scale)).AlignItems(ui.Center).Children(func() {
 			ui.Spinner(c).Size(14*m.k, 14*m.k)
-			components.CenteredLabel(c, locales.ExportReading(job.sheets), theme.TextSmall, semantic.Text.Muted)
+			components.CenteredLabel(c, locales.ExportReading(job.sheets), theme.RowNote, semantic.Text.Muted)
 		})
 		return
 	}
@@ -250,7 +250,7 @@ func (a *AppState) exportRow(c *ui.Context, semantic theme.Theme, m exportMetric
 	}
 	row.Children(func() {
 		ui.Icon(c, fileIcon(f).SVG()).FontSize(m.icon).TextColor(fileInk(semantic, f)).Shrink(0)
-		components.CenteredLabel(c, f.Name(), theme.TextSmall, semantic.Text.Default).
+		components.CenteredLabel(c, f.Name(), theme.RowTitle, semantic.Text.Default).
 			TruncateMiddle().MinWidth(0).Grow(1)
 		if f.Wanted != "" {
 			badge := components.BadgeFrame(ui.Row(c), m.scale).Background(semantic.Status.Warning.Background).Children(func() {
@@ -258,7 +258,7 @@ func (a *AppState) exportRow(c *ui.Context, semantic theme.Theme, m exportMetric
 			})
 			components.Hint(c, semantic, badge, locales.ExportRenamedHint(f.Wanted), "", components.HintAbove)
 		}
-		components.CenteredLabel(c, fileMeasure(*job.plan, f), theme.TextXSmall, semantic.Text.Muted).
+		components.CenteredLabel(c, fileMeasure(*job.plan, f), theme.RowMeta, semantic.Text.Muted).
 			Shrink(0).FontFeatures("tnum")
 	})
 	if row.Clicked() {
@@ -303,9 +303,9 @@ func (a *AppState) exportPreview(c *ui.Context, semantic theme.Theme, m exportMe
 		plan := *job.plan
 		panelHead(c, semantic, m, func() {
 			ui.Icon(c, fileIcon(f).SVG()).FontSize(m.icon).TextColor(fileInk(semantic, f)).Shrink(0)
-			components.CenteredLabel(c, f.Path, theme.TextSmall, semantic.Text.Default).
+			components.CenteredLabel(c, f.Path, theme.RowTitle, semantic.Text.Default).
 				TruncateStart().MinWidth(0).Grow(1)
-			components.CenteredLabel(c, fileMeasure(plan, f), theme.TextXSmall, semantic.Text.Muted).
+			components.CenteredLabel(c, fileMeasure(plan, f), theme.RowMeta, semantic.Text.Muted).
 				Shrink(0).FontFeatures("tnum")
 		})
 		switch f.Kind {
@@ -349,7 +349,7 @@ func previewText(c *ui.Context, semantic theme.Theme, m exportMetrics, plan expo
 	}
 	more := max(len(lines)-exportPreviewLines, 0)
 	lines = lines[:len(lines)-more]
-	size := theme.TextSmall.Size(m.scale) * 0.92
+	size := theme.RowNote.Size(m.scale)
 	lineH := size * 1.55
 	gutter := float32(len(strconv.Itoa(len(lines))))*size*0.62 + 4*m.k
 	ui.Scroll(c.Key("preview:" + f.Path)).Grow(1).MinHeight(0).WidthPercent(100).Children(func() {
@@ -369,7 +369,7 @@ func previewText(c *ui.Context, semantic theme.Theme, m exportMetrics, plan expo
 			}
 			if more > 0 {
 				ui.Row(c).Padding(4*m.k, 0, 0, gutter+m.inset).Children(func() {
-					components.Label(c, locales.ExportMoreLines(more), theme.TextXSmall, semantic.Text.Muted)
+					components.Label(c, locales.ExportMoreLines(more), theme.RowNote, semantic.Text.Muted)
 				})
 			}
 		})
@@ -411,8 +411,8 @@ func previewFolder(c *ui.Context, semantic theme.Theme, m exportMetrics, f expor
 	}
 	ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Gap(m.gap).Children(func() {
 		ui.Icon(c, components.IconFolder.SVG()).FontSize(36 * m.k).TextColor(semantic.Icon.Muted)
-		components.Label(c, f.Name(), theme.TextDefault, semantic.Text.Default)
-		components.Label(c, strings.Join(parts, " · "), theme.TextSmall, semantic.Text.Muted).FontFeatures("tnum")
+		components.Label(c, f.Name(), theme.RowTitle, semantic.Text.Default)
+		components.Label(c, strings.Join(parts, " · "), theme.RowNote, semantic.Text.Muted).FontFeatures("tnum")
 	})
 }
 

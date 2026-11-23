@@ -110,6 +110,17 @@ const (
 	TextXSmall
 )
 
+// A row's words, in every list, picker, switcher and window that is not
+// the field: its name, a line saying more of it, and what is counted or
+// measured beside it. A settings row is the measure, its name at the
+// interface's size and what follows a step down; the field's cards keep
+// their own denser scale.
+const (
+	RowTitle = TextDefault
+	RowNote  = TextSmall
+	RowMeta  = TextSmall
+)
+
 func (s TextSize) Size(uiFontSize float32) float32 {
 	reference := float32(14)
 	switch s {
