@@ -24,7 +24,7 @@
           "glass-specializations" : [
             {
               "appearance" : "tinted",
-              "value" : true
+              "value" : false
             }
           ],
           "image-name" : "profile.svg",
@@ -51,7 +51,7 @@
           "appearance" : "tinted",
           "value" : {
             "depth" : 0.1728125,
-            "enabled" : true,
+            "enabled" : false,
             "strength" : 0.544609375
           }
         }
@@ -67,11 +67,10 @@
           "appearance" : "tinted",
           "value" : {
             "kind" : "neutral",
-            "opacity" : 0.35
+            "opacity" : 0.5
           }
         }
       ],
-      "specular" : false,
       "translucency-specializations" : [
         {
           "value" : {
@@ -82,9 +81,18 @@
         {
           "appearance" : "tinted",
           "value" : {
-            "enabled" : false,
-            "value" : 0.2
+            "enabled" : true,
+            "value" : 0.5
           }
+        }
+      ],
+      "specular-specializations" : [
+        {
+          "value" : false
+        },
+        {
+          "appearance" : "tinted",
+          "value" : true
         }
       ]
     }
