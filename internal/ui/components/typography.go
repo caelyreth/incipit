@@ -2,6 +2,7 @@ package components
 
 import (
 	"math"
+	"sync"
 
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
@@ -25,14 +26,31 @@ func UIFontSize(c *ui.Context) float32 {
 	return c.Theme().FontSize
 }
 
-// UIOpticalLift returns how far single-line UI-face chrome text rises to center
-// optically inside a line box or control: the UI face's ink sits slightly below
-// its line box center.
+// UIOpticalLift returns how far single-line UI-face chrome text at the UI
+// size scale rises to center inside a line box or control (capLift).
 func UIOpticalLift(scale float32) float32 {
 	if scale <= 0 {
 		scale = theme.DefaultUIFontSize
 	}
-	return 0.5 * scale / theme.DefaultUIFontSize
+	return capLift(scale)
+}
+
+// capLifts are capLift's answers by size: a face's metrics stand still.
+var capLifts sync.Map
+
+// capLift is how far a line of the UI face at size rises for its
+// capitals to center in its line box. The line stands in the box with
+// half its leading above, so the baseline is (ascent − descent)/2 below
+// the box's middle, and the capitals' middle half the cap height above
+// the baseline.
+func capLift(size float32) float32 {
+	if v, ok := capLifts.Load(size); ok {
+		return v.(float32)
+	}
+	m := ui.Font{Family: theme.UIFontFamily, Size: size}.Metrics()
+	lift := (m.Ascent - m.Descent - m.CapHeight) / 2
+	capLifts.Store(size, lift)
+	return lift
 }
 
 // InlineCapMiddle returns how far above a sentence's text baseline the optical
@@ -63,16 +81,16 @@ func Label(
 		TextColor(color)
 }
 
-// CenteredLabel returns a single-line UI-face label lifted optically so its
-// glyphs center vertically inside buttons, chips, tabs, and rows.
+// CenteredLabel returns a single-line UI-face label lifted so its
+// capitals center vertically inside buttons, chips, tabs, and rows
+// (capLift, at the label's own size).
 func CenteredLabel(
 	c *ui.Context,
 	text string,
 	size theme.TextSize,
 	color ui.Color,
 ) ui.Element {
-	scale := UIFontSize(c)
-	return Label(c, text, size, color).SingleLine().Translate(0, -UIOpticalLift(scale))
+	return Label(c, text, size, color).SingleLine().Translate(0, -capLift(size.Size(UIFontSize(c))))
 }
 
 // BaselineRow returns a horizontal row that aligns mixed-size chrome labels on
