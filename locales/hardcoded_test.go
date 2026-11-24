@@ -72,6 +72,10 @@ func TestNoWordsInTheCode(t *testing.T) {
 	fset := token.NewFileSet()
 	for _, dir := range shownFrom {
 		err := filepath.WalkDir(filepath.Join("..", dir), func(path string, d fs.DirEntry, err error) error {
+			// The PDF writer's strings are PDF's own syntax, never shown.
+			if err == nil && d.IsDir() && filepath.Base(path) == "pdf" {
+				return filepath.SkipDir
+			}
 			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") ||
 				strings.HasSuffix(path, "_test.go") || strings.HasSuffix(path, "_gen.go") || filepath.Base(path) == "catalog.go" {
 				return err
