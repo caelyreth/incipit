@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime/debug"
 	"slices"
 	"sync"
 	"time"
@@ -52,6 +53,9 @@ type Options struct {
 	HistoryBudget int
 	// Log keeps the intent log, for replay.
 	Log bool
+	// Fault, when set, hears of each transaction a rule broke (ErrFault),
+	// with its stack, for a log.
+	Fault func(error)
 }
 
 // Logged is one entry of the intent log.
@@ -199,6 +203,10 @@ var (
 	// ErrRejected wraps a transaction that failed validation; nothing was
 	// published.
 	ErrRejected = errors.New("engine: transaction rejected")
+	// ErrFault wraps a transaction a rule or an edit broke, by a panic,
+	// before anything of it was kept: it is not available, and the engine
+	// stands as it was.
+	ErrFault = errors.New("engine: a rule failed")
 )
 
 // Do processes one intent for a view and publishes the result.
@@ -252,8 +260,25 @@ type processed struct {
 	snap      *doc.Snapshot
 }
 
-// process runs one transaction. With commit false nothing is kept.
-func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed, error) {
+// process runs one transaction. With commit false nothing is kept. A
+// panic before the engine keeps anything of it (its history and views)
+// is the transaction's fault, not the app's: it comes back as ErrFault,
+// so a broken rule disables a command, or fails a key, and nothing else.
+func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result processed, err error) {
+	keeping := false
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		if keeping {
+			panic(r)
+		}
+		result, err = processed{}, fmt.Errorf("%w: %v: %v\n%s", ErrFault, in.Intent, r, debug.Stack())
+		if e.opts.Fault != nil {
+			e.opts.Fault(err)
+		}
+	}()
 	prog := e.prog
 	cur, ok := e.views[viewID]
 	if !ok {
@@ -434,7 +459,8 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (processed,
 		view.GoalX = -1
 	}
 
-	// History.
+	// History. From here the engine keeps what the transaction did.
+	keeping = true
 	entry := doc.NewEntry(allSteps, class, viewID, before, view.Selection, in.At)
 	switch {
 	case plan != nil:

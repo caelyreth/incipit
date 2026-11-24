@@ -1,6 +1,7 @@
 package window
 
 import (
+	"log"
 	"math/rand/v2"
 
 	"github.com/caelyreth/neverland/internal/app/workspace"
@@ -90,7 +91,11 @@ func (a *AppState) openEngine(session *sheetSession) (*engine.Engine, error) {
 		}
 		snap = empty
 	}
-	return engine.New(snap, a.Product.Program, engine.Options{}), nil
+	// A rule that breaks fails its own transaction, disabling a command or
+	// a key, and is logged; the page and the app go on.
+	return engine.New(snap, a.Product.Program, engine.Options{Fault: func(err error) {
+		log.Printf("page %d: %v", session.key, err)
+	}}), nil
 }
 
 // openEditor opens a view of a page's engine for one column, at the
