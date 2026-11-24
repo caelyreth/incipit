@@ -21,6 +21,10 @@ func Run() error {
 	if os.Getenv(storage.HomeVariable) == "" && !mygo.App.RequestSingleInstanceLock() {
 		return nil
 	}
+	userData, _ := mygo.App.Path(mygo.PathUserData)
+	if path := keepLog(userData); path != "" {
+		log.Printf("Neverland %s started, logging to %s", mygo.App.Version(), path)
+	}
 	if err := theme.RegisterFonts(); err != nil {
 		return err
 	}
@@ -38,7 +42,6 @@ func Run() error {
 		_ = store.Close()
 		return err
 	}
-	userData, _ := mygo.App.Path(mygo.PathUserData)
 	if dir, err := fonts.Dir(userData); err == nil {
 		app.useFonts(openFonts(dir))
 	}
