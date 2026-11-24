@@ -274,3 +274,19 @@ func TestAnEmptyCaptionsHintsStandWhereTheyAct(t *testing.T) {
 		t.Fatalf("the guide out still shows at %v where the caret arrived", a)
 	}
 }
+
+// A figure selected whole opens its empty caption's line with its hint,
+// never a blank line; unheld, the line closes with it.
+func TestAnOpenCaptionLineShowsItsHint(t *testing.T) {
+	el, u := figurePage(t)
+	el.focused = true
+	if el.hinted(u) {
+		t.Fatal("an unheld figure hints its caption")
+	}
+	el.Editor.Do(vocab.Place{Node: u.pres.Unit}, time.Unix(300, 0))
+	el.relayout()
+	u = el.Editor.layout.units[1]
+	if !u.surfaces[0].open || !el.hinted(u) {
+		t.Fatalf("a selected figure's caption: open %v, hinted %v; want its line open with its hint", u.surfaces[0].open, el.hinted(u))
+	}
+}

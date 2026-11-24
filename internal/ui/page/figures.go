@@ -446,14 +446,11 @@ func (el *Element) captionOpening(u *unitLayout) (ui.Rect, ui.Align) {
 	return ui.Rect{X: u.x + s.x + s.caretRect(0).X, Y: u.y + u.box.Y + u.box.H, H: el.Editor.metrics.Gap}, align
 }
 
-// hinted reports whether a figure's caption shows its hint: it is empty,
-// and the caret is in it while the page has the keys.
+// hinted reports whether a figure's caption shows its hint: it is empty
+// and its line open, the figure held while the page has the keys, so an
+// open line never stands blank.
 func (el *Element) hinted(u *unitLayout) bool {
-	if len(u.surfaces) == 0 || u.surfaces[0].text != "" || !el.focused {
-		return false
-	}
-	sel := el.shownSelection()
-	return sel.Kind == doc.SelectText && sel.IsCollapsed() && sel.Head.Pos.Ref() == u.surfaces[0].slot
+	return len(u.surfaces) > 0 && u.surfaces[0].text == "" && u.surfaces[0].open && el.focused
 }
 
 // paintResizeLabel names the span a resize previews, on a chip at the top
