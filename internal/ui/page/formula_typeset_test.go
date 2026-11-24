@@ -81,3 +81,61 @@ func TestTypstDialectTypesetsSoundlyAndSeparatesCache(t *testing.T) {
 		t.Fatalf("expected TeX-only syntax to be diagnosed under Typst instead of hitting TeX cache")
 	}
 }
+
+func TestFormulaSharesBakedPathsAndUpdatesInkColor(t *testing.T) {
+	boxA := setFormula(`x^2 + 1`, profile.DialectTeX, false, 17, 0)
+	boxB := setFormula(`x^2 + 2`, profile.DialectTeX, false, 17, 0)
+	if boxA == nil || boxB == nil {
+		t.Fatal("formulas should typeset cleanly")
+	}
+	drawA := cachedFormulaDrawing(boxA)
+	drawB := cachedFormulaDrawing(boxB)
+	seenA := make(map[*ui.BakedPath]struct{})
+	for _, op := range drawA.ops {
+		if !op.rule && op.baked != nil {
+			seenA[op.baked] = struct{}{}
+		}
+	}
+	shared := 0
+	for _, op := range drawB.ops {
+		if !op.rule && op.baked != nil {
+			if _, ok := seenA[op.baked]; ok {
+				shared++
+			}
+		}
+	}
+	if shared == 0 {
+		t.Fatalf("expected distinct formulas with matching glyph sizes to share *ui.BakedPath pointers")
+	}
+
+	renderWithInk := func(ink ui.Color) (hasRed, hasGreen int) {
+		tt := ui.NewTester(func(c *ui.Context) {
+			ui.Box(c).Fill().Background(ui.RGB(0, 0, 0)).Draw(func(p *ui.Painter, _ ui.Rect) {
+				drawFormula(p, boxA, ui.Point{X: 20, Y: 40}, formulaInks{Text: ink})
+			})
+		}, 160, 80)
+		tt.Frame()
+		img := tt.Image()
+		for y := 0; y < img.Bounds().Dy(); y++ {
+			for x := 0; x < img.Bounds().Dx(); x++ {
+				px := img.RGBAAt(x, y)
+				if px.R > 150 && px.G < 60 && px.B < 60 {
+					hasRed++
+				}
+				if px.G > 150 && px.R < 60 && px.B < 100 {
+					hasGreen++
+				}
+			}
+		}
+		return hasRed, hasGreen
+	}
+
+	redR, redG := renderWithInk(ui.RGB(220, 40, 40))
+	if redR == 0 || redG != 0 {
+		t.Fatalf("red ink pass rendered red=%d green=%d", redR, redG)
+	}
+	greenR, greenG := renderWithInk(ui.RGB(40, 200, 80))
+	if greenG == 0 || greenR != 0 {
+		t.Fatalf("green ink pass rendered red=%d green=%d", greenR, greenG)
+	}
+}
