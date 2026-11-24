@@ -283,6 +283,26 @@ func TestARangeIntoANestedItemTakesTheItemsItOpens(t *testing.T) {
 	}
 }
 
+// A range between two gaps, from before a list's first item to before an
+// item nested in a later list, takes the first list whole and the head of
+// the item holding the nested list, which leaves its list; no list is
+// left empty (seed 280 of TestRandomShapesKeepTheInvariants).
+func TestARangeBetweenGapsOpensTheItemsAroundItsEnd(t *testing.T) {
+	s := page(t, list(item("a")), list(item("b", list(item("c")))))
+	first, nested := inOrder(s, 1), inOrder(s, 5)
+	s = edit(t, s, vocab.DeleteRange(doc.Pos{Node: first.ID()}, doc.Pos{Node: nested.ID()}))
+	if got, want := outline(s.Root()), "page(list(item(c|)))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+	// From a gap after the first item, the list keeps it.
+	s = page(t, list(item("a"), item("a2")), list(item("b", list(item("c")))))
+	first, nested = inOrder(s, 1), inOrder(s, 6)
+	s = edit(t, s, vocab.DeleteRange(doc.Pos{Node: first.ID(), Offset: 1}, doc.Pos{Node: nested.ID()}))
+	if got, want := outline(s.Root()), "page(list(item(a|)) list(item(c|)))"; got != want {
+		t.Fatalf("got  %s\nwant %s", got, want)
+	}
+}
+
 // A copy keeps the containers its range passes through, and a paste puts
 // blocks where a slot takes them.
 func TestACopyIntoAnItemKeepsItsList(t *testing.T) {

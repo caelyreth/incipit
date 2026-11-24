@@ -62,7 +62,9 @@ func DeleteRange(from, to doc.Pos) Edit {
 		toText := isInline(tx, to.Ref())
 		// The blocks holding the end whose start the range holds: the
 		// end's block, and the items around it that hold none of the
-		// start, innermost first. Their markers are in the range.
+		// start, innermost first. Their markers are in the range. An end
+		// at a gap opens the container holding the gap and those around
+		// it alike.
 		var second *doc.Node
 		var opened []doc.ID
 		if toText {
@@ -71,13 +73,18 @@ func DeleteRange(from, to doc.Pos) Edit {
 				second = nil
 			}
 		}
-		if second != nil {
-			for _, a := range doc.Ancestors(tx, second.ID()) {
-				if a == from.Node || doc.Contains(tx, a, from.Node) {
-					break
-				}
-				opened = append(opened, a)
+		var around []doc.ID
+		switch {
+		case second != nil:
+			around = doc.Ancestors(tx, second.ID())
+		case !toText:
+			around = append([]doc.ID{to.Node}, doc.Ancestors(tx, to.Node)...)
+		}
+		for _, a := range around {
+			if a == from.Node || doc.Contains(tx, a, from.Node) {
+				break
 			}
+			opened = append(opened, a)
 		}
 		if fromText {
 			fn, _ := tx.Node(from.Node)
@@ -142,6 +149,10 @@ func DeleteRange(from, to doc.Pos) Edit {
 			if err := RemoveIfEmpty(a)(tx); err != nil {
 				return err
 			}
+		}
+		if !fromText {
+			// From a gap, the container holding it may be left empty too.
+			return RemoveIfEmpty(from.Node)(tx)
 		}
 		return nil
 	}
