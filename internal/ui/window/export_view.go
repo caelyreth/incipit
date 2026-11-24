@@ -311,6 +311,10 @@ func (a *AppState) exportPreview(c *ui.Context, semantic theme.Theme, m exportMe
 		})
 		switch f.Kind {
 		case export.KindSheet:
+			if f.Typeset != nil {
+				previewTypeset(c, semantic, m, plan, f)
+				break
+			}
 			previewText(c, semantic, m, plan, f)
 		case export.KindPicture:
 			previewPicture(c, semantic, m, job, plan, f)
@@ -399,6 +403,15 @@ func previewPicture(c *ui.Context, semantic theme.Theme, m exportMetrics, job *e
 }
 
 // previewFolder says what a folder holds.
+// previewTypeset says what a sheet's PDF holds: its pages and its size.
+func previewTypeset(c *ui.Context, semantic theme.Theme, m exportMetrics, plan export.Plan, f export.File) {
+	ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Gap(m.gap).Children(func() {
+		ui.Icon(c, components.IconFileText.SVG()).FontSize(36 * m.k).TextColor(semantic.Icon.Muted)
+		components.Label(c, f.Name(), theme.RowTitle, semantic.Text.Default)
+		components.Label(c, locales.PagesCount(f.Pages)+" · "+components.Bytes(plan.Size(f)), theme.RowNote, semantic.Text.Muted).FontFeatures("tnum")
+	})
+}
+
 func previewFolder(c *ui.Context, semantic theme.Theme, m exportMetrics, f export.File) {
 	var parts []string
 	if f.Sheets > 0 {
@@ -421,11 +434,21 @@ func previewFolder(c *ui.Context, semantic theme.Theme, m exportMetrics, f expor
 // shown in the preview as it is changed.
 func (a *AppState) exportOptions(c *ui.Context, semantic theme.Theme, job *exportJob) {
 	components.SettingGroup{Key: "export-options", Label: locales.ExportOptions(), Children: func() {
-		components.SettingRow{Label: locales.ExportFrontMatter(), Description: locales.ExportFrontMatterNote(), Last: true,
+		components.SettingRow{Label: locales.ExportFormat(), Description: locales.ExportFormatNote(), Last: a.exportPDF,
 			Control: func() {
-				components.Switch{Key: "front-matter", Label: locales.ExportFrontMatter(), Selected: a.exportFrontMatter,
-					Disabled: job.writing, Animate: true, Action: a.setExportFrontMatter}.View(c, semantic)
+				components.Segmented{Key: "export-format", Label: locales.ExportFormat(), Animate: true, Options: []components.SegmentOption{
+					{Key: "markdown", Label: locales.Markdown(), Selected: !a.exportPDF, Action: func() { a.setExportPDF(false) }},
+					{Key: "pdf", Label: locales.Pdf(), Selected: a.exportPDF, Action: func() { a.setExportPDF(true) }},
+				}}.View(c, semantic)
 			}}.View(c, semantic)
+		// A PDF is the sheet as it reads: no front matter to put in it.
+		if !a.exportPDF {
+			components.SettingRow{Label: locales.ExportFrontMatter(), Description: locales.ExportFrontMatterNote(), Last: true,
+				Control: func() {
+					components.Switch{Key: "front-matter", Label: locales.ExportFrontMatter(), Selected: a.exportFrontMatter,
+						Disabled: job.writing, Animate: true, Action: a.setExportFrontMatter}.View(c, semantic)
+				}}.View(c, semantic)
+		}
 	}}.View(c, semantic).Shrink(0)
 }
 

@@ -1,12 +1,15 @@
 package window
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 
 	"github.com/caelyreth/neverland/internal/app/export"
+	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/ui/shell"
 )
 
@@ -34,7 +37,7 @@ func TestExportingAGroupWritesItsSheetsAndGroups(t *testing.T) {
 		t.Fatalf("the sheet goes without its times: %+v", plan)
 	}
 	dir := t.TempDir()
-	plan, err := export.PlanFolder(dir, job.folder, nil)
+	plan, err := export.PlanFolder(dir, job.folder, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,5 +59,33 @@ func TestExportingAGroupWritesItsSheetsAndGroups(t *testing.T) {
 	}
 	if _, ok := app.exportJob("group:404"); ok {
 		t.Fatal("a group the library does not hold exports")
+	}
+}
+
+// As PDF, an export typesets each sheet as its page reads, even one that
+// holds nothing.
+func TestAnExportTypesetsSheetsAsPDF(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app.exportPDF = true
+	typeset := app.exportTypeset()
+	if typeset == nil {
+		t.Fatal("no typesetter for PDF")
+	}
+	snap, err := profile.EmptyPage(1, 1, doc.NewInterner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []*doc.Snapshot{snap, nil} {
+		out, pages, err := typeset(s, "Sheet")
+		if err != nil || pages != 1 || !bytes.HasPrefix(out, []byte("%PDF-")) {
+			t.Fatalf("%d pages, %d bytes: %v", pages, len(out), err)
+		}
+	}
+	app.exportPDF = false
+	if app.exportTypeset() != nil {
+		t.Fatal("Markdown is typeset")
 	}
 }

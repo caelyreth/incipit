@@ -14,6 +14,9 @@
 // Nothing at the destination is overwritten: a name taken there, or by a
 // file planned before it, is given a number, as Finder does, and the file
 // says the name it wanted.
+//
+// A plan with a Typeset writes each sheet as a PDF instead, typeset by the
+// host, its pictures within it: no assets folder, and no front matter.
 package export
 
 import (
@@ -62,6 +65,10 @@ type Picture struct {
 // Pictures finds the file of a picture a figure names by its media id.
 type Pictures func(media string) (Picture, bool)
 
+// Typeset makes a sheet's document into a PDF, titled title, and says how
+// many pages it takes; snap is nil for a sheet that holds nothing.
+type Typeset func(snap *doc.Snapshot, title string) (pdf []byte, pages int, err error)
+
 // Kind is what a planned file is.
 type Kind uint8
 
@@ -82,8 +89,11 @@ type File struct {
 	// when it has it.
 	Wanted string
 	// A sheet's front matter and body, written together as front matter
-	// says (Plan.Text).
+	// says (Plan.Text); a typeset sheet's body is what it says, shown
+	// before it is written, and Typeset the file.
 	Front, Body string
+	Typeset     []byte
+	Pages       int
 	// A picture's media id, the file it copies, and what it is.
 	Media   string
 	Picture Picture
@@ -125,6 +135,9 @@ func (p Plan) Text(f File) string {
 
 // Size is how many bytes a file takes as the plan writes it.
 func (p Plan) Size(f File) int64 {
+	if f.Typeset != nil {
+		return int64(len(f.Typeset))
+	}
 	if f.Kind == KindSheet {
 		return int64(len(p.Text(f)))
 	}
@@ -152,9 +165,9 @@ func (p Plan) Totals() (sheets, pictures, groups int, bytes int64) {
 const assetsDir = "assets"
 
 // PlanSheet plans a sheet written into dir as a Markdown file, its
-// pictures in dir's assets folder.
-func PlanSheet(dir string, sheet Sheet, pictures Pictures) (Plan, error) {
-	p := planner{dir: dir, pictures: pictures, taken: map[string]bool{}}
+// pictures in dir's assets folder, or as a PDF where typeset is set.
+func PlanSheet(dir string, sheet Sheet, pictures Pictures, typeset Typeset) (Plan, error) {
+	p := planner{dir: dir, pictures: pictures, typeset: typeset, taken: map[string]bool{}}
 	err := p.folder("", 0, Folder{Sheets: []Sheet{sheet}})
 	plan := Plan{Dir: dir, Files: p.files}
 	if err == nil {
@@ -164,8 +177,8 @@ func PlanSheet(dir string, sheet Sheet, pictures Pictures) (Plan, error) {
 }
 
 // PlanFolder plans a group written into dir as a folder of its own.
-func PlanFolder(dir string, folder Folder, pictures Pictures) (Plan, error) {
-	p := planner{dir: dir, pictures: pictures, taken: map[string]bool{}}
+func PlanFolder(dir string, folder Folder, pictures Pictures, typeset Typeset) (Plan, error) {
+	p := planner{dir: dir, pictures: pictures, typeset: typeset, taken: map[string]bool{}}
 	err := p.group("", 0, folder)
 	return Plan{Dir: dir, Files: p.files, Top: p.files[0].Path}, err
 }
@@ -174,6 +187,7 @@ func PlanFolder(dir string, folder Folder, pictures Pictures) (Plan, error) {
 type planner struct {
 	dir      string
 	pictures Pictures
+	typeset  Typeset
 	files    []File
 	// taken is every path planned, from the destination.
 	taken map[string]bool
@@ -214,6 +228,9 @@ func (p *planner) folder(rel string, depth int, f Folder) error {
 	assets := ""
 	linked := map[string]string{}
 	link := func(media string) string {
+		if p.typeset != nil {
+			return media // the picture is within the PDF
+		}
 		if to, ok := linked[media]; ok {
 			return to
 		}
@@ -241,18 +258,29 @@ func (p *planner) folder(rel string, depth int, f Folder) error {
 	}
 	for _, sheet := range f.Sheets {
 		var body string
+		var snap *doc.Snapshot
 		if sheet.Read != nil {
-			snap, err := sheet.Read()
-			if err != nil {
+			var err error
+			if snap, err = sheet.Read(); err != nil {
 				return fmt.Errorf("%s: %w", sheet.Title, err)
 			}
 			if snap != nil {
 				body = markdown.Document(snap.Root(), link)
 			}
 		}
-		name, wanted := p.free(rel, fileName(sheet.Title), ".md")
-		sheets = append(sheets, File{Kind: KindSheet, Path: name, Depth: depth, Wanted: wanted,
-			Front: frontMatter(sheet), Body: body})
+		file := File{Kind: KindSheet, Depth: depth, Body: body}
+		ext := ".md"
+		if p.typeset != nil {
+			out, pages, err := p.typeset(snap, sheet.Title)
+			if err != nil {
+				return fmt.Errorf("%s: %w", sheet.Title, err)
+			}
+			file.Typeset, file.Pages, ext = out, pages, ".pdf"
+		} else {
+			file.Front = frontMatter(sheet)
+		}
+		file.Path, file.Wanted = p.free(rel, fileName(sheet.Title), ext)
+		sheets = append(sheets, file)
 	}
 	p.files = append(p.files, sheets...)
 	if assets != "" {
@@ -300,6 +328,10 @@ func (p Plan) Write(done func(n int)) (string, error) {
 			err = os.Mkdir(to, 0o755)
 		case KindSheet:
 			err = writeNew(to, func(w io.Writer) error {
+				if f.Typeset != nil {
+					_, err := w.Write(f.Typeset)
+					return err
+				}
 				_, err := io.WriteString(w, p.Text(f))
 				return err
 			})

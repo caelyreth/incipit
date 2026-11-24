@@ -3179,6 +3179,20 @@ func (msgs Messages) SheetsCount(count int) string {
 	return Catalog.Format(msgs.locale, "sheetsCount", map[string]any{"count": count})
 }
 
+// PagesCount says "{count, plural, one {# page} other {# pages}}"
+// in the language the app shows.
+//
+// How many pages a PDF an export writes takes.
+func PagesCount(count int) string { return In(i18n.Locale()).PagesCount(count) }
+
+// PagesCount says "{count, plural, one {# page} other {# pages}}"
+// in the language of msgs.
+//
+// How many pages a PDF an export writes takes.
+func (msgs Messages) PagesCount(count int) string {
+	return Catalog.Format(msgs.locale, "pagesCount", map[string]any{"count": count})
+}
+
 // More says "{count} more"
 // in the language the app shows.
 //
@@ -10815,6 +10829,62 @@ func ExportFrontMatterNote() string { return In(i18n.Locale()).ExportFrontMatter
 // Export option's description
 func (msgs Messages) ExportFrontMatterNote() string {
 	return Catalog.Format(msgs.locale, "exportFrontMatterNote", nil)
+}
+
+// ExportFormat says "Format"
+// in the language the app shows.
+//
+// Label of the export window’s choice between Markdown and PDF files.
+func ExportFormat() string { return In(i18n.Locale()).ExportFormat() }
+
+// ExportFormat says "Format"
+// in the language of msgs.
+//
+// Label of the export window’s choice between Markdown and PDF files.
+func (msgs Messages) ExportFormat() string {
+	return Catalog.Format(msgs.locale, "exportFormat", nil)
+}
+
+// ExportFormatNote says "Markdown keeps the words to edit elsewhere; PDF keeps each sheet as it reads, to share or print."
+// in the language the app shows.
+//
+// Description under the export format choice.
+func ExportFormatNote() string { return In(i18n.Locale()).ExportFormatNote() }
+
+// ExportFormatNote says "Markdown keeps the words to edit elsewhere; PDF keeps each sheet as it reads, to share or print."
+// in the language of msgs.
+//
+// Description under the export format choice.
+func (msgs Messages) ExportFormatNote() string {
+	return Catalog.Format(msgs.locale, "exportFormatNote", nil)
+}
+
+// Markdown says "Markdown"
+// in the language the app shows.
+//
+// The Markdown file format, as an export choice.
+func Markdown() string { return In(i18n.Locale()).Markdown() }
+
+// Markdown says "Markdown"
+// in the language of msgs.
+//
+// The Markdown file format, as an export choice.
+func (msgs Messages) Markdown() string {
+	return Catalog.Format(msgs.locale, "markdown", nil)
+}
+
+// Pdf says "PDF"
+// in the language the app shows.
+//
+// The PDF file format, as an export choice.
+func Pdf() string { return In(i18n.Locale()).Pdf() }
+
+// Pdf says "PDF"
+// in the language of msgs.
+//
+// The PDF file format, as an export choice.
+func (msgs Messages) Pdf() string {
+	return Catalog.Format(msgs.locale, "pdf", nil)
 }
 
 // ExportEmptyFile says "This file is empty."

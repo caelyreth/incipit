@@ -846,6 +846,10 @@
   "@sheetsCount": {
     "description": "Assistive technology: how many sheets are dragged."
   },
+  "pagesCount": "{count, plural, one {# page} other {# pages}}",
+  "@pagesCount": {
+    "description": "How many pages a PDF an export writes takes."
+  },
   "more": "{count} more",
   "@more": {
     "description": "How many rows a list leaves out, as 12 more; count is written with its thousands."
@@ -2978,6 +2982,22 @@
   "exportFrontMatterNote": "Each sheet’s title, dates and tags as YAML at the head of its file, as Obsidian and static site generators read them.",
   "@exportFrontMatterNote": {
     "description": "Export option's description"
+  },
+  "exportFormat": "Format",
+  "@exportFormat": {
+    "description": "Label of the export window’s choice between Markdown and PDF files."
+  },
+  "exportFormatNote": "Markdown keeps the words to edit elsewhere; PDF keeps each sheet as it reads, to share or print.",
+  "@exportFormatNote": {
+    "description": "Description under the export format choice."
+  },
+  "markdown": "Markdown",
+  "@markdown": {
+    "description": "The Markdown file format, as an export choice."
+  },
+  "pdf": "PDF",
+  "@pdf": {
+    "description": "The PDF file format, as an export choice."
   },
   "exportEmptyFile": "This file is empty.",
   "@exportEmptyFile": {

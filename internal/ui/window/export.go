@@ -1,6 +1,7 @@
 package window
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,8 +12,10 @@ import (
 	"github.com/caelyreth/neverland/internal/app/export"
 	"github.com/caelyreth/neverland/internal/app/library"
 	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/engine"
 	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/ui/page"
+	"github.com/caelyreth/neverland/internal/ui/pdf"
 	"github.com/caelyreth/neverland/internal/ui/shell"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
@@ -174,14 +177,14 @@ func (a *AppState) planExport() {
 	job.planned++
 	planned, dir := job.planned, job.dir
 	job.plan, job.planErr = nil, nil
-	pictures := a.exportPictures()
+	pictures, typeset := a.exportPictures(), a.exportTypeset()
 	go func() {
 		var plan export.Plan
 		var err error
 		if job.group {
-			plan, err = export.PlanFolder(dir, job.folder, pictures)
+			plan, err = export.PlanFolder(dir, job.folder, pictures, typeset)
 		} else {
-			plan, err = export.PlanSheet(dir, job.sheet, pictures)
+			plan, err = export.PlanSheet(dir, job.sheet, pictures, typeset)
 		}
 		a.onUI(func() {
 			if a.exporting != job || job.planned != planned {
@@ -216,6 +219,54 @@ func firstSheet(p export.Plan) string {
 		}
 	}
 	return ""
+}
+
+// printBody is the size, in points, body text prints at.
+const printBody = 11
+
+// exportTypeset is how an export makes a sheet a PDF, nil for Markdown:
+// laid out as its page shows it by day, the marks' signs not drawn, on
+// the paper of the reader's region, its body text at printBody.
+func (a *AppState) exportTypeset() export.Typeset {
+	if !a.exportPDF {
+		return nil
+	}
+	prog, err := a.Product.PrintProgram()
+	if err != nil {
+		return func(*doc.Snapshot, string) ([]byte, int, error) { return nil, 0, err }
+	}
+	look := a.Shell.Settings
+	look.Appearance = theme.Daybreak
+	colors, prose := look.Semantic(), look.Prose()
+	// The region is the system's, known once the app runs.
+	paper := pdf.A4
+	if a.running {
+		paper = pdf.PaperFor(mygo.App.Region().Locale)
+	}
+	width := (paper.Width - 2*paper.Margin) * prose.FontSize / printBody
+	read := a.readPicture
+	return func(snap *doc.Snapshot, title string) ([]byte, int, error) {
+		if snap == nil {
+			var err error
+			if snap, err = profile.EmptyPage(1, 1, doc.NewInterner()); err != nil {
+				return nil, 0, err
+			}
+		}
+		d := page.Print(engine.New(snap, prog, engine.Options{}), colors, prose, &page.Pictures{Read: read}, width)
+		var out bytes.Buffer
+		pages, err := pdf.Write(&out, d, pdf.Options{Page: paper, Title: title})
+		return out.Bytes(), pages, err
+	}
+}
+
+// setExportPDF writes the export as PDF or as Markdown, planned anew.
+func (a *AppState) setExportPDF(on bool) {
+	if a.exportPDF == on || a.exporting != nil && a.exporting.writing {
+		return
+	}
+	a.exportPDF = on
+	a.planExport()
+	a.invalidateExport()
 }
 
 // setExportFrontMatter turns front matter on or off for this export and

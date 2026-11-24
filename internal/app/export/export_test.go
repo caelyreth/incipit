@@ -76,7 +76,7 @@ func TestPlanSheetLinksItsPicturesWhereTheyGo(t *testing.T) {
 	pictures := func(media string) (Picture, bool) {
 		return Picture{Path: src, Name: "bay at dawn.png", Width: 4, Height: 3}, media == "ab12"
 	}
-	plan, err := PlanSheet(dir, sheet, pictures)
+	plan, err := PlanSheet(dir, sheet, pictures, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestPlanFolderMirrorsGroupsAndNumbersWhatIsTaken(t *testing.T) {
 		{Title: "Plan", Read: page(t, heading("Plan"))},
 		{Title: "...", Read: nil},
 	}, Folders: []Folder{{Name: "Specs", Sheets: []Sheet{{Title: "API", Read: page(t, heading("API"))}}}}}
-	plan, err := PlanFolder(dir, folder, nil)
+	plan, err := PlanFolder(dir, folder, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,13 +147,40 @@ func TestPlanFolderMirrorsGroupsAndNumbersWhatIsTaken(t *testing.T) {
 	}
 }
 
+// Typeset, a sheet is written as the PDF the host makes of it, its
+// pictures within it: no assets folder, no front matter.
+func TestATypesetSheetIsWrittenAsItsPDF(t *testing.T) {
+	dir := t.TempDir()
+	sheet := Sheet{Title: "Notes", Read: page(t, heading("Notes"))}
+	typeset := func(snap *doc.Snapshot, title string) ([]byte, int, error) {
+		if snap == nil || title != "Notes" {
+			t.Fatalf("typeset %v %q", snap, title)
+		}
+		return []byte("%PDF-1.7 notes"), 1, nil
+	}
+	plan, err := PlanSheet(dir, sheet, nil, typeset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Files) != 1 || plan.Files[0].Path != "Notes.pdf" || plan.Size(plan.Files[0]) != 14 {
+		t.Fatalf("plan = %#v", plan.Files)
+	}
+	plan.FrontMatter = true
+	if _, err := plan.Write(nil); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, filepath.Join(dir, "Notes.pdf")) != "%PDF-1.7 notes" {
+		t.Fatal("the PDF is not what was typeset")
+	}
+}
+
 // Front matter heads a sheet's file with its title, times and tags, as
 // YAML reads them back, only where the plan says.
 func TestFrontMatterSaysTheSheet(t *testing.T) {
 	at := time.Date(2026, 11, 20, 9, 14, 0, 0, time.UTC)
 	sheet := Sheet{Title: "Plan: Q4", Created: at, Updated: at.Add(time.Hour), Tags: []string{"work", "two words", "yes"},
 		Read: page(t, heading("Plan"))}
-	plan, err := PlanSheet(t.TempDir(), sheet, nil)
+	plan, err := PlanSheet(t.TempDir(), sheet, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
