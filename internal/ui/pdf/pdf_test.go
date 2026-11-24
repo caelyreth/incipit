@@ -22,7 +22,7 @@ func lines(n int) func(c *ui.Context) {
 // A drawing writes as a PDF whose text is glyphs that spell it.
 func TestADrawingWritesAsAPDFOfItsText(t *testing.T) {
 	var out bytes.Buffer
-	if err := Write(&out, ui.Record(lines(3), 400, 200), Options{Title: "Tide"}); err != nil {
+	if _, err := Write(&out, ui.Record(lines(3), 400, 200), Options{Title: "Tide"}); err != nil {
 		t.Fatal(err)
 	}
 	pdf := out.String()
@@ -56,8 +56,9 @@ func TestALongDrawingIsCutBetweenLines(t *testing.T) {
 		}
 	}
 	var out bytes.Buffer
-	if err := Write(&out, d, Options{}); err != nil {
-		t.Fatal(err)
+	scale := (A4.Width - 2*A4.Margin) / d.Width
+	if pages, err := Write(&out, d, Options{}); err != nil || pages != len(pagesOf(d, (A4.Height-2*A4.Margin)/scale)) {
+		t.Fatalf("%d pages: %v", pages, err)
 	}
 	if dir := os.Getenv("NEVERLAND_PDF_OUT"); dir != "" {
 		os.WriteFile(dir+"/long.pdf", out.Bytes(), 0o644)

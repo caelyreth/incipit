@@ -40,6 +40,23 @@ var A4 = Page{Width: 595.28, Height: 841.89, Margin: 56.69}
 // Letter is the paper of North America, with margins of 0.75 in.
 var Letter = Page{Width: 612, Height: 792, Margin: 54}
 
+// PaperFor is the paper of the region of locale, a BCP 47 tag: Letter in
+// the Americas that use it and the Philippines, A4 everywhere else.
+func PaperFor(locale string) Page {
+	region := ""
+	for _, part := range strings.Split(strings.ReplaceAll(locale, "_", "-"), "-")[1:] {
+		if len(part) == 2 {
+			region = strings.ToUpper(part)
+			break
+		}
+	}
+	switch region {
+	case "US", "CA", "MX", "PH", "CL", "CO", "VE", "GT", "PR":
+		return Letter
+	}
+	return A4
+}
+
 // Options are what a document is written with.
 type Options struct {
 	Page  Page
@@ -47,13 +64,13 @@ type Options struct {
 }
 
 // Write writes d as a PDF of pages o.Page, its width fitted between the
-// margins.
-func Write(w io.Writer, d *ui.Drawing, o Options) error {
+// margins, and says how many pages it took.
+func Write(w io.Writer, d *ui.Drawing, o Options) (pages int, err error) {
 	if o.Page.Width <= 0 {
 		o.Page = A4
 	}
 	if d == nil || d.Width <= 0 {
-		return fmt.Errorf("pdf: nothing drawn")
+		return 0, fmt.Errorf("pdf: nothing drawn")
 	}
 	scale := (o.Page.Width - 2*o.Page.Margin) / d.Width
 	tall := (o.Page.Height - 2*o.Page.Margin) / scale
@@ -62,7 +79,7 @@ func Write(w io.Writer, d *ui.Drawing, o Options) error {
 	for _, cut := range pagesOf(d, tall) {
 		doc.page(d, cut, scale, o.Page)
 	}
-	return doc.write(w)
+	return len(doc.pages), doc.write(w)
 }
 
 // span is a stretch of the drawing's height, in DIPs.
