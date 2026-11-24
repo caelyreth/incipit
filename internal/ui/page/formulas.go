@@ -76,7 +76,8 @@ func (lc *layoutCache) typeset(id doc.ID, src string, dialect profile.MathDialec
 		delete(lc.good, k)
 		return mathSet{}
 	}
-	if !formulaSound(src, dialect, display) {
+	res := setOf(src, dialect, display, size, width)
+	if !res.sound {
 		last, ok := lc.good[k]
 		if !ok {
 			return mathSet{}
@@ -89,11 +90,14 @@ func (lc *layoutCache) typeset(id doc.ID, src string, dialect profile.MathDialec
 		clear(lc.good)
 	}
 	lc.good[k] = src
-	return setMath(src, dialect, display, size, width)
+	return mathSetFromBox(res.box)
 }
 
 func setMath(src string, dialect profile.MathDialect, display bool, size, width float32) mathSet {
-	box := setFormula(src, dialect, display, size, width)
+	return mathSetFromBox(setFormula(src, dialect, display, size, width))
+}
+
+func mathSetFromBox(box *untie.Box) mathSet {
 	if box == nil {
 		return mathSet{}
 	}
@@ -309,11 +313,25 @@ func inlineFormulaNode(u *unitLayout, anchor doc.ID) *doc.Node {
 	return nil
 }
 
+type dialectPillCache struct {
+	size float32
+	lay  *ui.TextLayout
+	w, h float32
+}
+
 func (el *Element) dialectPillLayout(dialect profile.MathDialect) (*ui.TextLayout, float32, float32) {
 	size := el.chromeSize() * 0.78
+	if int(dialect) >= 0 && int(dialect) < len(el.dialectPills) {
+		if c := &el.dialectPills[dialect]; c.lay != nil && c.size == size {
+			return c.lay, c.w, c.h
+		}
+	}
 	font := ui.Font{Family: theme.UIFontFamily, Size: size, Weight: 500}
 	lay := ui.ShapeRichTextWith([]ui.Span{{Text: dialect.Label(), Font: font.Family, Size: font.Size, Weight: font.Weight}}, font, ui.TextShape{})
 	w, h := lay.Size()
+	if int(dialect) >= 0 && int(dialect) < len(el.dialectPills) {
+		el.dialectPills[dialect] = dialectPillCache{size: size, lay: lay, w: w, h: h}
+	}
 	return lay, w, h
 }
 
