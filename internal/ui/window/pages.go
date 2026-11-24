@@ -52,6 +52,7 @@ func (a *AppState) columnElement(session *sheetSession, col workspace.ColumnID) 
 	if el, ok := session.columns[col]; ok {
 		return el
 	}
+	a.markOpening(session.key)
 	if session.engine == nil {
 		e, err := a.openEngine(session)
 		if err != nil {

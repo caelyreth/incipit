@@ -168,6 +168,8 @@
   "couldntBackUp": "无法备份笔记本",
   "changesNotSaved": "更改尚未保存",
   "retryNow": "立即重试",
+  "sheetLeftClosed": "有一篇文稿未打开",
+  "sheetLeftClosedDescription": "Neverland 在打开“{title}”时退出了，因此这次没有再打开它。准备好后再打开即可。",
   "restoredFromBackup": "已从最新备份恢复笔记本",
   "restoredFromBackupDescription": "原文件已损坏；损坏的副本已保留。",
   "notebookDamaged": "笔记本文件已损坏",

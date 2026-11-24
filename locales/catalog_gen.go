@@ -2345,6 +2345,36 @@ func (msgs Messages) RetryNow() string {
 	return Catalog.Format(msgs.locale, "retryNow", nil)
 }
 
+// SheetLeftClosed says "A sheet was left closed"
+// in the language the app shows.
+//
+// A notice's title at launch, after the app quit while opening a sheet.
+func SheetLeftClosed() string { return In(i18n.Locale()).SheetLeftClosed() }
+
+// SheetLeftClosed says "A sheet was left closed"
+// in the language of msgs.
+//
+// A notice's title at launch, after the app quit while opening a sheet.
+func (msgs Messages) SheetLeftClosed() string {
+	return Catalog.Format(msgs.locale, "sheetLeftClosed", nil)
+}
+
+// SheetLeftClosedDescription says "Neverland quit while opening “{title}”, so it was not opened again this time. Open it when you're ready."
+// in the language the app shows.
+//
+// Under A sheet was left closed; title is the sheet's title.
+func SheetLeftClosedDescription(title string) string {
+	return In(i18n.Locale()).SheetLeftClosedDescription(title)
+}
+
+// SheetLeftClosedDescription says "Neverland quit while opening “{title}”, so it was not opened again this time. Open it when you're ready."
+// in the language of msgs.
+//
+// Under A sheet was left closed; title is the sheet's title.
+func (msgs Messages) SheetLeftClosedDescription(title string) string {
+	return Catalog.Format(msgs.locale, "sheetLeftClosedDescription", map[string]any{"title": title})
+}
+
 // RestoredFromBackup says "The notebook was restored from its latest backup"
 // in the language the app shows.
 //

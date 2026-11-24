@@ -99,6 +99,19 @@ func recovered(store *storage.Store) (Notice, bool) {
 	return notice, true
 }
 
+// leftClosed says that page key, whose opening took the app down last
+// time, was left closed at this launch.
+func leftClosed(pages []storage.Page, key storage.PageKey) Notice {
+	title := locales.Untitled()
+	for _, p := range pages {
+		if p.Key == key && p.Summary.Title != "" {
+			title = p.Summary.Title
+		}
+	}
+	return Notice{ID: "opening.crashed", Kind: NoticeWarning, Sticky: true,
+		Title: locales.SheetLeftClosed(), Description: locales.SheetLeftClosedDescription(title)}
+}
+
 func message(err error) string {
 	if err == nil {
 		return ""

@@ -168,6 +168,8 @@
   "couldntBackUp": "ノートブックをバックアップできませんでした",
   "changesNotSaved": "変更はまだ保存されていません",
   "retryNow": "今すぐ再試行",
+  "sheetLeftClosed": "シートを閉じたままにしました",
+  "sheetLeftClosedDescription": "「{title}」を開いている途中で Neverland が終了したため、今回は開きませんでした。準備ができたら開いてください。",
   "restoredFromBackup": "最新のバックアップからノートブックを復元しました",
   "restoredFromBackupDescription": "元のファイルが破損していたため復元しました。破損したコピーは保持されています。",
   "notebookDamaged": "ノートブックが破損しています",

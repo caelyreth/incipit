@@ -63,7 +63,12 @@ func (a *AppState) openNotebook(store *storage.Store) ([]workspace.Session, work
 		newest := workspace.LayoutColumn{Page: workspace.PageID(len(sessions) - 1)}
 		return sessions, workspace.Layout{Columns: []workspace.LayoutColumn{newest}, HasFront: true}, nil
 	}
-	return sessions, workspaceLayout(contents.Layout, ids), nil
+	layout := contents.Layout
+	if key, ok := lastOpening(store.Root()); ok {
+		layout = withoutPage(layout, key)
+		a.Notices.Post(leftClosed(contents.Pages, key))
+	}
+	return sessions, workspaceLayout(layout, ids), nil
 }
 
 // firstPage is a notebook's one empty page, open in front.
@@ -290,6 +295,8 @@ func (a *AppState) Close() error {
 	a.saveWritten()
 	a.captureViews()
 	a.saveLayout()
+	// Quitting whole, the app lived through every opening.
+	a.openingDrawn()
 	a.notebook.closed = true
 	err := a.notebook.saver.Close()
 	if closeErr := a.notebook.store.Close(); err == nil {

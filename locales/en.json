@@ -612,6 +612,14 @@
   "@retryNow": {
     "description": "A notice's button: tries saving at once."
   },
+  "sheetLeftClosed": "A sheet was left closed",
+  "@sheetLeftClosed": {
+    "description": "A notice's title at launch, after the app quit while opening a sheet."
+  },
+  "sheetLeftClosedDescription": "Neverland quit while opening “{title}”, so it was not opened again this time. Open it when you're ready.",
+  "@sheetLeftClosedDescription": {
+    "description": "Under A sheet was left closed; title is the sheet's title."
+  },
   "restoredFromBackup": "The notebook was restored from its latest backup",
   "@restoredFromBackup": {
     "description": "A notice's title, after opening a damaged notebook."

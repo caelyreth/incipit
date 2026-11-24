@@ -77,6 +77,9 @@ type AppState struct {
 	sessions map[workspace.PageID]*sheetSession
 	// notebook keeps the pages on disk; nil holds them in memory alone.
 	notebook *notebook
+	// opening marks an editor opened since the last frame drawn whole
+	// (markOpening).
+	opening bool
 	// library files the pages as the field shows them.
 	library *library.Library
 	// nextKey is the notebook key the next new page takes.
@@ -603,4 +606,5 @@ func (a *AppState) View(c *ui.Context) {
 	// The toasts stand above the foot, and over all else.
 	scale := a.Shell.Settings.UIFontSize / theme.DefaultUIFontSize
 	a.Notices.View(c, semantic, animate, theme.DefaultLayout.Status*scale)
+	a.openingDrawn()
 }
