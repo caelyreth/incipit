@@ -21,6 +21,12 @@ const (
 	// recent ones.
 	dailyBackups = 30
 
+	// pinnedName names, in the backups' folder, the backup pinned: the one
+	// a launch took of what it opened, kept by the session that then
+	// closed whole. Pruning never lets it go, so launches that crash, as
+	// many as they are, never rotate out the last state known to open.
+	pinnedName = "pinned"
+
 	backupPrefix = "notebook-"
 	backupSuffix = ".db"
 	backupLayout = "20060102-150405"
@@ -70,7 +76,34 @@ func (s *Store) backupIfStale(ctx context.Context, now time.Time) error {
 	if len(backups) > 0 && now.Sub(backups[0].taken) < backupInterval {
 		return nil
 	}
-	return s.backup(ctx, now)
+	if err := s.backup(ctx, now); err != nil {
+		return err
+	}
+	s.launched = backupPrefix + now.Format(backupLayout) + backupSuffix
+	return nil
+}
+
+// pinBackup pins the backup this launch took, as the session closes
+// whole: what it opened, it opened and kept working with.
+func (s *Store) pinBackup() error {
+	if s.launched == "" {
+		return nil
+	}
+	folder := filepath.Join(s.root, backupDir)
+	partial := filepath.Join(folder, pinnedName+".partial")
+	if err := os.WriteFile(partial, []byte(s.launched), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(partial, filepath.Join(folder, pinnedName))
+}
+
+// pinned is the name of the backup pinned, "" for none.
+func (s *Store) pinned() string {
+	data, err := os.ReadFile(filepath.Join(s.root, backupDir, pinnedName))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // backup writes a consistent copy of the notebook, checks it, and only
@@ -97,16 +130,18 @@ func (s *Store) backup(ctx context.Context, now time.Time) error {
 	return s.prune()
 }
 
-// prune keeps the recent backups, then the newest of each day.
+// prune keeps the recent backups, then the newest of each day, and the
+// one pinned whatever its age.
 func (s *Store) prune() error {
 	backups, err := s.backups()
 	if err != nil {
 		return err
 	}
+	pinned := s.pinned()
 	days := map[string]bool{}
 	for index, backup := range backups {
 		day := backup.taken.Format("20060102")
-		keep := index < recentBackups || (!days[day] && len(days) < dailyBackups)
+		keep := index < recentBackups || (!days[day] && len(days) < dailyBackups) || filepath.Base(backup.path) == pinned
 		days[day] = true
 		if !keep {
 			if err := os.Remove(backup.path); err != nil && !errors.Is(err, os.ErrNotExist) {

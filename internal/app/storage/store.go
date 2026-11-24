@@ -43,6 +43,10 @@ type Store struct {
 	// Recovery is what opening found wrong and did about it.
 	Recovery Recovery
 
+	// launched is the backup this launch took, which a whole close pins
+	// (pinBackup); "" for none.
+	launched string
+
 	mu     sync.Mutex
 	closed bool
 }
@@ -272,6 +276,9 @@ func (s *Store) Close() error {
 	s.closed = true
 	ctx := context.Background()
 	err := s.maintain(ctx)
+	if pinErr := s.pinBackup(); err == nil {
+		err = pinErr
+	}
 	if closeErr := s.db.Close(); err == nil {
 		err = closeErr
 	}
