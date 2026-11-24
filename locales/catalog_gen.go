@@ -2801,6 +2801,36 @@ func (msgs Messages) TypeToFind() string {
 	return Catalog.Format(msgs.locale, "typeToFind", nil)
 }
 
+// NothingFound says "Nothing Found"
+// in the language the app shows.
+//
+// The head of the card the field shows when a search finds nothing.
+func NothingFound() string { return In(i18n.Locale()).NothingFound() }
+
+// NothingFound says "Nothing Found"
+// in the language of msgs.
+//
+// The head of the card the field shows when a search finds nothing.
+func (msgs Messages) NothingFound() string {
+	return Catalog.Format(msgs.locale, "nothingFound", nil)
+}
+
+// NothingHolds says "Nothing holds “{words}”"
+// in the language the app shows.
+//
+// A line of the card shown when a search finds nothing; words are what was
+// searched.
+func NothingHolds(words string) string { return In(i18n.Locale()).NothingHolds(words) }
+
+// NothingHolds says "Nothing holds “{words}”"
+// in the language of msgs.
+//
+// A line of the card shown when a search finds nothing; words are what was
+// searched.
+func (msgs Messages) NothingHolds(words string) string {
+	return Catalog.Format(msgs.locale, "nothingHolds", map[string]any{"words": words})
+}
+
 // WriteANewSheet says "Write a new sheet"
 // in the language the app shows.
 //

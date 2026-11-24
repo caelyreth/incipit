@@ -201,6 +201,8 @@
   "cantUndo": "{action} — 無法復原",
   "aNewNotebook": "全新筆記本",
   "typeToFind": "輸入即可尋找",
+  "nothingFound": "找不到",
+  "nothingHolds": "沒有內容包含「{words}」",
   "writeANewSheet": "撰寫新文稿",
   "dragToFile": "拖曳文稿即可歸檔",
   "writtenToday": "今日已寫",

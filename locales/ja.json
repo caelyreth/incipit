@@ -201,6 +201,8 @@
   "cantUndo": "{action} — 取り消し不可",
   "aNewNotebook": "新しいノートブック",
   "typeToFind": "入力して検索",
+  "nothingFound": "見つかりません",
+  "nothingHolds": "「{words}」を含むものはありません",
   "writeANewSheet": "新しいシートを書く",
   "dragToFile": "シートをドラッグして整理",
   "writtenToday": "今日の執筆",

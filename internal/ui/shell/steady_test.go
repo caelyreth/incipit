@@ -197,11 +197,16 @@ func TestOpeningAKeyKeepsThePillStill(t *testing.T) {
 func TestRibbonsLeaveThePillAtTheMiddle(t *testing.T) {
 	state, library, tester := onField(t, 1260, 850)
 	library.order = func(string) []string { return nil }
-	state.SetFieldQuery("$tag:work $tag:plan $updated:today nothing")
-	tester.ClickAt(12, 12)
-	settle(tester)
-	pill, _ := tester.Find("Search")
-	if mid := pill.Y + pill.H/2; abs(mid-850/2) > 0.5 {
-		t.Fatalf("With nothing found, the pill should stand at the middle whatever its ribbons: %v.", mid)
+	at := func(q string) float32 {
+		state.SetFieldQuery(q)
+		tester.ClickAt(12, 12)
+		settle(tester)
+		pill, _ := tester.Find("Search")
+		return pill.Y + pill.H/2
+	}
+	// Nothing found, the field shows the card that says so alone.
+	bare, ribboned := at("nothing"), at("$tag:work $tag:plan $updated:today nothing")
+	if abs(bare-ribboned) > 0.5 {
+		t.Fatalf("The pill should stand where it does without ribbons: %v, not %v.", bare, ribboned)
 	}
 }

@@ -201,6 +201,8 @@
   "cantUndo": "{action} — 无法撤销",
   "aNewNotebook": "新笔记本",
   "typeToFind": "输入即可查找",
+  "nothingFound": "未找到",
+  "nothingHolds": "没有内容包含“{words}”",
   "writeANewSheet": "撰写新文稿",
   "dragToFile": "拖曳文稿即可归类",
   "writtenToday": "今日已写",

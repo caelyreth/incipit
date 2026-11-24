@@ -55,10 +55,12 @@ type note struct {
 	lines []noteLine
 }
 
-// noteLine is one line of a note, and the key it tells of, if any.
+// noteLine is one line of a note, and the key it tells of, if any. A
+// line with run is a button that runs it.
 type noteLine struct {
 	text string
 	keys []string
+	run  func()
 }
 
 func (n note) shape(_ *State, _ *ui.Context, m blockMetrics) shape {
@@ -73,7 +75,15 @@ func (note) rows() []string { return nil }
 
 func (note) ground() bool { return true }
 
-func (note) drawsLive(*State) bool { return false }
+// A note with a button is drawn anew each frame, for its hover.
+func (n note) drawsLive(*State) bool {
+	for _, l := range n.lines {
+		if l.run != nil {
+			return true
+		}
+	}
+	return false
+}
 
 func (n note) view(_ *State, c *ui.Context, semantic theme.Theme, box ui.Element, _ stageFrame, sh shape, _ bool, m blockMetrics, _ bool) {
 	box.Gap(m.headGap).Children(func() {
@@ -83,9 +93,22 @@ func (n note) view(_ *State, c *ui.Context, semantic theme.Theme, box ui.Element
 				moreLabel(c, semantic, sh.more, r.h, m)
 				return
 			}
-			ui.Row(c).Height(r.h).WidthPercent(100).PaddingX(rowPad(m.scale)).Gap(8 * m.k).
+			ink := semantic.Text.Muted
+			line := ui.Row(c)
+			if run := r.line.run; run != nil {
+				btn := ui.ButtonBase(c.Key("note-" + r.line.text)).Label(r.line.text).Cursor(ui.CursorDefault).FocusRing(false)
+				if btn.Clicked() {
+					run()
+				}
+				ink = semantic.Text.Default
+				if btn.Hovered() {
+					btn.Background(semantic.GhostElement.Hover).Radius(6 * m.k)
+				}
+				line = btn
+			}
+			line.Height(r.h).WidthPercent(100).PaddingX(rowPad(m.scale)).Gap(8 * m.k).
 				AlignItems(ui.Center).Children(func() {
-				components.CenteredLabel(c, r.line.text, theme.TextSmall, semantic.Text.Muted).Grow(1).MinWidth(0)
+				components.CenteredLabel(c, r.line.text, theme.TextSmall, ink).Grow(1).MinWidth(0)
 				if len(r.line.keys) > 0 {
 					components.Keycaps(c, components.KeycapStyle(semantic, m.scale, true), r.line.keys, "").Shrink(0)
 				}
@@ -142,4 +165,19 @@ func (writtenToday) shows(s *State) bool { return s.WrittenToday != nil && s.Wri
 
 func (writtenToday) card(s *State) cardKind {
 	return note{icon: components.IconPen, title: locales.WrittenToday(), lines: []noteLine{{text: words(s.WrittenToday())}}}
+}
+
+// nothingFound answers a search that finds nothing: a quiet card under
+// the pill saying so and what was asked, with Clear Search to press
+// (field-and-desk.md §4.7.7). It stands after every source, alone.
+type nothingFound struct{}
+
+func (nothingFound) answer(s *State, _ string, f *found) {
+	if s.field.words == "" || len(f.cards) > 0 {
+		return
+	}
+	f.add("nothing-found", tierAmbient, note{icon: components.IconSearch, title: locales.NothingFound(), lines: []noteLine{
+		{text: locales.NothingHolds(s.field.words)},
+		{text: locales.ClearSearch(), keys: s.commandKeys(VerbHome), run: s.goHome},
+	}})
 }

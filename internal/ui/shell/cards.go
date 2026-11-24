@@ -77,7 +77,7 @@ type source interface {
 }
 
 // sources are what the field asks, in order.
-var sources = []source{librarySource{}, commandSource{}, settingsSource{}, ambientSource{}}
+var sources = []source{librarySource{}, commandSource{}, settingsSource{}, ambientSource{}, nothingFound{}}
 
 type statMode uint8
 

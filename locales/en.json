@@ -738,6 +738,19 @@
   "@typeToFind": {
     "description": "A line of the note on a new notebook."
   },
+  "nothingFound": "Nothing Found",
+  "@nothingFound": {
+    "description": "The head of the card the field shows when a search finds nothing."
+  },
+  "nothingHolds": "Nothing holds “{words}”",
+  "@nothingHolds": {
+    "description": "A line of the card shown when a search finds nothing; words are what was searched.",
+    "placeholders": {
+      "words": {
+        "type": "String"
+      }
+    }
+  },
   "writeANewSheet": "Write a new sheet",
   "@writeANewSheet": {
     "description": "A line of the note on a new notebook, beside its key."

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -111,5 +112,25 @@ func TestTheWordsWrittenTodayStandInTheField(t *testing.T) {
 	}
 	if _, ok := tester.Find("Written Today"); !ok {
 		t.Fatal("The card should be drawn, titled.")
+	}
+}
+
+// A search that finds nothing says so under the pill, and Clear Search
+// on its card goes home.
+func TestNothingFoundOffersClearSearch(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.order = func(string) []string { return nil }
+	state.SetFieldQuery("qqqqzzzz")
+	tester.ClickAt(12, 12)
+	settle(tester)
+	if _, ok := tester.Find(locales.NothingHolds("qqqqzzzz")); !ok {
+		t.Fatal("The field should say nothing holds what was searched.")
+	}
+	if err := tester.Click(locales.ClearSearch()); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if q := state.FieldQuery(); q != "" {
+		t.Fatalf("Clear Search should empty the query, not leave %q.", q)
 	}
 }
