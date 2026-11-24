@@ -58,6 +58,7 @@ func Write(w io.Writer, d *ui.Drawing, o Options) error {
 	scale := (o.Page.Width - 2*o.Page.Margin) / d.Width
 	tall := (o.Page.Height - 2*o.Page.Margin) / scale
 	doc := newDocument(o.Title)
+	doc.drawing = d
 	for _, cut := range pagesOf(d, tall) {
 		doc.page(d, cut, scale, o.Page)
 	}
@@ -178,6 +179,9 @@ type document struct {
 	order   []*fontSet
 	images  map[uint64]int
 	alphas  map[uint8]string
+	// drawing is the drawing being written, which keeps its glyphs'
+	// outlines.
+	drawing *ui.Drawing
 }
 
 func newDocument(title string) *document {
@@ -714,7 +718,7 @@ func (d *document) setFont(font ui.GlyphFont, sub *subFont) {
 	minX, minY, maxX, maxY := float32(0), float32(0), float32(0), float32(0)
 	for i, id := range sub.glyphs {
 		c := &content{}
-		path := font.Outline(id)
+		path := d.drawing.Outline(font, id)
 		gx0, gy0, gx1, gy1 := float32(0), float32(0), float32(0), float32(0)
 		if path != nil {
 			first := true
