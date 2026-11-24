@@ -422,7 +422,6 @@ func (tx *Tx) rekey(parent *Node, slot int) {
 // order keys between their neighbours.
 func (tx *Tx) place(parent *Node, slot, index int, nodes []*Node) []*Node {
 	s := &parent.slots[slot]
-	tx.ownChildren(s)
 	low := ""
 	if index > 0 {
 		low = s.children[index-1].ord
@@ -443,7 +442,7 @@ func (tx *Tx) place(parent *Node, slot, index int, nodes []*Node) []*Node {
 		low = key
 		long = long || len(key) > ordLimit
 	}
-	s.children = slices.Insert(s.children, index, placed...)
+	s.splice(index, 0, placed...)
 	if long {
 		tx.rekey(parent, slot)
 		copy(placed, s.children[index:index+len(placed)])

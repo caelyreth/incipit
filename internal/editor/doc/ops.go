@@ -605,8 +605,7 @@ func (o Remove) apply(tx *Tx) (*Step, error) {
 		r := removals[i]
 		parent := tx.mutable(r.ref.Node)
 		s := &parent.slots[r.ref.Slot]
-		tx.ownChildren(s)
-		s.children = slices.Delete(s.children, r.index, r.index+1)
+		s.splice(r.index, 1)
 		tx.touched[r.ref.Node] = true
 		tx.reshape()
 		before := 0
@@ -709,8 +708,7 @@ func (o Move) apply(tx *Tx) (*Step, error) {
 	oldOrd := n.ord
 	from := tx.mutable(oldParent)
 	s := &from.slots[oldSlot]
-	tx.ownChildren(s)
-	s.children = slices.Delete(s.children, oldIndex, oldIndex+1)
+	s.splice(oldIndex, 1)
 	index := o.Index
 	if source == target && oldIndex < index {
 		index--

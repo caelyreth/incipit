@@ -15,9 +15,19 @@ type Slot struct {
 	inline   bool
 	children []*Node
 	content  *Inline
-	// owned marks a children slice private to a transaction, which may be
-	// changed in place. A published slot is never owned.
+	// owned marks a children slice private to a transaction, whose
+	// children may be replaced in place, each where it stands. A published
+	// slot is never owned.
 	owned bool
+}
+
+// splice replaces del children from i with ins, in a new slice: a slice
+// once read from a slot never shifts under whoever holds it, even within
+// the transaction changing the slot, so a loop over a slot's children may
+// move them out of it.
+func (s *Slot) splice(i, del int, ins ...*Node) {
+	s.children = slices.Concat(s.children[:i:i], ins, s.children[i+del:])
+	s.owned = true
 }
 
 // BlockSlot holds block children.
@@ -33,7 +43,8 @@ func InlineSlot(items ...Item) Slot {
 // IsInline reports whether the slot holds inline content.
 func (s Slot) IsInline() bool { return s.inline }
 
-// Children returns a block slot's children. The slice must not change.
+// Children returns a block slot's children. The slice must not change, and
+// no edit shifts it: one inserting or removing children makes a new one.
 func (s Slot) Children() []*Node { return s.children }
 
 // Child returns a block slot's i-th child.
