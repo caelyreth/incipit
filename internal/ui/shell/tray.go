@@ -189,7 +189,7 @@ func (s *State) trayCard(c *ui.Context, semantic theme.Theme, sh SheetItem, widt
 		shown = 1
 	}
 	btn.ContextMenu(func(m *ui.Menu) {
-		s.sheetMenu(sh, false)(m)
+		s.sheetMenu(sh.ID, sh.Pinned, false)(m)
 		m.Separator()
 		if components.MenuItem(m.Item(locales.PutBack()), components.IconUndo).Chosen() {
 			s.outOfTray([]string{sh.ID})

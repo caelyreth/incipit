@@ -265,7 +265,7 @@ func (s *State) entryRow(c *ui.Context, semantic theme.Theme, e entry, trashed b
 		FocusRing(false).KeepFocus().Label(sheetTitle(sh)).Selected(front).
 		Transition(listTransition(animate, false))
 	s.rowFill(c, semantic, btn, id, animate)
-	btn.ContextMenu(s.rowMenu(id, s.sheetMenu(sh, trashed)))
+	btn.ContextMenu(s.rowMenu(id, s.sheetMenu(sh.ID, sh.Pinned, trashed)))
 	// Dragged, a sheet that is a card of its own goes as the card, on the
 	// card's ground, what it leaves standing dimmed in its place; a row of
 	// a group's card is a chip of its title alone.
