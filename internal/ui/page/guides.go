@@ -90,6 +90,10 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 				from = sel
 			}
 		} else if g.Shift != 0 {
+			// An indent marks the edge its key moves, on the unit's first
+			// line and never in its words: the unit's leading edge, where
+			// its marker starts, which an indent pushes on; an outdent's
+			// level, out in the indent, its keys ending at it.
 			var pc place
 			pc, ok = pl.lookup(g.At)
 			if ok {
@@ -99,8 +103,11 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 					cur := pc.unit.pres.Context.Indent
 					next := max(cur+g.Shift, 0)
 					dx := listIndent(next, el.Editor.metrics) - listIndent(cur, el.Editor.metrics)
-					to = ui.Rect{X: pc.unit.x + dx, Y: r.Y, W: r.W, H: r.H}
+					to = ui.Rect{X: pc.unit.x + min(dx, 0), Y: r.Y, W: r.W, H: r.H}
 					kind, from = spotText, to
+					if dx < 0 {
+						align = ui.End
+					}
 				}
 			}
 		} else {
@@ -195,7 +202,9 @@ func selectionCovers(paints []present.Paint) []present.Cover {
 // drawn, its keys on the compact caps the Keymap draws, clear of it:
 //
 //   - at a caret in text, a hairline where the caret would stand, the keys riding
-//     just above it, clear of the glyphs that follow;
+//     just above it, clear of the glyphs that follow; an indent's at the
+//     unit's leading edge, an outdent's at the level it goes to, its keys
+//     ending at it;
 //   - at a gap, a hairline across the object's edge as its caret is, the
 //     keys at its start on the side away from the object;
 //   - inside what an object draws, the outline every paint draws around
@@ -268,6 +277,10 @@ func (el *Element) paintGuides(p *ui.Painter, view ui.Rect, ox, oy float32) {
 		default:
 			p.Fill(ui.Rect{X: r.X, Y: r.Y, W: 1, H: r.H}, mark, 0)
 			left, top = r.X+style.Height*0.3, r.Y-style.Height+2
+			if t.align == ui.End {
+				// Keys ending at the mark, away from what it moves.
+				left = r.X - width - style.Height*0.3
+			}
 		}
 		left = max(min(left, view.X+view.W-width-2), view.X)
 		top = max(top, view.Y)

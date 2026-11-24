@@ -89,7 +89,13 @@ func (e *Engine) guides(viewID uint64, v *policy.View, pres []*present.Presentat
 			curIndent, ok1 := containerIndent(look, e.snap, v.Selection.Head.Pos.Node)
 			nextIndent, ok2 := containerIndent(look, res.snap, to.Head.Pos.Node)
 			if ok1 && ok2 && nextIndent != curIndent {
-				out = append(out, present.Guide{Command: g.Command, At: v.Selection.Head, Shift: nextIndent - curIndent})
+				// An indent moves the whole unit: its guide stands at the
+				// unit's start, on its first line, wherever the caret is.
+				at := v.Selection.Head
+				if unit := unitIDFor(e.snap, pres, at.Pos.Node); unit != 0 {
+					at = doc.Caret{Pos: doc.Pos{Node: unit}}
+				}
+				out = append(out, present.Guide{Command: g.Command, At: at, Shift: nextIndent - curIndent})
 				if cmd.Key != "" {
 					claimedKey[cmd.Key] = true
 				}

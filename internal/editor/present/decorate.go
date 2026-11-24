@@ -64,9 +64,10 @@ type Decorations struct {
 }
 
 // Guide is a key hint: the command whose key shows, and where it would
-// take the selection: the caret it shows at, an indent level shift on
-// that unit, an object unit it appends past when landing in a new unit,
-// or, for a command that would select a range, what the range covers.
+// take the selection: the caret it shows at; for a command that indents
+// or outdents the unit, the unit's start and the levels it shifts by; an
+// object unit it appends past when landing in a new unit; or, for a
+// command that would select a range, what the range covers.
 type Guide struct {
 	Command vocab.CommandID
 	At      doc.Caret
