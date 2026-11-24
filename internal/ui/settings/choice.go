@@ -33,10 +33,12 @@ func (s *State) choiceView(c *ui.Context, semantic theme.Theme, o choiceOption) 
 				Grow(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Space12.DIPs(scale)).
 				Padding(inner, inner, inner, inner).
 				Radius(theme.DefaultControls.Scaled(scale).Radius).FocusRing(true)
+			// The row eases its fill in and out under the pointer and gives
+			// when pressed, as the field's rows do.
 			hovered := option.Hovered() && !o.chosen
-			if hovered {
-				option.Background(semantic.GhostElement.Hover)
-			}
+			hover := components.HoverAmount(option, hovered, s.motion(c))
+			option.Background(semantic.GhostElement.Hover.Alpha(hover))
+			components.PressSink(option, s.motion(c))
 			option.Children(func() {
 				if o.mark != nil {
 					o.mark()

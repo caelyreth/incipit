@@ -97,3 +97,27 @@ func HoverAmount(element ui.Element, hovered, animate bool) float32 {
 	}
 	return Follow(element, "hover", target, duration)
 }
+
+// rowSink is the most a row pressed narrows by, in DIPs, half of it each
+// side: well within the press a drag starts past.
+const rowSink = 3
+
+// PressSink sinks a row while it is pressed, eased when animate is set, as
+// the field's rows and the settings' choices give under the pointer. A
+// row sinks as far whatever its width: a ratio would sink a list's divider,
+// as wide as the list, past where the press is taken for a drag, and its
+// click would be lost.
+func PressSink(el ui.Element, animate bool) {
+	press := float32(0)
+	if el.Pressed() {
+		press = 1
+	}
+	if animate {
+		press = Follow(el, "press", press, MotionQuick)
+	}
+	if press > 0.001 {
+		w := max(el.LayoutBounds().W, 1)
+		sink := 1 - min(0.012, rowSink/w)*press
+		el.Scale(sink, sink)
+	}
+}

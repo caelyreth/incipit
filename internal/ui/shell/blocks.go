@@ -206,21 +206,7 @@ func (s *State) rowFill(c *ui.Context, semantic theme.Theme, el ui.Element, id s
 		fill = selection.Fill
 	}
 	el.Background(components.Blend(fill, semantic.Accent.Tint, s.arrivalAt(id, c.Now())))
-	press := float32(0)
-	if el.Pressed() {
-		press = 1
-	}
-	if animate {
-		press = components.Follow(el, "press", press, components.MotionQuick)
-	}
-	if press > 0.001 {
-		// Pressed, a row sinks as far whatever its width: a ratio would
-		// sink a list's divider, as wide as the list, past where the press
-		// is taken for a drag, and its click would be lost.
-		w := max(el.LayoutBounds().W, 1)
-		sink := 1 - min(0.012, rowSink/w)*press
-		el.Scale(sink, sink)
-	}
+	components.PressSink(el, animate)
 	if el.FocusVisible() {
 		el.Border(1, semantic.Border.Focused)
 	}
@@ -516,7 +502,3 @@ func (s *State) renameInput(c *ui.Context, semantic theme.Theme, g GroupItem) {
 		s.renameGroup(g.ID, name)
 	}
 }
-
-// rowSink is the most a row pressed narrows by, in DIPs, half of it each
-// side: well within the press a drag starts past.
-const rowSink = 3
