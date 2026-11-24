@@ -19,6 +19,11 @@ func keyMetrics(p *present.Presentation, m Metrics) Metrics {
 	if !p.Object || !kindOf(p).margins() {
 		m.Reach = 0
 	}
+	// Only a figure reads the window's height: resizing the window lays
+	// out again no text.
+	if p.Node == nil || p.Node.Kind() != profile.Figure {
+		m.Window = 0
+	}
 	return m
 }
 

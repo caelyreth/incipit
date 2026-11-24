@@ -163,6 +163,7 @@ func (el *Element) metrics(width float32) Metrics {
 		Gap:        el.Prose.Leading() * 0.9,
 		// The margins less the gutters objects' controls stand in.
 		Reach:  max((width-col)/2-el.controlGutter(), 0),
+		Window: el.viewport.H,
 		Family: el.Prose.Family,
 	}
 }
@@ -192,7 +193,7 @@ func (el *Element) relayout() *pageLayout {
 	}
 	m := el.metrics(w)
 	if el.still {
-		m.Width, m.Reach = w, 0
+		m.Width, m.Reach, m.Window = w, 0, 0
 	}
 	if !el.hasTheme || el.cachedTheme != el.Theme {
 		el.cachedTheme = el.Theme

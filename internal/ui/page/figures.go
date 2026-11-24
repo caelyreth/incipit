@@ -56,9 +56,11 @@ func figureRadius(m Metrics) float32 { return m.Body * 0.35 }
 //   - at its own size, a pixel to a DIP, at most the column: a small or
 //     low-resolution picture is never scaled up past its pixels, so it
 //     stays sharp, and keeps a least width only if it has that many;
-//   - no taller than figureTall of the column (at least figureTallLines
-//     lines of body text), so one picture never fills the window: a tall
-//     one narrows to fit, down to figureNarrow of the column;
+//   - no taller than figureTall of the window's height (at least
+//     figureTallLines lines of body text; figureColumn of the column on a
+//     page laid out still, with no window), so one picture never takes the
+//     window: a tall one narrows to fit, down to figureNarrow of the
+//     column;
 //   - a picture still taller at that width, a long screenshot or a scroll
 //     of a page, shows its top at that height, fading out below to say
 //     there is more;
@@ -67,8 +69,9 @@ func figureRadius(m Metrics) float32 { return m.Body * 0.35 }
 //   - a picture whose size is unknown takes the column at sixteen by nine.
 
 const (
-	figureTall      = 0.75
-	figureTallLines = 14
+	figureTall      = 0.375
+	figureTallLines = 6
+	figureColumn    = 0.75
 	figureNarrow    = 0.35
 	// figureFadeRoom is how much of a cropped picture's height fades out.
 	figureFadeRoom = 0.18
@@ -86,7 +89,11 @@ func figureSize(shape profile.Shape, width float32, m Metrics) figureFit {
 	if pw <= 0 || ph <= 0 {
 		pw, ph = width, width*9/16
 	}
-	tall := max(width*figureTall, m.Body*m.Spacing*figureTallLines)
+	tall := width * figureColumn
+	if m.Window > 0 {
+		tall = m.Window * figureTall
+	}
+	tall = max(tall, m.Body*m.Spacing*figureTallLines)
 	least := min(float32(figureMin), pw)
 	var w float32
 	if shape.Span > 0 {

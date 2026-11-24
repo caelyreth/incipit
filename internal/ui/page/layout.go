@@ -25,6 +25,9 @@ type Metrics struct {
 	// Reach is how far past the column on each side what is wider than it
 	// may show, within the page's margins.
 	Reach float32
+	// Window is the height the page is read in, which a figure's height
+	// is capped by; zero where there is none, as a page laid out still.
+	Window float32
 	// Family is the prose's family list: the Latin face the app ships,
 	// then the face chosen for Chinese and Japanese, once kept (internal/app/fonts).
 	Family string

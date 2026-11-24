@@ -11,10 +11,12 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// figurePage is "above", a figure of a 400×300 picture, and "below".
+// figurePage is "above", a figure of a 400×300 picture, and "below", in
+// a window tall enough to show it whole.
 func figurePage(t *testing.T) (*Element, *unitLayout) {
 	t.Helper()
 	el := newElement(t)
+	el.viewport.H = 1200
 	typeText(el, "above")
 	el.Editor.Do(profile.PlaceFigures{Pictures: []profile.Picture{{Media: "m", Width: 400, Height: 300}}}, time.Unix(200, 0))
 	el.Editor.Do(vocab.Dismiss{}, time.Unix(201, 0))
@@ -150,9 +152,9 @@ func TestAResizeCommitsOneSpan(t *testing.T) {
 // ones to the column, tall ones narrowed to a bound, long ones cropped
 // under it, and a writer's span kept.
 func TestFigureSizesReadWell(t *testing.T) {
-	m := Metrics{Body: 18, Spacing: 1.6}
+	m := Metrics{Body: 18, Spacing: 1.6, Window: 1280}
 	const col = 640
-	tall := float32(col * figureTall) // 480, over 14 lines of 28.8
+	tall := float32(1280 * figureTall) // 480, over 6 lines of 28.8
 	pic := func(w, h, span int) profile.Shape {
 		return profile.Shape{Picture: profile.Picture{Width: w, Height: h}, Span: span}
 	}
@@ -178,6 +180,16 @@ func TestFigureSizesReadWell(t *testing.T) {
 		if !near(got.w, c.w) || !near(got.h, c.h) || got.shown-c.shown > 0.01 || c.shown-got.shown > 0.01 {
 			t.Errorf("%s: got %.1f×%.1f showing %.2f, want %.1f×%.1f showing %.2f", c.name, got.w, got.h, got.shown, c.w, c.h, c.shown)
 		}
+	}
+	// A shorter window caps lower; a page laid out still caps by its
+	// column.
+	m.Window = 800
+	if got := figureSize(pic(4000, 3000, 0), col, m); !near(got.h, 800*figureTall) {
+		t.Errorf("a photo in a short window: %.1f tall, want %.1f", got.h, 800*figureTall)
+	}
+	m.Window = 0
+	if got := figureSize(pic(3000, 4000, 0), col, m); !near(got.h, col*figureColumn) {
+		t.Errorf("a tall photo laid out still: %.1f tall, want %.1f", got.h, col*figureColumn)
 	}
 }
 
