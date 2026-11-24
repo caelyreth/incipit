@@ -146,6 +146,12 @@ type editTextMap struct {
 	gone               removedMap
 }
 
+// within reports whether p stands strictly inside the text replaced,
+// where mapping it collapses it to an edge.
+func (m editTextMap) within(p Pos) bool {
+	return p.Ref() == m.at && p.Offset > m.from && p.Offset < m.to
+}
+
 func (m editTextMap) Map(p Pos, bias Bias) (Pos, bool) {
 	if gap, ok := m.gone.lookup(p); ok {
 		return gap, false

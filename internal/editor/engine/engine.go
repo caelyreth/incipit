@@ -327,12 +327,18 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 		} else {
 			plan, perr = e.history.Redo(class)
 		}
+		if perr == nil {
+			if perr = plan.Apply(tx); perr != nil && !errors.Is(perr, doc.ErrRebase) {
+				return processed{}, fmt.Errorf("%w: %v", ErrRejected, perr)
+			}
+		}
 		if perr != nil {
+			// A plan refused, or carried part way, leaves the page as it was.
 			trace.Notes = append(trace.Notes, perr.Error())
 			effects = append(effects, policy.Effect{Kind: policy.EffectBeep})
 			plan = nil
-		} else if err := tx.ApplyAll(plan.Ops...); err != nil {
-			return processed{}, fmt.Errorf("%w: %v", ErrRejected, err)
+			tx = e.snap.Begin(doc.Origin{Class: class, Phase: doc.PhaseHandler})
+			tx.SetPolicy(out.Policy)
 		}
 	}
 	for _, edit := range res.Edits {

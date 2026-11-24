@@ -411,7 +411,7 @@ func TestHistoryUndoRedoAndTopLayer(t *testing.T) {
 		t.Fatal(err)
 	}
 	tx = typed.Begin(Origin{Class: OriginHistory})
-	if err := tx.ApplyAll(plan.Ops...); err != nil {
+	if err := plan.Apply(tx); err != nil {
 		t.Fatal(err)
 	}
 	corrected, _ := tx.Commit()
@@ -422,7 +422,7 @@ func TestHistoryUndoRedoAndTopLayer(t *testing.T) {
 
 	plan, _ = h.Undo(OriginTyping, false)
 	tx = corrected.Begin(Origin{Class: OriginHistory})
-	_ = tx.ApplyAll(plan.Ops...)
+	_ = plan.Apply(tx)
 	undone, _ := tx.Commit()
 	if text(undone, 0) != "ab" || plan.Selection != sel(2) {
 		t.Fatalf("undo = %q, selection %v", text(undone, 0), plan.Selection)
@@ -433,7 +433,7 @@ func TestHistoryUndoRedoAndTopLayer(t *testing.T) {
 	}
 	plan, _ = h.Redo(OriginTyping)
 	tx = undone.Begin(Origin{Class: OriginHistory})
-	_ = tx.ApplyAll(plan.Ops...)
+	_ = plan.Apply(tx)
 	redone, _ := tx.Commit()
 	if text(redone, 0) != "ab--" {
 		t.Fatalf("redo = %q", text(redone, 0))
@@ -465,7 +465,7 @@ func TestRedoAfterARedoInTheSameSlot(t *testing.T) {
 			t.Fatal(err)
 		}
 		tx := s.Begin(Origin{Class: OriginHistory})
-		if err := tx.ApplyAll(plan.Ops...); err != nil {
+		if err := plan.Apply(tx); err != nil {
 			t.Fatal(err)
 		}
 		s, _ = tx.Commit()
@@ -500,7 +500,7 @@ func TestUndoRebasesOverOtherOrigins(t *testing.T) {
 		t.Fatal(err)
 	}
 	tx = s2.Begin(Origin{Class: OriginHistory})
-	if err := tx.ApplyAll(plan.Ops...); err != nil {
+	if err := plan.Apply(tx); err != nil {
 		t.Fatal(err)
 	}
 	s3, _ := tx.Commit()
@@ -626,5 +626,86 @@ func TestHistoryVersionsStandApartAsTheyGrow(t *testing.T) {
 	}
 	if allocs := testing.AllocsPerRun(100, func() { grown = grown.Push(g, true) }); allocs > 4 {
 		t.Fatalf("a merge into an entry of %d layers allocates %v times", layers(grown), allocs)
+	}
+}
+
+// A multi-step entry is undone exactly over another origin's later edits
+// to the same text: each inverse carried through its entry's later steps,
+// the other edits, and the inverses applied before it.
+func TestMultiStepUndoRebasesOverTheSameSlot(t *testing.T) {
+	cases := []struct {
+		name   string
+		start  string
+		mine   []EditText
+		theirs EditText
+		want   string
+	}{
+		{"typed", "xy", []EditText{{From: 1, To: 1, Items: []Item{TextItem("a", nil)}}, {From: 2, To: 2, Items: []Item{TextItem("b", nil)}}},
+			EditText{From: 0, To: 0, Items: []Item{TextItem(">", nil)}}, ">xy"},
+		{"corrected", "ab", []EditText{{From: 2, To: 2, Items: []Item{TextItem("--", nil)}}, {From: 2, To: 4, Items: []Item{TextItem("—", nil)}}},
+			EditText{From: 5, To: 5, Items: []Item{TextItem("!", nil)}}, "ab!"},
+		{"after", "xy", []EditText{{From: 1, To: 1, Items: []Item{TextItem("a", nil)}}, {From: 2, To: 2, Items: []Item{TextItem("b", nil)}}},
+			EditText{From: 4, To: 4, Items: []Item{TextItem("<", nil)}}, "xy<"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := newPage(t, c.start)
+			ref := SlotRef{Node: child(s, 0).ID()}
+			h := NewHistory(0)
+			now := time.Unix(0, 0)
+			tx := s.Begin(Origin{Class: OriginTyping})
+			for _, op := range c.mine {
+				op.At = ref
+				if err := tx.Apply(op); err != nil {
+					t.Fatal(err)
+				}
+			}
+			s, _ = tx.Commit()
+			h = h.Push(NewEntry(tx.Steps(), OriginTyping, 0, Selection{}, Selection{}, now), false)
+			tx = s.Begin(Origin{Class: OriginAgent})
+			c.theirs.At = ref
+			if err := tx.Apply(c.theirs); err != nil {
+				t.Fatal(err)
+			}
+			s, _ = tx.Commit()
+			h = h.Push(NewEntry(tx.Steps(), OriginAgent, 0, Selection{}, Selection{}, now.Add(time.Second)), false)
+			plan, err := h.Undo(OriginTyping, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tx = s.Begin(Origin{Class: OriginHistory})
+			if err := plan.Apply(tx); err != nil {
+				t.Fatal(err)
+			}
+			s, _ = tx.Commit()
+			if got := text(s, 0); got != c.want {
+				t.Fatalf("undone to %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+// Text an entry typed and then replaced itself has no exact place over
+// another origin's edits: the undo is refused, not guessed.
+func TestMultiStepUndoRefusesWhatItsOwnStepsCutInto(t *testing.T) {
+	s := newPage(t, "abcd")
+	ref := SlotRef{Node: child(s, 0).ID()}
+	h := NewHistory(0)
+	now := time.Unix(0, 0)
+	tx := s.Begin(Origin{Class: OriginTyping})
+	_ = tx.Apply(EditText{At: ref, From: 2, To: 2, Items: []Item{TextItem("x", nil)}})
+	_ = tx.Apply(EditText{At: ref, From: 1, To: 4, Items: []Item{TextItem("Y", nil)}})
+	s, _ = tx.Commit()
+	h = h.Push(NewEntry(tx.Steps(), OriginTyping, 0, Selection{}, Selection{}, now), false)
+	tx = s.Begin(Origin{Class: OriginAgent})
+	_ = tx.Apply(EditText{At: ref, From: 0, To: 0, Items: []Item{TextItem(">", nil)}})
+	s, _ = tx.Commit()
+	h = h.Push(NewEntry(tx.Steps(), OriginAgent, 0, Selection{}, Selection{}, now.Add(time.Second)), false)
+	plan, err := h.Undo(OriginTyping, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := plan.Apply(s.Begin(Origin{Class: OriginHistory})); !errors.Is(err, ErrRebase) {
+		t.Fatalf("undo over a cut = %v, want ErrRebase", err)
 	}
 }

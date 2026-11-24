@@ -193,7 +193,10 @@ var ErrRebase = errors.New("doc: the change cannot be undone over later changes"
 // Plan is an undo or redo ready to apply: its operations, carried over any
 // later changes, and the selection to restore.
 type Plan struct {
-	Ops       []Op
+	// undo is each step's inverse, newest step first, with the steps of
+	// its entry after it; over is what other origins did since.
+	undo      []undoStep
+	over      Steps
 	Selection Selection
 	View      uint64
 	class     OriginClass
@@ -215,15 +218,12 @@ func (h *History) Undo(class OriginClass, topLayer bool) (*Plan, error) {
 	if topLayer {
 		layers = layers[len(layers)-1:]
 	}
-	ops, err := invert(layers, all[i+1:])
-	if err != nil {
-		return nil, err
-	}
+	undo, over := invert(layers, all[i+1:])
 	sel := e.Before
 	if topLayer && len(e.Layers) > 1 {
 		sel = e.After
 	}
-	return &Plan{Ops: ops, Selection: sel, View: e.View, class: class, index: i, top: topLayer, entry: e}, nil
+	return &Plan{undo: undo, over: over, Selection: sel, View: e.View, class: class, index: i, top: topLayer, entry: e}, nil
 }
 
 // Redo plans reapplying the newest undone entry of class.
@@ -235,11 +235,8 @@ func (h *History) Redo(class OriginClass) (*Plan, error) {
 	e := stack[len(stack)-1]
 	// A redo entry holds the undo's steps; reverting them redoes. Later
 	// changes are those after the undo.
-	ops, err := invert(e.Layers, h.after(e))
-	if err != nil {
-		return nil, err
-	}
-	return &Plan{Ops: ops, Selection: e.Before, View: e.View, class: class, redo: true, entry: e}, nil
+	undo, over := invert(e.Layers, h.after(e))
+	return &Plan{undo: undo, over: over, Selection: e.Before, View: e.View, class: class, redo: true, entry: e}, nil
 }
 
 // after returns the changes an undone entry e is redone over: the entries
@@ -258,15 +255,15 @@ func (h *History) after(e *Entry) []*Entry {
 	return out
 }
 
-// invert returns the inverse of layers, newest step first, each carried
-// over the steps of later entries.
-//
-// FIXME(history): when a later entry touched the same slot or node as a
-// multi-step entry, each inverse is mapped through the later steps alone,
-// not through the already-inverted steps between, so the undo is refused
-// instead of rebased exactly. Single-step entries and changes elsewhere
-// on the page, the common case of other views and agents, rebase exactly.
-func invert(layers []Layer, later []*Entry) ([]Op, error) {
+// undoStep is a step's inverse, and the steps its entry made after it.
+type undoStep struct {
+	ops   []Op
+	after Steps
+}
+
+// invert returns the inverse of layers, newest step first, and the steps
+// of later entries it is carried over.
+func invert(layers []Layer, later []*Entry) ([]undoStep, Steps) {
 	var steps Steps
 	for _, l := range layers {
 		steps = append(steps, l.Steps...)
@@ -275,36 +272,58 @@ func invert(layers []Layer, later []*Entry) ([]Op, error) {
 	for _, e := range later {
 		over = append(over, e.Steps()...)
 	}
-	if len(over) > 0 && len(steps) > 1 {
-		for _, s := range steps {
-			for _, o := range over {
-				for _, ref := range s.slots {
-					if o.Touches(ref, 0) {
-						return nil, ErrRebase
-					}
-				}
-				for _, id := range s.nodes {
-					if o.Touches(SlotRef{}, id) {
-						return nil, ErrRebase
-					}
-				}
-			}
-		}
-	}
-	var ops []Op
+	undo := make([]undoStep, 0, len(steps))
 	for i := len(steps) - 1; i >= 0; i-- {
-		for _, inv := range steps[i].inverse {
-			if len(over) > 0 {
-				rebased, ok := inv.rebase(over)
+		undo = append(undo, undoStep{ops: steps[i].inverse, after: steps[i+1:]})
+	}
+	return undo, over
+}
+
+// Apply applies the plan in tx. Over later changes of other origins, each
+// inverse is carried from where its step left the page to where it stands
+// now: through the steps its entry made after it, the later changes, and
+// the inverses applied before it, which undo those steps there. A step's
+// inverse that a later step of its own entry cut into, as text typed then
+// replaced, has no place to be carried to exactly: the plan fails with
+// ErrRebase, and tx is left part-applied, for the caller to drop.
+func (p *Plan) Apply(tx *Tx) error {
+	start := len(tx.steps)
+	for _, u := range p.undo {
+		applied := len(tx.steps)
+		for _, op := range u.ops {
+			if len(p.over) > 0 {
+				through := carry{own: u.after, rest: slices.Concat(p.over, tx.steps[start:applied])}
+				rebased, ok := op.rebase(through)
 				if !ok {
-					return nil, ErrRebase
+					return ErrRebase
 				}
-				inv = rebased
+				op = rebased
 			}
-			ops = append(ops, inv)
+			if err := tx.Apply(op); err != nil {
+				return err
+			}
 		}
 	}
-	return ops, nil
+	return nil
+}
+
+// carry maps through a step's own later steps strictly, a place inside
+// what one of them replaced lost, and then through the rest.
+type carry struct {
+	own, rest Steps
+}
+
+func (c carry) Map(p Pos, bias Bias) (Pos, bool) {
+	for _, s := range c.own {
+		if in, ok := s.mapping.(interface{ within(Pos) bool }); ok && in.within(p) {
+			return p, false
+		}
+		var ok bool
+		if p, ok = s.Map(p, bias); !ok {
+			return p, false
+		}
+	}
+	return c.rest.Map(p, bias)
 }
 
 // Applied records that plan's operations were applied as steps, at time
