@@ -88,6 +88,16 @@ func TestSheetRunsAQueryInTheSheetAndDatesGoInert(t *testing.T) {
 	}
 }
 
+func TestKeyFindsInSettingsAlone(t *testing.T) {
+	if kinds(Parse("$key:⌘K"))["$key:⌘K"] != Inert {
+		t.Fatal("$key means nothing across the notebook")
+	}
+	q := Parse("$settings $key:⌘K")
+	if q.Scope != InNotebook|InSettings || kinds(q)["$key:⌘K"] != 0 {
+		t.Fatalf("$key in Settings: scope %v, issues %v", q.Scope, kinds(q))
+	}
+}
+
 func TestHashWritesATagAsTextWritesIt(t *testing.T) {
 	f, ok := Parse("#work").Root.(*Filter)
 	if !ok || f.Key.Name != "tag" || f.Value != "work" || !f.Hash {

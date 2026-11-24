@@ -1,12 +1,14 @@
 package query
 
 // Scope is where a key means something: across the notebook, in the sheet
-// being found in, or both.
+// being found in, or both; or among the settings, as $settings narrows the
+// notebook's query to them.
 type Scope uint8
 
 const (
 	InNotebook Scope = 1 << iota
 	InSheet
+	InSettings
 	Anywhere = InNotebook | InSheet
 )
 
@@ -77,6 +79,7 @@ var Keys = []Key{
 	{Name: "trash", Takes: TakesNothing, Scope: InNotebook, Setting: true},
 	{Name: "open", Takes: TakesNothing, Scope: InNotebook},
 	{Name: "settings", Takes: TakesNothing, Scope: InNotebook, Setting: true},
+	{Name: "key", Takes: TakesName, Scope: InSettings},
 	{Name: "sheet", Takes: TakesNothing, Scope: Anywhere, Setting: true},
 	{Name: "sort", Takes: TakesChoice, Scope: InNotebook, Choices: SortFields, Setting: true},
 	{Name: "bands", Takes: TakesChoice, Scope: InNotebook, Choices: Lenses, Setting: true},

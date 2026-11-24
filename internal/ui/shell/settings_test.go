@@ -391,3 +391,13 @@ func TestWordsTakenAwayQuicklyMoveWithoutStandingOrLeaping(t *testing.T) {
 		}
 	}
 }
+
+// $key passes the shortcut it names on to the settings, apart from the
+// words.
+func TestKeyFindsSettingsByTheirShortcut(t *testing.T) {
+	state, _, _ := settingsState(t)
+	scope, find := state.settingsScope("$settings $in:Keymap $key:⌘K close")
+	if scope != "Keymap" || find != (SettingsFind{Words: "close", Key: "⌘K"}) {
+		t.Fatalf("scope %q, find %#v", scope, find)
+	}
+}

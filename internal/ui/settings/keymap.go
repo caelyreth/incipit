@@ -13,13 +13,14 @@ import (
 )
 
 // The keymap lists every action by what it acts on: the pages, the
-// window, the app, each a section. The words written find actions by name
-// or by their keys, and a section of its own finds them by pressing a
-// shortcut, or puts every key back; each row records a new shortcut, warns
-// before taking one another action holds, and resets or clears its own.
+// window, the app, each a section. The query finds actions by name or by
+// their keys, written or as $key names one; each row records a new
+// shortcut in place, warns before taking one another action holds, and
+// resets or clears its own. While any key is changed, a section puts
+// every one back.
 
-// findKey names the section that searches by keys.
-const findKey = "find"
+// changedKey names the section that puts every changed key back.
+const changedKey = "changed"
 
 // shortcutGroup is a group of actions, as many of them as a query finds:
 // its scope's key names its section.
@@ -53,8 +54,8 @@ func (s *State) shortcutGroups(query string) []shortcutGroup {
 
 // keymapSection draws the keymap's section sec, as query finds it.
 func (s *State) keymapSection(c *ui.Context, semantic theme.Theme, sec Section, query string) {
-	if sec.Key == findKey {
-		s.section(c, semantic, sec, func() { s.keymapFinder(c, semantic) })
+	if sec.Key == changedKey {
+		s.section(c, semantic, sec, func() { s.changedKeys(c, semantic) })
 		return
 	}
 	for _, group := range s.shortcutGroups(query) {
@@ -69,10 +70,13 @@ func (s *State) keymapSection(c *ui.Context, semantic theme.Theme, sec Section, 
 	}
 }
 
-// shortcutMatches reports whether query and the chord searched by find
-// shortcut: by its name, its scope, or its keys spelled or said.
+// shortcutMatches reports whether query and the $key the query names find
+// shortcut: by its name, its scope, or its keys spelled or said; the key,
+// by one of its keys, spelled or said whole.
 func (s *State) shortcutMatches(shortcut appsettings.Shortcut, query string) bool {
-	if s.keyFilter != nil && !slices.Contains(shortcut.Bindings, *s.keyFilter) {
+	if s.Key != "" && !slices.ContainsFunc(shortcut.Bindings, func(binding keymap.Chord) bool {
+		return keyNames(binding, s.Key)
+	}) {
 		return false
 	}
 	if query == "" {
@@ -91,79 +95,57 @@ func shortcutWords(shortcut appsettings.Shortcut) string {
 	return shortcut.Label + " " + shortcut.Group
 }
 
-// keymapFinder searches the keymap by a keystroke pressed, and puts every
-// key changed back.
-func (s *State) keymapFinder(c *ui.Context, semantic theme.Theme) {
-	scale := s.Theme.UIFontSize
-	animate := s.motion(c)
-	inset := theme.Space16.DIPs(scale)
-	ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
-		Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).Children(func() {
-		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-			switch {
-			case s.keySearch:
-				s.captureLine(c, semantic, captureLine{
-					Key: "keymap-search-capture", Prompt: locales.PressShortcutToFind(),
-					Live: true, Compact: true,
-					Chosen: func(chord keymap.Chord) {
-						s.keyFilter, s.keySearch = &chord, false
-					},
-					Cancel: func() { s.keySearch = false },
-				})
-			case s.keyFilter != nil:
-				s.keyFilterChip(c, semantic)
-			default:
-				components.Label(c, locales.PressShortcutToFindAction(), theme.TextSmall, semantic.Text.Muted)
-			}
-		})
-		components.IconButton{
-			Key: "keymap-record-search", Label: locales.SearchByPressing(),
-			Icon: components.IconKeyboard.SVG(), Style: components.OutlinedButton,
-			Selected: s.keySearch || s.keyFilter != nil, Animate: animate,
-			Action: func() {
-				s.keySearch, s.keyFilter = !s.keySearch, nil
-			},
-		}.View(c, semantic)
-		customized := make([]keymap.CommandID, 0)
-		for _, shortcut := range s.Data.Shortcuts {
-			if shortcut.Overridden {
-				customized = append(customized, shortcut.Command)
-			}
-		}
-		if len(customized) > 0 {
-			components.Button{
-				Key: "keymap-reset-all", Label: locales.ResetAll(),
-				Style: components.OutlinedButton, Animate: animate,
-				Action: func() {
-					for _, command := range customized {
-						s.apply(appsettings.ResetBinding(command))
-					}
-				},
-			}.View(c, semantic)
-		}
-	})
+// keyNames reports whether key, as a $key value, names binding: spelled
+// as the Keymap spells it, or said in its words, case aside.
+func keyNames(binding keymap.Chord, key string) bool {
+	key = strings.TrimSpace(key)
+	return strings.EqualFold(keymap.Spell(binding, keymap.PlatformCurrent), key) ||
+		strings.EqualFold(keymap.Words(binding, keymap.PlatformCurrent), key)
 }
 
-// keyFilterChip shows the recorded search chord in place of the field.
-func (s *State) keyFilterChip(c *ui.Context, semantic theme.Theme) {
+// KeyNames are the keys the actions hold, spelled, each once, in the
+// Keymap's order: the values $key takes.
+func (s *State) KeyNames() []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, shortcut := range s.Data.Shortcuts {
+		for _, binding := range shortcut.Bindings {
+			if name := keymap.Spell(binding, keymap.PlatformCurrent); !seen[name] {
+				seen[name] = true
+				out = append(out, name)
+			}
+		}
+	}
+	return out
+}
+
+// customized are the actions whose keys differ from the default.
+func (s *State) customized() []keymap.CommandID {
+	var out []keymap.CommandID
+	for _, shortcut := range s.Data.Shortcuts {
+		if shortcut.Overridden {
+			out = append(out, shortcut.Command)
+		}
+	}
+	return out
+}
+
+// changedKeys puts every changed key back as it was.
+func (s *State) changedKeys(c *ui.Context, semantic theme.Theme) {
 	scale := s.Theme.UIFontSize
-	metrics := theme.DefaultControls.Scaled(scale)
-	ui.Row(c).Height(metrics.Height).WidthPercent(100).AlignItems(ui.Center).
-		Gap(theme.Space06.DIPs(scale)).
-		Padding(0, theme.Space04.DIPs(scale), 0, theme.Space08.DIPs(scale)).
-		Radius(metrics.Radius).Border(1, semantic.Border.Variant).
-		Background(semantic.Surface.Inset).Children(func() {
-		ui.Icon(c, components.IconKeyboard.SVG()).
-			FontSize(16 * scale / theme.DefaultUIFontSize).TextColor(semantic.Icon.Muted)
-		components.Label(c, locales.ShortcutsOn(), theme.TextSmall, semantic.Text.Muted).SingleLine()
-		s.keycaps(c, semantic, *s.keyFilter, true)
-		ui.Box(c).Grow(1)
-		components.IconButton{
-			Key: "keymap-clear-filter", Label: locales.ClearShortcutSearch(),
-			Icon: components.IconClose.SVG(), Style: components.SubtleButton,
-			Size: components.CompactButton, IconColor: semantic.Icon.Muted,
-			Animate: s.motion(c),
-			Action:  func() { s.keyFilter = nil },
+	inset := theme.Space16.DIPs(scale)
+	changed := s.customized()
+	ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+		Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).Children(func() {
+		components.Label(c, locales.ResetKeysDescription(), theme.TextSmall, semantic.Text.Muted).Grow(1).MinWidth(0)
+		components.Button{
+			Key: "keymap-reset-all", Label: locales.ResetAll(),
+			Style: components.OutlinedButton, Animate: s.motion(c),
+			Action: func() {
+				for _, command := range changed {
+					s.apply(appsettings.ResetBinding(command))
+				}
+			},
 		}.View(c, semantic)
 	})
 }

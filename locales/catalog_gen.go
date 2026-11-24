@@ -1571,90 +1571,6 @@ func (msgs Messages) TurnOnToAdjust(count int) string {
 	return Catalog.Format(msgs.locale, "turnOnToAdjust", map[string]any{"count": count})
 }
 
-// FindShortcut says "Find a Shortcut"
-// in the language the app shows.
-//
-// A section of Settings' Keymap.
-func FindShortcut() string { return In(i18n.Locale()).FindShortcut() }
-
-// FindShortcut says "Find a Shortcut"
-// in the language of msgs.
-//
-// A section of Settings' Keymap.
-func (msgs Messages) FindShortcut() string {
-	return Catalog.Format(msgs.locale, "findShortcut", nil)
-}
-
-// FindShortcutDescription says "Find an action by pressing its keys, or put every key back as it was."
-// in the language the app shows.
-func FindShortcutDescription() string { return In(i18n.Locale()).FindShortcutDescription() }
-
-// FindShortcutDescription says "Find an action by pressing its keys, or put every key back as it was."
-// in the language of msgs.
-func (msgs Messages) FindShortcutDescription() string {
-	return Catalog.Format(msgs.locale, "findShortcutDescription", nil)
-}
-
-// FindShortcutKeywords says "keymap keys shortcuts reset"
-// in the language the app shows.
-//
-// Words Settings' search finds the Find a Shortcut section by, beside its
-// title: add the language's own.
-func FindShortcutKeywords() string { return In(i18n.Locale()).FindShortcutKeywords() }
-
-// FindShortcutKeywords says "keymap keys shortcuts reset"
-// in the language of msgs.
-//
-// Words Settings' search finds the Find a Shortcut section by, beside its
-// title: add the language's own.
-func (msgs Messages) FindShortcutKeywords() string {
-	return Catalog.Format(msgs.locale, "findShortcutKeywords", nil)
-}
-
-// PressShortcutToFind says "Press a shortcut to find it"
-// in the language the app shows.
-//
-// While a shortcut is being pressed to search by it.
-func PressShortcutToFind() string { return In(i18n.Locale()).PressShortcutToFind() }
-
-// PressShortcutToFind says "Press a shortcut to find it"
-// in the language of msgs.
-//
-// While a shortcut is being pressed to search by it.
-func (msgs Messages) PressShortcutToFind() string {
-	return Catalog.Format(msgs.locale, "pressShortcutToFind", nil)
-}
-
-// PressShortcutToFindAction says "Press a shortcut to find its action."
-// in the language the app shows.
-//
-// Beside the button that searches by a shortcut pressed.
-func PressShortcutToFindAction() string { return In(i18n.Locale()).PressShortcutToFindAction() }
-
-// PressShortcutToFindAction says "Press a shortcut to find its action."
-// in the language of msgs.
-//
-// Beside the button that searches by a shortcut pressed.
-func (msgs Messages) PressShortcutToFindAction() string {
-	return Catalog.Format(msgs.locale, "pressShortcutToFindAction", nil)
-}
-
-// SearchByPressing says "Search by pressing a shortcut"
-// in the language the app shows.
-//
-// Assistive technology and tooltip: the button that searches by a shortcut
-// pressed.
-func SearchByPressing() string { return In(i18n.Locale()).SearchByPressing() }
-
-// SearchByPressing says "Search by pressing a shortcut"
-// in the language of msgs.
-//
-// Assistive technology and tooltip: the button that searches by a shortcut
-// pressed.
-func (msgs Messages) SearchByPressing() string {
-	return Catalog.Format(msgs.locale, "searchByPressing", nil)
-}
-
 // ResetAll says "Reset all"
 // in the language the app shows.
 //
@@ -1667,34 +1583,6 @@ func ResetAll() string { return In(i18n.Locale()).ResetAll() }
 // The button that puts every shortcut back as it was.
 func (msgs Messages) ResetAll() string {
 	return Catalog.Format(msgs.locale, "resetAll", nil)
-}
-
-// ShortcutsOn says "Shortcuts on"
-// in the language the app shows.
-//
-// Before the keys searched by, as in: Shortcuts on ⌘B.
-func ShortcutsOn() string { return In(i18n.Locale()).ShortcutsOn() }
-
-// ShortcutsOn says "Shortcuts on"
-// in the language of msgs.
-//
-// Before the keys searched by, as in: Shortcuts on ⌘B.
-func (msgs Messages) ShortcutsOn() string {
-	return Catalog.Format(msgs.locale, "shortcutsOn", nil)
-}
-
-// ClearShortcutSearch says "Clear shortcut search"
-// in the language the app shows.
-//
-// Assistive technology and tooltip.
-func ClearShortcutSearch() string { return In(i18n.Locale()).ClearShortcutSearch() }
-
-// ClearShortcutSearch says "Clear shortcut search"
-// in the language of msgs.
-//
-// Assistive technology and tooltip.
-func (msgs Messages) ClearShortcutSearch() string {
-	return Catalog.Format(msgs.locale, "clearShortcutSearch", nil)
 }
 
 // Custom says "Custom"
@@ -8901,6 +8789,92 @@ func QuerySettingsHelp() string { return In(i18n.Locale()).QuerySettingsHelp() }
 // What the filter $settings finds, in the search's suggestions.
 func (msgs Messages) QuerySettingsHelp() string {
 	return Catalog.Format(msgs.locale, "querySettingsHelp", nil)
+}
+
+// QueryKey says "Key"
+// in the language the app shows.
+//
+// A filter of the settings: $key, the actions a shortcut runs.
+func QueryKey() string { return In(i18n.Locale()).QueryKey() }
+
+// QueryKey says "Key"
+// in the language of msgs.
+//
+// A filter of the settings: $key, the actions a shortcut runs.
+func (msgs Messages) QueryKey() string {
+	return Catalog.Format(msgs.locale, "queryKey", nil)
+}
+
+// QueryKeyIs says "{not, select, yes {Key is not {value}} other {Key is {value}}}"
+// in the language the app shows.
+//
+// A filter of the settings, said whole; value is a shortcut, as ⌘K.
+func QueryKeyIs(not string, value string) string { return In(i18n.Locale()).QueryKeyIs(not, value) }
+
+// QueryKeyIs says "{not, select, yes {Key is not {value}} other {Key is {value}}}"
+// in the language of msgs.
+//
+// A filter of the settings, said whole; value is a shortcut, as ⌘K.
+func (msgs Messages) QueryKeyIs(not string, value string) string {
+	return Catalog.Format(msgs.locale, "queryKeyIs", map[string]any{"not": not, "value": value})
+}
+
+// QueryKeyHelp says "Actions by their shortcut, as $key:⌘K"
+// in the language the app shows.
+//
+// What the filter $key finds, in the search's suggestions; keep $key:⌘K
+// as written.
+func QueryKeyHelp() string { return In(i18n.Locale()).QueryKeyHelp() }
+
+// QueryKeyHelp says "Actions by their shortcut, as $key:⌘K"
+// in the language of msgs.
+//
+// What the filter $key finds, in the search's suggestions; keep $key:⌘K
+// as written.
+func (msgs Messages) QueryKeyHelp() string {
+	return Catalog.Format(msgs.locale, "queryKeyHelp", nil)
+}
+
+// ResetKeys says "Changed Keys"
+// in the language the app shows.
+//
+// A section of the Keymap, shown while any key differs from the default.
+func ResetKeys() string { return In(i18n.Locale()).ResetKeys() }
+
+// ResetKeys says "Changed Keys"
+// in the language of msgs.
+//
+// A section of the Keymap, shown while any key differs from the default.
+func (msgs Messages) ResetKeys() string {
+	return Catalog.Format(msgs.locale, "resetKeys", nil)
+}
+
+// ResetKeysDescription says "Put every key you changed back as it was."
+// in the language the app shows.
+//
+// The Changed Keys section's description.
+func ResetKeysDescription() string { return In(i18n.Locale()).ResetKeysDescription() }
+
+// ResetKeysDescription says "Put every key you changed back as it was."
+// in the language of msgs.
+//
+// The Changed Keys section's description.
+func (msgs Messages) ResetKeysDescription() string {
+	return Catalog.Format(msgs.locale, "resetKeysDescription", nil)
+}
+
+// ResetKeysKeywords says "keymap keys shortcuts reset changed custom"
+// in the language the app shows.
+//
+// Words that find the Changed Keys section; not shown.
+func ResetKeysKeywords() string { return In(i18n.Locale()).ResetKeysKeywords() }
+
+// ResetKeysKeywords says "keymap keys shortcuts reset changed custom"
+// in the language of msgs.
+//
+// Words that find the Changed Keys section; not shown.
+func (msgs Messages) ResetKeysKeywords() string {
+	return Catalog.Format(msgs.locale, "resetKeysKeywords", nil)
 }
 
 // QuerySheet says "In this sheet"

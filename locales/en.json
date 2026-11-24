@@ -395,38 +395,9 @@
   "@turnOnToAdjust": {
     "description": "Under a group of editor settings that is off."
   },
-  "findShortcut": "Find a Shortcut",
-  "@findShortcut": {
-    "description": "A section of Settings' Keymap."
-  },
-  "findShortcutDescription": "Find an action by pressing its keys, or put every key back as it was.",
-  "findShortcutKeywords": "keymap keys shortcuts reset",
-  "@findShortcutKeywords": {
-    "description": "Words Settings' search finds the Find a Shortcut section by, beside its title: add the language's own."
-  },
-  "pressShortcutToFind": "Press a shortcut to find it",
-  "@pressShortcutToFind": {
-    "description": "While a shortcut is being pressed to search by it."
-  },
-  "pressShortcutToFindAction": "Press a shortcut to find its action.",
-  "@pressShortcutToFindAction": {
-    "description": "Beside the button that searches by a shortcut pressed."
-  },
-  "searchByPressing": "Search by pressing a shortcut",
-  "@searchByPressing": {
-    "description": "Assistive technology and tooltip: the button that searches by a shortcut pressed."
-  },
   "resetAll": "Reset all",
   "@resetAll": {
     "description": "The button that puts every shortcut back as it was."
-  },
-  "shortcutsOn": "Shortcuts on",
-  "@shortcutsOn": {
-    "description": "Before the keys searched by, as in: Shortcuts on ⌘B."
-  },
-  "clearShortcutSearch": "Clear shortcut search",
-  "@clearShortcutSearch": {
-    "description": "Assistive technology and tooltip."
   },
   "custom": "Custom",
   "@custom": {
@@ -2435,6 +2406,30 @@
   "querySettingsHelp": "The app's settings, found by their words",
   "@querySettingsHelp": {
     "description": "What the filter $settings finds, in the search's suggestions."
+  },
+  "queryKey": "Key",
+  "@queryKey": {
+    "description": "A filter of the settings: $key, the actions a shortcut runs."
+  },
+  "queryKeyIs": "{not, select, yes {Key is not {value}} other {Key is {value}}}",
+  "@queryKeyIs": {
+    "description": "A filter of the settings, said whole; value is a shortcut, as ⌘K."
+  },
+  "queryKeyHelp": "Actions by their shortcut, as $key:⌘K",
+  "@queryKeyHelp": {
+    "description": "What the filter $key finds, in the search's suggestions; keep $key:⌘K as written."
+  },
+  "resetKeys": "Changed Keys",
+  "@resetKeys": {
+    "description": "A section of the Keymap, shown while any key differs from the default."
+  },
+  "resetKeysDescription": "Put every key you changed back as it was.",
+  "@resetKeysDescription": {
+    "description": "The Changed Keys section's description."
+  },
+  "resetKeysKeywords": "keymap keys shortcuts reset changed custom",
+  "@resetKeysKeywords": {
+    "description": "Words that find the Changed Keys section; not shown."
   },
   "querySheet": "In this sheet",
   "@querySheet": {

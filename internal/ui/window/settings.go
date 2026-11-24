@@ -10,8 +10,9 @@ import (
 // (field-and-desk.md §4.4.1): each section a card, drawn live.
 type fieldSettings struct{ a *AppState }
 
-func (f fieldSettings) Sections(words string) []shell.SettingsSection {
-	found := f.a.Settings.Sections(words)
+func (f fieldSettings) Sections(find shell.SettingsFind) []shell.SettingsSection {
+	f.a.Settings.Key = find.Key
+	found := f.a.Settings.Sections(find.Words)
 	out := make([]shell.SettingsSection, len(found))
 	for i, sec := range found {
 		out[i] = shell.SettingsSection{
@@ -25,8 +26,9 @@ func (f fieldSettings) Sections(words string) []shell.SettingsSection {
 	return out
 }
 
-func (f fieldSettings) SectionView(c *ui.Context, semantic theme.Theme, id, words string) {
-	f.a.Settings.SectionView(c, semantic, id, words)
+func (f fieldSettings) SectionView(c *ui.Context, semantic theme.Theme, id string, find shell.SettingsFind) {
+	f.a.Settings.Key = find.Key
+	f.a.Settings.SectionView(c, semantic, id, find.Words)
 }
 
 // Away ends a shortcut being recorded, which gives the menu its keys back.

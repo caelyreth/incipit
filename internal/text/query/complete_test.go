@@ -46,7 +46,13 @@ func TestADollarOffersTheKeysItStarts(t *testing.T) {
 		t.Fatalf("%v → %q", texts(c), got)
 	}
 	c, _ = complete("$", InNotebook)
-	if len(c.Items) != len(Keys)-2 {
+	notebook := 0
+	for _, k := range Keys {
+		if k.Scope&InNotebook != 0 {
+			notebook++
+		}
+	}
+	if len(c.Items) != notebook {
 		t.Fatalf("a $ alone offers the notebook's keys: %v", texts(c))
 	}
 	c, _ = complete("$", InSheet)

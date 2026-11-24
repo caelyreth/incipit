@@ -44,6 +44,7 @@ var words = map[string]keyWords{
 	"trash":    {label: locales.QueryTrash, help: locales.QueryTrashHelp},
 	"open":     {turned: locales.QueryOpen, help: locales.QueryOpenHelp},
 	"settings": {label: locales.QuerySettings, help: locales.QuerySettingsHelp},
+	"key":      {label: locales.QueryKey, help: locales.QueryKeyHelp, is: locales.QueryKeyIs},
 	"sheet":    {label: locales.QuerySheet, help: locales.QuerySheetHelp},
 	"sort":     {label: locales.QuerySort, help: locales.QuerySortHelp, is: func(_, v string) string { return locales.QuerySortIs(v) }},
 	"bands":    {label: locales.QueryBands, help: locales.QueryBandsHelp, is: func(_, v string) string { return locales.QueryBandsIs(v) }},

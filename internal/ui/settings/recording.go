@@ -75,15 +75,13 @@ func (s *State) keyRing(trigger ui.Element, key string, recording, animate bool)
 // the keyboard or closes.
 func (s *State) StopRecording() {
 	if s != nil {
-		s.keySearch = false
 		s.stopRecording()
 	}
 }
 
-// reportRecording tells the host when recording starts or ends: a shortcut
-// for an action, or one pressed to search the keymap.
+// reportRecording tells the host when recording a shortcut starts or ends.
 func (s *State) reportRecording() {
-	recording := s.keyEditing != "" || s.keySearch
+	recording := s.keyEditing != ""
 	if recording != s.reported {
 		s.reported = recording
 		if s.Recording != nil {

@@ -47,8 +47,10 @@ func (s *State) Sections(words string) []Section {
 		add(appsettings.Editor, card.ID, card.Title, s.spell(card.Description), query == "" || s.policyMatches(card, query))
 	}
 	groups := s.shortcutGroups(query)
-	add(appsettings.Keymap, findKey, locales.FindShortcut(), locales.FindShortcutDescription(),
-		query == "" || len(groups) > 0 || containsFold(locales.FindShortcut()+" "+locales.FindShortcutKeywords(), query))
+	if len(s.customized()) > 0 && s.Key == "" {
+		add(appsettings.Keymap, changedKey, locales.ResetKeys(), locales.ResetKeysDescription(),
+			query == "" || containsFold(locales.ResetKeys()+" "+locales.ResetKeysKeywords(), query))
+	}
 	for _, group := range groups {
 		add(appsettings.Keymap, group.key, group.title, group.description, true)
 	}

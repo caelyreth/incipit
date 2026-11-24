@@ -14,6 +14,9 @@ import (
 type State struct {
 	// Query is the words the sections are found by, as last drawn.
 	Query string
+	// Key is the shortcut the query's $key names, spelled as the Keymap
+	// spells it: the actions it finds are those it runs.
+	Key   string
 	Data  appsettings.Data
 	Theme theme.Settings
 	// Appearance is the theme chosen, System among them, which Theme shows
@@ -42,12 +45,9 @@ type State struct {
 	Language    string
 	SetLanguage func(tag string)
 
-	// The chord the keymap is searched by, as pressed. Then, in any
-	// section, the command whose shortcut is being recorded and the row or
-	// sentence it was started from, and a recorded shortcut another command
-	// already holds, awaiting a decision there.
-	keyFilter   *keymap.Chord
-	keySearch   bool
+	// In any section, the command whose shortcut is being recorded and the
+	// row or sentence it was started from, and a recorded shortcut another
+	// command already holds, awaiting a decision there.
 	keyEditing  keymap.CommandID
 	keyHost     string
 	keyReturn   string

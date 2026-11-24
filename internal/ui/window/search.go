@@ -400,6 +400,8 @@ func (a *AppState) SearchNames(key string) []string {
 		return a.linkedSites()
 	case "title":
 		return a.titleWords()
+	case "key":
+		return a.Settings.KeyNames()
 	}
 	return nil
 }

@@ -108,19 +108,26 @@ type Query struct {
 	Text   string
 	Root   Node
 	Issues []Issue
-	// Scope is where the query runs: a $sheet key runs it in a sheet.
+	// Scope is where the query runs: a $sheet key runs it in a sheet, and
+	// $settings among the settings as well as in the notebook's words.
 	Scope Scope
 }
 
-// Parse reads a query. It runs in the notebook unless it holds $sheet.
+// Parse reads a query. It runs in the notebook unless it holds $sheet or
+// $settings.
 func Parse(text string) Query {
 	p := &parser{text: text}
 	p.lex()
 	q := Query{Text: text, Scope: InNotebook}
 	q.Root = p.any(false)
 	Walk(q.Root, func(n Node) {
-		if f, ok := n.(*Filter); ok && f.Key != nil && f.Key.Name == "sheet" {
-			q.Scope = InSheet
+		if f, ok := n.(*Filter); ok && f.Key != nil {
+			switch f.Key.Name {
+			case "sheet":
+				q.Scope = InSheet
+			case "settings":
+				q.Scope = InNotebook | InSettings
+			}
 		}
 	})
 	Walk(q.Root, func(n Node) {

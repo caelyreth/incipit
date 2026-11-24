@@ -196,8 +196,7 @@ func (s *State) flow(c *ui.Context, rows [][]ribbonPlace, p ribbonPlace, k, w fl
 // the pill is open; a key that what is written may start is that
 // suggestion's, for the keys to go along.
 func (s *State) keyRibbons() []ribbonPlace {
-	// The settings are found by their words alone.
-	if !s.field.open || s.field.acting || s.InSettings() {
+	if !s.field.open || s.field.acting {
 		return nil
 	}
 	suggested := map[string]int{}
@@ -222,7 +221,12 @@ func (s *State) keyRibbons() []ribbonPlace {
 	// A key that takes a value stays, for more of its values; one that
 	// stands alone goes once it is taken.
 	names := filterKeys
-	if s.listed() {
+	switch {
+	case s.InSettings():
+		// The settings are found by their words, and the shortcuts also by
+		// their keys.
+		names = settingsKeys
+	case s.listed():
 		// A list is read in an order: its sort is offered first.
 		names = append([]string{"sort"}, slices.DeleteFunc(slices.Clone(filterKeys), func(n string) bool { return n == "sort" })...)
 	}
@@ -266,7 +270,10 @@ func (s *State) valueRibbons() []ribbonPlace {
 	if len(out) > idleMost && !s.field.allValues {
 		out = append(out[:idleMost-1], ribbonPlace{kind: ribbonMore, i: len(out) - idleMost + 1})
 	}
-	// Each value says how many sheets it would find.
+	// Each value says how many sheets it would find; a setting's, none.
+	if s.InSettings() {
+		return out
+	}
 	var values []string
 	for _, p := range out {
 		if p.kind == ribbonValue {
@@ -299,6 +306,9 @@ func rowWidth(row []ribbonPlace, gap float32) float32 {
 	}
 	return w
 }
+
+// settingsKeys are the keys the open pill offers among the settings.
+var settingsKeys = []string{"key"}
 
 // filterKeys are the keys the open pill offers to narrow by, in order.
 var filterKeys = []string{"tag", "in", "updated", "created", "words", "has", "title", "heading", "code", "quote", "link", "inbox", "open", "bands", "sort"}

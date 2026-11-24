@@ -391,7 +391,8 @@ type fakeSettings struct {
 	showTheme   bool
 }
 
-func (f *fakeSettings) Sections(words string) []SettingsSection {
+func (f *fakeSettings) Sections(find SettingsFind) []SettingsSection {
+	words := find.Words
 	items := []struct{ cat, title string }{
 		{"Appearance", "Theme"},
 		{"Editor", "Pairs"},
@@ -416,7 +417,7 @@ func (f *fakeSettings) Sections(words string) []SettingsSection {
 	return out
 }
 
-func (f *fakeSettings) SectionView(c *ui.Context, _ theme.Theme, id, _ string) {
+func (f *fakeSettings) SectionView(c *ui.Context, _ theme.Theme, id string, _ SettingsFind) {
 	ui.Text(c, id+" rows")
 	if f.grow > 0 {
 		if f.drawn == nil {

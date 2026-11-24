@@ -24,14 +24,21 @@ import (
 
 // AppSettings is the app's settings as the field shows them.
 type AppSettings interface {
-	// Sections are the sections words find, in order.
-	Sections(words string) []SettingsSection
-	// SectionView draws the section id as words find it, as wide as the
+	// Sections are the sections find finds, in order.
+	Sections(find SettingsFind) []SettingsSection
+	// SectionView draws the section id as find finds it, as wide as the
 	// card it is drawn in.
-	SectionView(c *ui.Context, semantic theme.Theme, id, words string)
+	SectionView(c *ui.Context, semantic theme.Theme, id string, find SettingsFind)
 	// Away is told the field shows no settings, so that nothing in them,
 	// as a shortcut being recorded, goes on unseen.
 	Away()
+}
+
+// SettingsFind is what the query asks of the settings: the words written,
+// and the shortcut a $key condition names, spelled as the Keymap spells
+// it.
+type SettingsFind struct {
+	Words, Key string
 }
 
 // SettingsSection is a section of the settings, as the field finds it:
@@ -53,7 +60,7 @@ func sectionCategoryTitle(sec SettingsSection) string {
 // settingsCategoryTitle is the title of the category the query names
 // category, its name where no section is of it.
 func (s *State) settingsCategoryTitle(category string) string {
-	for _, sec := range s.AppSettings.Sections("") {
+	for _, sec := range s.AppSettings.Sections(SettingsFind{}) {
 		if strings.EqualFold(sectionCategory(sec), category) {
 			return sectionCategoryTitle(sec)
 		}
@@ -94,16 +101,24 @@ func (s *State) InSettings() bool {
 	return slices.ContainsFunc(s.field.conditions, func(text string) bool { return conditionKey(text) == "settings" })
 }
 
-// settingsScope returns the settings category/section scope ($in) and the
-// search words in text.
-func (s *State) settingsScope(text string) (scope, words string) {
+// settingsScope returns the settings category ($in) text narrows to, and
+// what it asks of them: its words, and the shortcut its $key names.
+func (s *State) settingsScope(text string) (scope string, find SettingsFind) {
 	conds, rest := splitQuery(text)
 	for _, c := range conds {
-		if cond, ok := condition(c); ok && cond.Key.Name == "in" && !cond.Not {
+		cond, ok := condition(c)
+		if !ok || cond.Not {
+			continue
+		}
+		switch cond.Key.Name {
+		case "in":
 			scope = cond.Value
+		case "key":
+			find.Key = cond.Value
 		}
 	}
-	return scope, strings.TrimSpace(rest)
+	find.Words = strings.TrimSpace(rest)
+	return scope, find
 }
 
 // settingsLive reports whether the field currently shows live settings
@@ -112,8 +127,8 @@ func (s *State) settingsLive() bool {
 	if s.modeFor(s.wholeQuery()) != modeSettings {
 		return false
 	}
-	scope, words := s.settingsScope(s.wholeQuery())
-	return scope != "" || words != ""
+	scope, find := s.settingsScope(s.wholeQuery())
+	return scope != "" || find != (SettingsFind{})
 }
 
 // intoSettings narrows the settings query to a category, the section lead
@@ -166,12 +181,12 @@ func (settingsSource) answer(s *State, text string, f *found) {
 		s.AppSettings.Away()
 		return
 	}
-	scope, words := s.settingsScope(text)
-	if scope == "" && words == "" {
+	scope, find := s.settingsScope(text)
+	if scope == "" && find == (SettingsFind{}) {
 		// The top: each category listing its sections, as groups do.
 		var order []string
 		byCat := map[string][]SettingsSection{}
-		for _, sec := range s.AppSettings.Sections("") {
+		for _, sec := range s.AppSettings.Sections(SettingsFind{}) {
 			cat := sectionCategory(sec)
 			if _, ok := byCat[cat]; !ok {
 				order = append(order, cat)
@@ -184,13 +199,13 @@ func (settingsSource) answer(s *State, text string, f *found) {
 		return
 	}
 	var found []SettingsSection
-	for _, sec := range s.AppSettings.Sections(words) {
+	for _, sec := range s.AppSettings.Sections(find) {
 		if scope == "" || strings.EqualFold(sectionCategory(sec), scope) {
 			found = append(found, sec)
 		}
 	}
 	for _, sec := range found {
-		f.add("settings:"+sec.ID, tierResult, settingsCard{id: sec.ID, words: words})
+		f.add("settings:"+sec.ID, tierResult, settingsCard{id: sec.ID, find: find})
 	}
 }
 
@@ -299,7 +314,8 @@ func (s *State) settingsMoreRow(c *ui.Context, semantic theme.Theme, category st
 // settingsCard is a section of the settings: drawn live, as its controls
 // take the pointer and the keys, and as tall as it was last laid out.
 type settingsCard struct {
-	id, words string
+	id   string
+	find SettingsFind
 }
 
 func (sc settingsCard) shape(s *State, c *ui.Context, m blockMetrics) shape {
@@ -338,7 +354,7 @@ func (sc settingsCard) view(s *State, c *ui.Context, semantic theme.Theme, box u
 			}
 			c.AnimationFrame()
 		}
-		content.Children(func() { s.AppSettings.SectionView(c, semantic, sc.id, sc.words) })
+		content.Children(func() { s.AppSettings.SectionView(c, semantic, sc.id, sc.find) })
 	})
 }
 

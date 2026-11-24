@@ -8,9 +8,8 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-// captureLine is the one control that takes a shortcut, wherever one is
-// pressed: under a Keymap row or in the Keymap's search. It
-// asks for keys, and when the keys are taken it says so in place, in the
+// captureLine is the one control that takes a shortcut, in place of a
+// Keymap row's keys. It asks for keys, and when the keys are taken it says so in place, in the
 // same line, turning from the accent to a warning while its words cross
 // over, so a conflict reads as the recording's answer, not as a new row. It
 // stays live meanwhile: another chord tries again, Return takes the key

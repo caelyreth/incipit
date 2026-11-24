@@ -129,7 +129,7 @@ func TestKeymapAsksBeforeTakingAnotherActionsShortcut(t *testing.T) {
 	}
 }
 
-func TestKeymapSearchesByNameWordsAndPressedKeys(t *testing.T) {
+func TestKeymapSearchesByNameWordsAndKey(t *testing.T) {
 	state, _ := keymapState()
 	state.Query = keymap.Words(chord("w"), keymap.PlatformCurrent)
 	tester := ui.NewTester(state.cards(), 600, 1600)
@@ -137,24 +137,19 @@ func TestKeymapSearchesByNameWordsAndPressedKeys(t *testing.T) {
 	if !tester.HasText("Close sheet") || tester.HasText("New page") {
 		t.Fatalf("word search = %#v", tester.Texts())
 	}
-	// Without words, every section stands again, the finder lower.
+	// The query's $key finds the actions holding that key, spelled or said.
 	state.Query = ""
-	tester.Frame()
-	if err := tester.Click("Search by pressing a shortcut"); err != nil {
-		t.Fatal(err)
+	for _, key := range []string{keymap.Spell(chord("t"), keymap.PlatformCurrent), keymap.Words(chord("t"), keymap.PlatformCurrent)} {
+		state.Key = key
+		tester.Frame()
+		if !tester.HasText("Toggle Typewriter mode") || tester.HasText("Close sheet") || tester.HasText("New page") {
+			t.Fatalf("$key:%s = %#v", key, tester.Texts())
+		}
 	}
-	tester.Frame()
-	tester.Key(primary(), ui.KeyT)
-	tester.Frame()
-	if !tester.HasText("Toggle Typewriter mode") || tester.HasText("Close sheet") || tester.HasText("New page") {
-		t.Fatalf("keystroke search = %#v", tester.Texts())
-	}
-	if err := tester.Click("Clear shortcut search"); err != nil {
-		t.Fatal(err)
-	}
+	state.Key = ""
 	tester.Frame()
 	if !tester.HasText("New page") {
-		t.Fatal("clearing the keystroke search did not restore the list")
+		t.Fatal("no $key did not restore the list")
 	}
 }
 

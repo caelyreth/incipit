@@ -41,7 +41,12 @@ func (s *State) offer(caret int) bool {
 		if s.Library != nil {
 			names = s.Library.SearchNames
 		}
-		next := query.Complete(prefix+words, len(prefix)+caret, query.InNotebook, names)
+		// Among the settings, the keys offered are theirs.
+		scope := query.InNotebook
+		if s.InSettings() {
+			scope = query.InSettings
+		}
+		next := query.Complete(prefix+words, len(prefix)+caret, scope, names)
 		next.Span.From, next.Span.To = max(0, next.Span.From-len(prefix)), max(0, next.Span.To-len(prefix))
 		if k := s.field.opened; k != nil {
 			next.Items = withWritten(next.Items, k, words)
