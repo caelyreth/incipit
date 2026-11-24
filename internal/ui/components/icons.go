@@ -63,6 +63,16 @@ const (
 	IconDuplicate       IconName = "files"
 	IconColumns         IconName = "columns-2"
 	IconPalette         IconName = "palette"
+	IconAlignStart      IconName = "text-align-start"
+	IconAlignCenter     IconName = "text-align-center"
+	IconAlignEnd        IconName = "text-align-end"
+	IconRowAbove        IconName = "row-insert-above"
+	IconRowBelow        IconName = "row-insert-below"
+	IconColumnLeft      IconName = "column-insert-left"
+	IconColumnRight     IconName = "column-insert-right"
+	IconRowRemove       IconName = "row-remove"
+	IconColumnRemove    IconName = "column-remove"
+	IconPreview         IconName = "eye"
 )
 
 var AllIcons = [...]IconName{
@@ -115,6 +125,16 @@ var AllIcons = [...]IconName{
 	IconDuplicate,
 	IconColumns,
 	IconPalette,
+	IconAlignStart,
+	IconAlignCenter,
+	IconAlignEnd,
+	IconRowAbove,
+	IconRowBelow,
+	IconColumnLeft,
+	IconColumnRight,
+	IconRowRemove,
+	IconColumnRemove,
+	IconPreview,
 }
 
 // GroupIcons are the icons a group can wear, in the order the picker

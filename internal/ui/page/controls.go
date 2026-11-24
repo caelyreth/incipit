@@ -4,8 +4,10 @@ import (
 	"maps"
 	"time"
 
+	"github.com/caelyreth/neverland/internal/app/keymap"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/page/table"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
@@ -230,13 +232,22 @@ func (el *Element) menuGroups() [][]vocab.CommandID {
 	return out
 }
 
-// contextMenu is the page's menu: its groups (menuGroups), then the
-// text's editing items.
+// contextMenu is the page's menu: its groups (menuGroups), each item
+// with its icon (toolIcon) and its key as the keymap has it, as the
+// field's menus are; then the text's editing items.
 func (el *Element) contextMenu(m *ui.Menu, services ui.Services) {
 	labels := el.commandLabels()
 	for _, group := range el.menuGroups() {
 		for _, id := range group {
-			if m.Item(labels[id]).Chosen() {
+			it := components.MenuItem(m.Item(labels[id]), toolIcon(id))
+			if el.Keys != nil {
+				if chord, ok := el.Keys.ChordFor(keymap.CommandID(id)); ok {
+					if mods, key, ok := keymap.Native(chord, keymap.PlatformCurrent); ok {
+						it.Shortcut(mods, key)
+					}
+				}
+			}
+			if it.Chosen() {
 				el.run(vocab.Command{ID: id}, services, time.Now())
 			}
 		}

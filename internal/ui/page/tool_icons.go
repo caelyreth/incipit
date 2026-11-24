@@ -5,10 +5,10 @@ import (
 	"github.com/caelyreth/neverland/internal/ui/components"
 )
 
-// toolIcons are the icons the tools draw offered commands with: the one
-// table of the page that names commands, for how they look only. A
-// command it does not name draws the default (toolIcon); a choice's draw
-// none.
+// toolIcons are the icons the tools and the page's menu draw offered
+// commands with: the one table of the page that names commands, for how
+// they look only. A command it does not name draws the default
+// (toolIcon); a choice's draw none.
 var toolIcons = map[vocab.CommandID]components.IconName{
 	"figures.insert":   components.IconImage,
 	"table.insert":     components.IconTable,
@@ -18,6 +18,25 @@ var toolIcons = map[vocab.CommandID]components.IconName{
 	"formats.strike":   components.IconStrike,
 	"scopes.shrink":    components.IconShrinkSelection,
 	"scopes.expand":    components.IconExpandSelection,
+	// The page's menu.
+	"figures.copy":           components.IconDuplicate,
+	"figures.save":           components.IconExport,
+	"figures.preview":        components.IconPreview,
+	"figures.replace":        components.IconImage,
+	"figures.alignStart":     components.IconAlignStart,
+	"figures.alignCenter":    components.IconAlignCenter,
+	"table.row-above":        components.IconRowAbove,
+	"table.row-below":        components.IconRowBelow,
+	"table.column-left":      components.IconColumnLeft,
+	"table.column-right":     components.IconColumnRight,
+	"table.delete-row":       components.IconRowRemove,
+	"table.delete-column":    components.IconColumnRemove,
+	"table.delete":           components.IconTrash,
+	"table.header":           components.IconTable,
+	"table.align-start":      components.IconAlignStart,
+	"table.align-center":     components.IconAlignCenter,
+	"table.align-end":        components.IconAlignEnd,
+	"formulas.toggleDialect": components.IconCode,
 }
 
 // toolIcon is an offered command's icon, the default where the table
