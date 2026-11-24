@@ -19,7 +19,7 @@ type decoKey struct {
 	origin    uint64
 	direction vocab.Direction
 	duration  time.Duration
-	look      deco
+	style     uint64
 	nth       int
 }
 
@@ -89,11 +89,11 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 	}
 	inView := el.decoInView
 	counts := el.decoCounts
-	note := func(u *unitLayout, surface int, highlight bool, d deco, origin uint64, direction vocab.Direction, duration time.Duration, visible bool, rows func() []decoRow) {
+	note := func(u *unitLayout, surface int, highlight bool, style uint64, d deco, origin uint64, direction vocab.Direction, duration time.Duration, visible bool, rows func() []decoRow) {
 		look := d
 		look.rg = ui.TextInputRange{}
 		k := decoKey{unit: u.pres.Unit, surface: surface, highlight: highlight, origin: origin,
-			direction: direction, duration: duration, look: look}
+			direction: direction, duration: duration, style: style}
 		// Stretches of one look are told apart by their order, counted
 		// by the look before the order joins the key, so each keeps its
 		// own fade.
@@ -109,6 +109,8 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 				// view or out of it.
 				sd.fade.Step(true, u.since, animate)
 			}
+		} else {
+			sd.look = look
 		}
 		sd.seen, sd.unit = true, u
 		if visible || sd.rows == nil {
@@ -134,7 +136,7 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 					// The selection's text glides with the caret.
 					continue
 				}
-				note(u, pc.surface, true, d, pt.Origin, pt.Direction, pt.Duration, visible(u), func() []decoRow { return pc.rows })
+				note(u, pc.surface, true, uint64(pt.Group), d, pt.Origin, pt.Direction, pt.Duration, visible(u), func() []decoRow { return pc.rows })
 			}
 		}
 	}
@@ -147,8 +149,12 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 			if !s.shown {
 				continue
 			}
-			for _, d := range s.decos {
-				note(u, s.index, false, d, 0, 0, 0, true, func() []decoRow { return clipped(u, decoRows(s, d.rg, u.x+s.x, u.y+s.y)) })
+			for _, spec := range s.decos {
+				d := decoOf(spec.rg, el.Editor.theme.Resolve(spec.groups))
+				if !d.drawn() {
+					continue
+				}
+				note(u, s.index, false, spec.hash, d, 0, 0, 0, true, func() []decoRow { return clipped(u, decoRows(s, spec.rg, u.x+s.x, u.y+s.y)) })
 			}
 		}
 	}

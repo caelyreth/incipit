@@ -106,6 +106,7 @@ type Element struct {
 	// scratch paint slices reused across frames to avoid per-unit slice allocs.
 	shownUnits       []shownUnit
 	shownSurfacesBuf []shownSurface
+	spanColors       []ui.Color
 	// rooms spring each unit's height as a surface in it opens and
 	// closes, stepped as the page is painted at paintNow; roomsMoving asks
 	// for the next paint. animate is whether motion is wanted, as the

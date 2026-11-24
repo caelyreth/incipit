@@ -99,8 +99,9 @@ func unpack(v uint32) ui.Color {
 }
 
 // span is a style's span of text under m, at its body size.
+// Colors are resolved at paint time so theme transitions do not invalidate text shaping.
 func span(text string, s present.Style, m Metrics) ui.Span {
-	sp := ui.Span{
+	return ui.Span{
 		Text:          text,
 		Font:          family(s.Font, m),
 		Size:          m.Body * s.Size,
@@ -108,12 +109,41 @@ func span(text string, s present.Style, m Metrics) ui.Span {
 		Italic:        s.Italic,
 		Strikethrough: s.Strike,
 	}
-	if s.Set&present.SetColor != 0 {
-		c := unpack(s.Color)
-		if s.Opacity < 1 {
-			c = c.Alpha(float32(c.A) / 255 * s.Opacity)
-		}
-		sp.Color = c
+}
+
+func styleColor(s present.Style) ui.Color {
+	if s.Set&present.SetColor == 0 {
+		return ui.Color{}
 	}
-	return sp
+	c := unpack(s.Color)
+	if s.Opacity < 1 {
+		c = c.Alpha(float32(c.A) / 255 * s.Opacity)
+	}
+	return c
+}
+
+const layoutStyleMask = present.SetFont | present.SetSize | present.SetWeight | present.SetItalic |
+	present.SetLine | present.SetStrike | present.SetSpace | present.SetAfter |
+	present.SetBackground | present.SetOutline
+
+func sameLayoutStyle(a, b present.Style) bool {
+	if a.Set&layoutStyleMask != b.Set&layoutStyleMask {
+		return false
+	}
+	return a.Font == b.Font && a.Size == b.Size && a.Weight == b.Weight && a.Italic == b.Italic &&
+		a.Line == b.Line && a.Strike == b.Strike && a.Space == b.Space && a.After == b.After &&
+		(a.Background != 0) == (b.Background != 0) && (a.Outline != 0) == (b.Outline != 0)
+}
+
+func sameLayoutTheme(a, b present.Theme) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, sa := range a {
+		sb, ok := b[k]
+		if !ok || !sameLayoutStyle(sa, sb) {
+			return false
+		}
+	}
+	return true
 }

@@ -157,7 +157,15 @@ func (el *Element) paintSurface(p *ui.Painter, s *surfaceLayout, ux, uy float32,
 	if panel {
 		area = el.panelArea(s, ux, uy)
 	}
-	paintText(p, s.layout, sx, sy, el.Theme.Prose.Text)
+	el.spanColors = el.spanColors[:0]
+	for _, sg := range s.segs {
+		if sg.kind == segGhost {
+			el.spanColors = append(el.spanColors, invisible)
+			continue
+		}
+		el.spanColors = append(el.spanColors, styleColor(el.Editor.theme.Resolve(sg.groups)))
+	}
+	paintTextColors(p, s.layout, sx, sy, el.Theme.Prose.Text, el.spanColors)
 	el.paintGhosts(p, s, sx, sy)
 	el.paintBoxes(p, s, sx, sy)
 	if panel && s.card && s.shown && s.cardFormula != 0 {
@@ -299,7 +307,7 @@ func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy float32) 
 		if gl := sg.shaped.Lines(); len(gl) > 0 {
 			gb = gl[0].Baseline
 		}
-		ink := sg.ink
+		ink := styleColor(el.Editor.theme.Resolve(sg.groups))
 		if ink == (ui.Color{}) {
 			ink = el.Theme.Prose.Text
 		}
@@ -335,6 +343,10 @@ func (el *Element) paintBoxes(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 		p.Fill(ui.Rect{X: sx + o.X, Y: sy + o.Y, W: o.W, H: o.H}, bg, 4)
 		// The box's text as the layout shaped it to measure the box.
 		_, h := sg.shaped.Size()
-		paintText(p, sg.shaped, sx+o.X+boxPad, sy+o.Y+(o.H-h)/2, sg.face.Color)
+		ink := styleColor(el.Editor.theme.Resolve(sg.groups))
+		if ink == (ui.Color{}) {
+			ink = el.Theme.Prose.Text
+		}
+		paintText(p, sg.shaped, sx+o.X+boxPad, sy+o.Y+(o.H-h)/2, ink)
 	}
 }

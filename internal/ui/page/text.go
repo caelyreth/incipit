@@ -12,3 +12,9 @@ func paintText(p *ui.Painter, layout *ui.TextLayout, x, y float32, ink ui.Color)
 		p.TextLayout(layout, origin.X, origin.Y, ink)
 	})
 }
+
+func paintTextColors(p *ui.Painter, layout *ui.TextLayout, x, y float32, ink ui.Color, spanColors []ui.Color) {
+	components.WithTextOrigin(p, ui.Point{X: x, Y: y}, func(origin ui.Point) {
+		p.TextLayoutColors(layout, origin.X, origin.Y, ink, spanColors)
+	})
+}

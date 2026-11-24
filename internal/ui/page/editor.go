@@ -97,8 +97,11 @@ func (ed *Editor) Close() {
 // SetStyle sets the theme and the measures the next layout uses.
 func (ed *Editor) SetStyle(key any, th present.Theme, m Metrics) {
 	if ed.themeOf != key || ed.theme == nil {
+		layoutChanged := ed.theme == nil || !sameLayoutTheme(ed.theme, th)
 		ed.themeOf, ed.theme = key, th
-		ed.cache.themeID++
+		if layoutChanged {
+			ed.cache.themeID++
+		}
 	}
 	ed.metrics = m
 }

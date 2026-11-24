@@ -458,3 +458,35 @@ func TestADoubleClickOnTheSelectedWordSelectsItAgain(t *testing.T) {
 		t.Fatalf("the second double click selected %d..%d, want the word 11..16", from.Pos.Offset, to.Pos.Offset)
 	}
 }
+
+func TestThemeTransitionDoesNotRelayout(t *testing.T) {
+	el := newElement(t)
+	el.Editor.Do(vocab.Paste{Text: "# Title\n\nPlain *emph* **strong** `code` #tag and $x+1$.\n"}, time.Unix(100, 0))
+	starfield := theme.DefaultSettings()
+	daybreak := starfield
+	daybreak.Appearance = theme.Daybreak
+
+	el.Theme = starfield.Semantic()
+	tt := ui.NewTester(el.View, 900, 600)
+	tt.Frame()
+	imgLight := tt.Image()
+	relayouts := el.Editor.relayouts
+
+	el.Theme = daybreak.Semantic()
+	tt.Frame()
+	if el.Editor.relayouts != relayouts {
+		t.Fatalf("theme change triggered %d relayout(s), want 0", el.Editor.relayouts-relayouts)
+	}
+	imgDark := tt.Image()
+	diff := 0
+	for y := 0; y < imgDark.Bounds().Dy(); y += 4 {
+		for x := 0; x < imgDark.Bounds().Dx(); x += 4 {
+			if imgLight.RGBAAt(x, y) != imgDark.RGBAAt(x, y) {
+				diff++
+			}
+		}
+	}
+	if diff == 0 {
+		t.Fatal("rendered image did not change across theme transition")
+	}
+}

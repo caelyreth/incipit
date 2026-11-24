@@ -1,11 +1,13 @@
 package page
 
 import (
+	"hash/fnv"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/present"
 	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/page/table"
 	"github.com/egoist/mygo/ui"
 )
@@ -61,14 +63,33 @@ type seg struct {
 	card int
 	open bool
 	// face is how a box's or a ghost's text is drawn, as it was measured,
-	// and shaped is it shaped; a ghost's is drawn in ink.
+	// and shaped is it shaped; groups resolve paint-time ink colors.
 	face   ui.Span
 	shaped *ui.TextLayout
-	ink    ui.Color
+	groups []vocab.Group
 	// inline is an inline object's renderer; what it keeps here (math)
 	// is its own.
 	inline inlineKind
 	math   mathSet
+}
+
+// decoSpec records a surface decoration range and its highlight groups so
+// colors resolve dynamically at paint time without re-shaping on theme changes.
+type decoSpec struct {
+	rg     ui.TextInputRange
+	groups []vocab.Group
+	hash   uint64
+}
+
+func groupsHash(groups []vocab.Group) uint64 {
+	h := fnv.New64a()
+	var buf [4]byte
+	for _, g := range groups {
+		v := uint32(g)
+		buf[0], buf[1], buf[2], buf[3] = byte(v), byte(v>>8), byte(v>>16), byte(v>>24)
+		_, _ = h.Write(buf[:])
+	}
+	return h.Sum64()
 }
 
 // deco is a stretch of a surface the page draws itself, beneath its
@@ -138,7 +159,7 @@ type surfaceLayout struct {
 	cardFormula doc.ID
 	cardDialect profile.MathDialect
 	layout *ui.TextLayout
-	decos  []deco
+	decos  []decoSpec
 	text   string
 	segs   []seg
 	stops  []stopAt

@@ -310,15 +310,18 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 	var spans []ui.Span
 	var text strings.Builder
 	u := 0
-	add := func(sg seg, sp ui.Span, st present.Style) {
+	add := func(sg seg, sp ui.Span, st present.Style, groups []vocab.Group) {
 		sg.u0 = u
 		u += utf16Len(sp.Text)
 		sg.u1 = u
+		if sg.groups == nil {
+			sg.groups = groups
+		}
 		if d := decoOf(ui.TextInputRange{Start: sg.u0, End: sg.u1}, st); d.drawn() {
-			if n := len(sl.decos); n > 0 && sl.decos[n-1].rg.End == d.rg.Start && sl.decos[n-1].same(d) {
+			if n := len(sl.decos); n > 0 && sl.decos[n-1].rg.End == d.rg.Start && slices.Equal(sl.decos[n-1].groups, groups) {
 				sl.decos[n-1].rg.End = d.rg.End
 			} else {
-				sl.decos = append(sl.decos, d)
+				sl.decos = append(sl.decos, decoSpec{rg: d.rg, groups: groups, hash: groupsHash(groups)})
 			}
 		}
 		sl.segs = append(sl.segs, sg)
@@ -333,9 +336,10 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		if compAt < 0 {
 			return
 		}
-		cs := th.Resolve(append(slices.Clone(groups), vocab.GroupComposition))
+		compGroups := append(slices.Clone(groups), vocab.GroupComposition)
+		cs := th.Resolve(compGroups)
 		start := u
-		add(seg{kind: segComposition, from: compAt, to: compAt}, span(comp.Text, cs, m), cs)
+		add(seg{kind: segComposition, from: compAt, to: compAt}, span(comp.Text, cs, m), cs, compGroups)
 		sl.marked = ui.TextInputRange{Start: start, End: u}
 		sl.hasMarked = true
 		sl.compSel = start + utf16Len(comp.Text[:min(max(comp.Selected[1], 0), len(comp.Text))])
@@ -348,48 +352,47 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			if compAt >= it.From && compAt < it.To {
 				cut := compAt - it.From
 				if cut > 0 {
-					add(seg{kind: segText, from: it.From, to: compAt, text: it.Text[:cut]}, span(it.Text[:cut], style, m), style)
+					add(seg{kind: segText, from: it.From, to: compAt, text: it.Text[:cut]}, span(it.Text[:cut], style, m), style, it.Groups)
 				}
 				addComp(it.Groups)
-				add(seg{kind: segText, from: it.From + cut, to: it.To, text: it.Text[cut:]}, span(it.Text[cut:], style, m), style)
+				add(seg{kind: segText, from: it.From + cut, to: it.To, text: it.Text[cut:]}, span(it.Text[cut:], style, m), style, it.Groups)
 				continue
 			}
-			add(seg{kind: segText, from: it.From, to: it.To, text: it.Text}, span(it.Text, style, m), style)
+			add(seg{kind: segText, from: it.From, to: it.To, text: it.Text}, span(it.Text, style, m), style, it.Groups)
 		case present.BreakItem:
 			if compAt == it.From {
 				addComp(it.Groups)
 			}
-			add(seg{kind: segBreak, from: it.From, to: it.To, text: "\n"}, span("\n", style, m), style)
+			add(seg{kind: segBreak, from: it.From, to: it.To, text: "\n"}, span("\n", style, m), style, it.Groups)
 		case present.GhostItem:
 			// A ghost takes its room in the line and is drawn on its own,
-			// in its group's ink.
+			// in its group's ink resolved at paint time.
 			// TODO(ghosts): a setting to draw ghosts over the text, without
 			// taking room, once the page can keep their stops visible.
 			sp := span(string(it.Spelling), style, m)
 			face := sp
-			face.Color = ui.Color{}
 			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Weight: face.Weight, Italic: face.Italic}, ui.TextShape{})
-			ink := sp.Color
 			sp.Color = invisible
 			add(seg{kind: segGhost, from: it.From, to: it.From, text: string(it.Spelling), stopFrom: it.StopFrom, stops: it.StopTo - it.StopFrom,
-				face: face, ink: ink, shaped: lay}, sp, style)
+				face: face, shaped: lay}, sp, style, it.Groups)
 		case present.BoxItem:
 			if compAt == it.From {
 				addComp(it.Groups)
 			}
 			if k, ok := inlineKinds[it.Node.Kind()]; ok {
 				sg, sp := k.lay(lc, seg{kind: segBox, from: it.From, to: it.To, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), inline: k}, style, m)
-				add(sg, sp, style)
+				add(sg, sp, style, it.Groups)
 				continue
 			}
 			src := boxText(it.Node)
-			bs := th.Resolve(append(slices.Clone(it.Groups), it.Face))
+			faceGroups := append(slices.Clone(it.Groups), it.Face)
+			bs := th.Resolve(faceGroups)
 			face := span(src, bs, m)
 			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size}, ui.TextShape{})
 			w, h := lay.Size()
 			sp := span("\uFFFC", style, m)
 			sp.ObjectWidth, sp.ObjectHeight = max(w, m.Body*0.6)+boxPad*2, max(h*0.8, m.Body)
-			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), face: face, shaped: lay}, sp, style)
+			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), face: face, shaped: lay, groups: faceGroups}, sp, style, it.Groups)
 		}
 	}
 	addComp([]vocab.Group{s.Group})
