@@ -10,6 +10,7 @@ import (
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
 	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/caelyreth/neverland/internal/app/workspace"
+	"github.com/caelyreth/neverland/internal/editor/engine"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/page"
@@ -49,11 +50,15 @@ type AppState struct {
 	menu       *mygo.Menu
 	systemKeys map[*mygo.MenuItem]string
 	// menuItems are the menu's items by the command each runs,
-	// offerItems the Format menu's for what the rules offer, and
-	// menuShown what each was last given (syncMenu).
-	menuItems  map[keymap.CommandID]*mygo.MenuItem
+	// offerItems the Format menu's for what the rules offer, menuShown
+	// what each was last given (syncMenu), menuKeys the keymap their keys
+	// are spelled for, and menuOffers what the rules offered, kept to be
+	// filled again.
+	menuItems  map[keymap.CommandID]*commandItem
 	offerItems []offerItem
 	menuShown  map[*mygo.MenuItem]menuShown
+	menuKeys   *keymap.Keymap
+	menuOffers map[vocab.CommandID]engine.Offered
 	// fresh are the sheets made this run, which go if closed empty.
 	fresh map[workspace.PageID]bool
 	// undoItem and redoItem are Edit's Undo and Redo for the field.

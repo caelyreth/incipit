@@ -16,8 +16,10 @@ import (
 // teaches the app and Help's search finds any verb. Edit's text items
 // keep MyGo's roles, so text fields anywhere still cut, copy and paste.
 func (a *AppState) MainMenu() *mygo.Menu {
-	a.menuItems = map[keymap.CommandID]*mygo.MenuItem{}
+	a.menuItems = map[keymap.CommandID]*commandItem{}
 	a.menuShown = map[*mygo.MenuItem]menuShown{}
+	a.menuOffers = map[vocab.CommandID]engine.Offered{}
+	a.menuKeys = nil
 	a.offerItems = nil
 	a.undoField = nil
 	command := func(id keymap.CommandID) *mygo.MenuItem {
@@ -31,11 +33,13 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		case keymap.Typewriter, keymap.Motion, keymap.ShowTrash, keymap.ViewList:
 			item.Type = mygo.MenuItemCheckbox
 		}
-		a.menuItems[id] = item
+		a.menuItems[id] = &commandItem{item: item, label: item.Label, scope: declared.Scope}
 		return item
 	}
 	ellipsis := func(item *mygo.MenuItem) *mygo.MenuItem {
 		item.Label += "…"
+		c := a.menuItems[keymap.CommandID(item.ID)]
+		c.label, c.ellipsis = item.Label, true
 		return item
 	}
 	menu := mygo.NewMenu([]*mygo.MenuItem{
@@ -161,11 +165,26 @@ func (a *AppState) menuClick(fn func()) func(*mygo.MenuItem, *mygo.Window) {
 	}
 }
 
+// commandItem is the menu's item for a keymap command: its words, as the
+// menu was built in the language it shows, its scope, and its key as
+// spelled for the keymap last read (menuKeys). The words change only as
+// the menu is built again and the key as the keymap does, so syncMenu
+// reads neither the catalog nor the keymap for them each frame.
+type commandItem struct {
+	item        *mygo.MenuItem
+	label       string
+	ellipsis    bool
+	scope       keymap.Scope
+	accelerator string
+}
+
 // offerItem is an item of the Format menu and the command the rules
-// offer it for (vocab.SurfaceMenuBar), whose key and state it shows.
+// offer it for (vocab.SurfaceMenuBar), whose key and state it shows; its
+// key is spelled as a commandItem's is.
 type offerItem struct {
-	item *mygo.MenuItem
-	id   vocab.CommandID
+	item        *mygo.MenuItem
+	id          vocab.CommandID
+	accelerator string
 }
 
 // offeredItems are the Format menu's items for what the rules offer in
@@ -212,7 +231,7 @@ type menuShown struct {
 // is the keymap's.
 func (a *AppState) carries(item *mygo.MenuItem) bool {
 	for _, held := range a.menuItems {
-		if held == item {
+		if held.item == item {
 			return true
 		}
 	}
@@ -235,20 +254,21 @@ func (a *AppState) syncMenu() {
 	if a == nil || a.menu == nil || a.Shell == nil {
 		return
 	}
-	keys := a.Product.Keymap
+	if keys := a.Product.Keymap; a.menuKeys != keys {
+		a.spellKeys(keys)
+	}
 	desk := a.Shell.OnDesk()
-	for id, item := range a.menuItems {
-		declared, _ := keys.Command(id)
-		state := a.commandState(id, declared.Label())
+	for id, c := range a.menuItems {
+		state := a.commandState(id, c.label)
 		accelerator := ""
-		if chord, ok := keys.ChordFor(id); ok && !a.recording && (declared.Scope != keymap.ScopeLibrary || !desk) {
-			accelerator, _ = keymap.Accelerator(chord, keymap.PlatformCurrent)
+		if !a.recording && (c.scope != keymap.ScopeLibrary || !desk) {
+			accelerator = c.accelerator
 		}
 		label := state.Label
-		if strings.HasSuffix(item.Label, "…") && !strings.HasSuffix(label, "…") {
+		if c.ellipsis && !strings.HasSuffix(label, "…") {
 			label += "…"
 		}
-		a.showItem(item, menuShown{accelerator: accelerator, label: label, enabled: state.Enabled, checked: state.Checked})
+		a.showItem(c.item, menuShown{accelerator: accelerator, label: label, enabled: state.Enabled, checked: state.Checked})
 	}
 	mounted := false
 	if a.Workspace != nil {
@@ -257,7 +277,8 @@ func (a *AppState) syncMenu() {
 	hasPage := desk && mounted
 	// The offered items are as the rules offer them for the page in
 	// front: enabled where they can run, checked where they are on.
-	offers := map[vocab.CommandID]engine.Offered{}
+	offers := a.menuOffers
+	clear(offers)
 	if el := a.pageElement(); hasPage && el != nil {
 		for _, g := range el.Editor.Engine.Offers(el.Editor.View, vocab.SurfaceMenuBar) {
 			for _, o := range g.Offers {
@@ -267,8 +288,8 @@ func (a *AppState) syncMenu() {
 	}
 	for _, f := range a.offerItems {
 		accelerator := ""
-		if chord, ok := keys.ChordFor(keymap.CommandID(f.id)); ok && hasPage && !a.recording {
-			accelerator, _ = keymap.Accelerator(chord, keymap.PlatformCurrent)
+		if hasPage && !a.recording {
+			accelerator = f.accelerator
 		}
 		o := offers[f.id]
 		a.showItem(f.item, menuShown{accelerator: accelerator, label: f.item.Label, enabled: o.Available, checked: o.On})
@@ -320,6 +341,26 @@ func (a *AppState) syncMenu() {
 		}
 		setAccelerator(item, accelerator)
 	}
+}
+
+// spellKeys spells each item's key as keys binds it, and keeps keys as
+// the keymap the menu read.
+func (a *AppState) spellKeys(keys *keymap.Keymap) {
+	spell := func(id keymap.CommandID) string {
+		chord, ok := keys.ChordFor(id)
+		if !ok {
+			return ""
+		}
+		accelerator, _ := keymap.Accelerator(chord, keymap.PlatformCurrent)
+		return accelerator
+	}
+	for id, c := range a.menuItems {
+		c.accelerator = spell(id)
+	}
+	for i := range a.offerItems {
+		a.offerItems[i].accelerator = spell(keymap.CommandID(a.offerItems[i].id))
+	}
+	a.menuKeys = keys
 }
 
 // fieldUndo is Edit's Undo for the field's changes.

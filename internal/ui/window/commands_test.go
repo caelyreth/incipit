@@ -127,12 +127,12 @@ func TestKeysActOnTheSceneInFront(t *testing.T) {
 		t.Fatal("Close Sheet is enabled on the field")
 	}
 	app.MainMenu()
-	if item := app.menuItems[keymap.Trash]; item.Accelerator == "" {
+	if item := app.menuItems[keymap.Trash].item; item.Accelerator == "" {
 		t.Fatal("Move to Trash has no key on the field")
 	}
 	app.Shell.ShowDesk()
 	tester.Frame()
-	if item := app.menuItems[keymap.Trash]; item.Accelerator != "" {
+	if item := app.menuItems[keymap.Trash].item; item.Accelerator != "" {
 		t.Fatalf("Move to Trash keeps %q on the desk, where the page hears it", item.Accelerator)
 	}
 	if len(app.offerItems) == 0 {
