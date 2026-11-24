@@ -65,10 +65,7 @@ func (el *Element) stepGuides(pl *pageLayout, show bool) {
 	for _, g := range shown {
 		g.offered = false
 	}
-	keys := el.Keys
-	if keys == nil {
-		keys = keymap.Default(keymap.Declared(el.Editor.Engine.Program().Catalog()))
-	}
+	keys := el.keys()
 	claimed := map[keymap.Chord]bool{}
 	for _, g := range el.Editor.deco.Guides {
 		if !show {

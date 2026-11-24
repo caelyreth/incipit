@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/internal/app/keymap"
 	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/policy"
 	"github.com/caelyreth/neverland/internal/editor/present"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/motion"
@@ -37,8 +38,14 @@ type Element struct {
 	// Typewriter keeps the caret's line at the viewport's center.
 	Typewriter bool
 	// Keys are the keymap the page's keys resolve through, and its guides
-	// show; nil is the defaults.
+	// show; nil is the defaults (keys).
 	Keys *keymap.Keymap
+	// defaults are the default keys of the program they were made for,
+	// which a page without Keys reads at every key and paint.
+	defaults struct {
+		program *policy.Program
+		keys    *keymap.Keymap
+	}
 	// UIFontSize sizes the guides' keycaps as the app's controls.
 	UIFontSize float32
 	// Pictures gives figures their pictures; nil shows each one's place.
@@ -544,3 +551,17 @@ func (el *Element) command(name string, services ui.Services, at time.Time) bool
 }
 
 // --- painting -------------------------------------------------------------
+
+// keys are the keymap the page's keys resolve through: Keys, or the
+// defaults of what its program declares, made once for that program.
+func (el *Element) keys() *keymap.Keymap {
+	if el.Keys != nil {
+		return el.Keys
+	}
+	prog := el.Editor.Engine.Program()
+	if el.defaults.program != prog || el.defaults.keys == nil {
+		el.defaults.program = prog
+		el.defaults.keys = keymap.Default(keymap.Declared(prog.Catalog()))
+	}
+	return el.defaults.keys
+}

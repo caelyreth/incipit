@@ -40,10 +40,7 @@ var menuIntents = map[string]vocab.Intent{
 // commands runs the first the engine finds available, previewing each
 // before the last: Tab leaves a scope or, with none to leave, nests.
 func (el *Element) keyIntent(ev ui.InputEvent) (vocab.Intent, bool) {
-	keys := el.Keys
-	if keys == nil {
-		keys = keymap.Default(keymap.Declared(el.Editor.Engine.Program().Catalog()))
-	}
+	keys := el.keys()
 	ed := el.Editor
 	prog := ed.Engine.Program()
 	at := ev.Time
