@@ -169,8 +169,10 @@ func (s *State) keyFilterChip(c *ui.Context, semantic theme.Theme) {
 }
 
 // shortcutRow is one action: its name, and its shortcut as keycaps that
-// record a new one when clicked, with reset and clear actions. The recorder
-// opens under the row.
+// record a new one when clicked, with reset and clear actions. It records
+// in place: the keys give way to the capture line in the row's own line,
+// so nothing under it moves, and a key another action holds is answered
+// there.
 func (s *State) shortcutRow(
 	c *ui.Context,
 	semantic theme.Theme,
@@ -183,9 +185,24 @@ func (s *State) shortcutRow(
 	inset := theme.Space16.DIPs(scale)
 	start := inset + indent
 	host := "row-" + string(shortcut.Command)
+	recording := s.keyEditing == shortcut.Command && s.keyHost == host
 	block := ui.Column(c).Key("shortcut-" + string(shortcut.Command)).
 		Shrink(0).WidthPercent(100).MinWidth(0)
-	hover := components.HoverAmount(block, block.Hovered(), animate)
+	hover := components.HoverAmount(block, block.Hovered() && !recording, animate)
+	swap := func(key string, grow float32, content func()) {
+		// The keys keep their width; the capture line takes the room the
+		// name leaves it.
+		part := ui.Row(c).Key(key).AlignItems(ui.Center).Gap(theme.Space12.DIPs(scale))
+		if grow > 0 {
+			part.Grow(grow).MinWidth(0)
+		} else {
+			part.Shrink(0)
+		}
+		if animate {
+			part.Transition(keySwap)
+		}
+		part.Children(content)
+	}
 	block.Children(func() {
 		ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).
 			MinHeight(theme.DefaultControls.Scaled(scale).Row+theme.Space08.DIPs(scale)).
@@ -201,10 +218,22 @@ func (s *State) shortcutRow(
 					}
 					s.policyBadge(c, semantic, shortcut)
 				})
-				s.shortcutActions(c, semantic, shortcut, hover)
-				s.shortcutKeys(c, semantic, shortcut, host)
+				if recording {
+					conflict := s.keyConflict
+					swap("capture", 1.6, func() {
+						// As tall as the keys it stands in for, so the row
+						// keeps its height.
+						line := s.shortcutCapture(shortcut.Command, true, conflict)
+						line.Height = keysHeight(scale)
+						s.captureLine(c, semantic, line)
+					})
+					return
+				}
+				swap("keys", 0, func() {
+					s.shortcutActions(c, semantic, shortcut, hover)
+					s.shortcutKeys(c, semantic, shortcut, host)
+				})
 			})
-		s.recorder(c, semantic, host, start)
 		if !last {
 			ui.Row(c).WidthPercent(100).PaddingStart(start).Children(func() {
 				components.HorizontalDivider(c, semantic, components.VariantDivider)
@@ -246,20 +275,19 @@ func (s *State) shortcutActions(
 }
 
 // shortcutKeys shows the bindings as keycaps; clicking them records anew,
-// and they stay marked while their recorder is open.
+// in their place (shortcutRow).
 func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appsettings.Shortcut, host string) {
 	scale := s.Theme.UIFontSize
 	metrics := theme.DefaultControls.Scaled(scale)
-	recording := s.keyEditing == shortcut.Command && s.keyHost == host
 	button := ui.ButtonBase(c.Key("keys-" + string(shortcut.Command))).
 		Label(shortcutLabel(shortcut, shortcut.Command)).
 		FocusRing(false).
-		Height(metrics.InlineHeight + theme.Space04.DIPs(scale)).
+		Height(keysHeight(scale)).
 		AlignItems(ui.Center).Gap(theme.Space06.DIPs(scale)).
 		PaddingX(theme.Space04.DIPs(scale)).Radius(metrics.Radius)
-	// The keys draw their own ring, the one a key in a sentence draws, so
-	// it eases away when recording ends rather than lingering as focus.
-	ring := s.keyRing(button, triggerKey(host, shortcut.Command), recording, s.motion(c))
+	// The keys draw their own ring, the one a key in a sentence draws, for
+	// a focus the keyboard brought; given back after recording, quietly.
+	ring := s.keyRing(button, triggerKey(host, shortcut.Command), false, s.motion(c))
 	button.Border(1, semantic.Border.Focused.Alpha(ring))
 	hover := components.HoverAmount(button, button.Hovered(), s.motion(c))
 	button.Background(semantic.GhostElement.Hover.Alpha(hover))
@@ -291,6 +319,12 @@ func (s *State) shortcutKeys(c *ui.Context, semantic theme.Theme, shortcut appse
 		s.startRecording(shortcut.Command, host)
 	}
 	s.returnFocus(button, triggerKey(host, shortcut.Command))
+}
+
+// keysHeight is how tall a row's keys stand, and the capture line that
+// records in their place.
+func keysHeight(scale float32) float32 {
+	return theme.DefaultControls.Scaled(scale).InlineHeight + theme.Space04.DIPs(scale)
 }
 
 // keycaps draws one binding as a run of keys.

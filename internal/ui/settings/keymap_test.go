@@ -268,9 +268,9 @@ func TestRecordingRefusesKeysTheMenuKeeps(t *testing.T) {
 	}
 }
 
-// When a capture ends the key it started from takes the keyboard back
-// quietly: its outline eases away rather than staying on as a focus ring.
-func TestKeyOutlineEasesAwayAfterCapture(t *testing.T) {
+// When a capture ends, the keys come back in the row and take the keyboard
+// back quietly: no ring, as a focus the person did not move to.
+func TestKeysComeBackQuietAfterCapture(t *testing.T) {
 	state, _ := keymapState()
 	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
@@ -279,34 +279,24 @@ func TestKeyOutlineEasesAwayAfterCapture(t *testing.T) {
 	}
 	tester.Frame()
 	tester.Advance(time.Second)
-	keys, ok := tester.Find("Change shortcut for New page")
-	if !ok {
-		t.Fatal("no keycaps")
-	}
-	// How far the keys' left edge stands out from just inside it: the ring.
-	ring := func() float64 {
-		image := tester.Image()
-		y := int(keys.Y + keys.H/2)
-		edge := image.At(int(keys.X), y)
-		inside := image.At(int(keys.X)+3, y)
-		er, eg, eb, _ := edge.RGBA()
-		ir, ig, ib, _ := inside.RGBA()
-		d := func(a, b uint32) float64 { return math.Abs(float64(a) - float64(b)) }
-		return (d(er, ir) + d(eg, ig) + d(eb, ib)) / 3 / 0xffff
-	}
-	recording := ring()
 	tester.Key(primary(), ui.KeyK)
 	tester.Frame()
-	tester.Advance(components.MotionQuick / 4)
-	during := ring()
 	tester.Advance(time.Second)
-	after := ring()
-	if !(recording > 0.05 && during < recording && during > after) || after > 0.01 {
-		t.Fatalf("ring %.3f while recording, %.3f, then %.3f: want an eased fade to none",
-			recording, during, after)
+	tester.Frame()
+	keys, ok := tester.Find("Change shortcut for New page")
+	if !ok || tester.HasText("Press keys…") {
+		t.Fatalf("the keys did not come back: %#v", tester.Texts())
 	}
 	if !tester.Focused("Change shortcut for New page") {
-		t.Fatal("the keyboard did not come back to the keys")
+		t.Fatal("the keys did not take the keyboard back")
+	}
+	image := tester.Image()
+	y := int(keys.Y + keys.H/2)
+	er, eg, eb, _ := image.At(int(keys.X), y).RGBA()
+	ir, ig, ib, _ := image.At(int(keys.X)+3, y).RGBA()
+	d := func(a, b uint32) float64 { return math.Abs(float64(a) - float64(b)) }
+	if ring := (d(er, ir) + d(eg, ig) + d(eb, ib)) / 3 / 0xffff; ring > 0.01 {
+		t.Fatalf("the keys came back ringed: %.3f", ring)
 	}
 }
 
@@ -401,7 +391,9 @@ func TestConflictAnswersInTheCaptureLine(t *testing.T) {
 	}
 }
 
-func TestRecorderFoldsOpenAndShut(t *testing.T) {
+// A shortcut records in its own row: the keys give way to the capture
+// line in place, and nothing under the row moves, recording or done.
+func TestAShortcutRecordsInItsRow(t *testing.T) {
 	state, _ := keymapState()
 	tester := ui.NewTester(state.cards(appsettings.Keymap), 600, 1600)
 	tester.Frame()
@@ -410,24 +402,20 @@ func TestRecorderFoldsOpenAndShut(t *testing.T) {
 	if err := tester.Click("Change shortcut for Close sheet"); err != nil {
 		t.Fatal(err)
 	}
-	tester.Frame()
-	tester.Advance(components.MotionPanel / 4)
-	opening, _ := tester.Find("Toggle Typewriter mode")
-	tester.Advance(time.Second)
-	open, _ := tester.Find("Toggle Typewriter mode")
-	if !(rows.Y < opening.Y && opening.Y < open.Y-0.5) {
-		t.Fatalf("rows below at %v → %v → %v, want them eased down", rows.Y, opening.Y, open.Y)
+	for _, step := range []time.Duration{components.MotionPanel / 4, time.Second} {
+		tester.Frame()
+		tester.Advance(step)
+		if now, _ := tester.Find("Toggle Typewriter mode"); now.Y != rows.Y {
+			t.Fatalf("rows below moved from %v to %v as the row records", rows.Y, now.Y)
+		}
+	}
+	if !tester.HasText("Press keys…") {
+		t.Fatalf("no capture line: %#v", tester.Texts())
 	}
 	tester.Key(0, ui.KeyEscape)
 	tester.Frame()
-	tester.Advance(components.MotionPanel / 4)
-	closing, _ := tester.Find("Toggle Typewriter mode")
-	if !tester.HasText("Press keys…") || !(closing.Y < open.Y && closing.Y > rows.Y+0.5) {
-		t.Fatalf("recorder vanished instead of folding: rows at %v, %#v", closing.Y, tester.Texts())
-	}
 	tester.Advance(time.Second)
-	shut, _ := tester.Find("Toggle Typewriter mode")
-	if tester.HasText("Press keys…") || shut.Y > rows.Y+0.5 {
-		t.Fatalf("recorder never shut: rows at %v", shut.Y)
+	if now, _ := tester.Find("Toggle Typewriter mode"); tester.HasText("Press keys…") || now.Y != rows.Y {
+		t.Fatalf("after recording: capture shown %v, rows below at %v, want %v", tester.HasText("Press keys…"), now.Y, rows.Y)
 	}
 }

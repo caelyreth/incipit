@@ -119,30 +119,7 @@ func (s *State) recorder(c *ui.Context, semantic theme.Theme, host string, start
 	}.View(c, func() {
 		scale := s.Theme.UIFontSize
 		inset := theme.Space16.DIPs(scale)
-		command := shown.Command
-		shortcut, _ := s.Data.Shortcut(command)
-		line := captureLine{
-			Key: "shortcut-capture-" + string(command), Prompt: locales.PressKeys(),
-			Live: open, Conflict: shown.Conflict,
-			Chosen: func(chord keymap.Chord) { s.recordShortcut(command, chord) },
-			Cancel: s.stopRecording,
-			Clear: func() {
-				s.stopRecording()
-				s.apply(appsettings.Unbind(command))
-			},
-			Replace: func() {
-				if conflict := s.keyConflict; conflict != nil {
-					s.stopRecording()
-					s.apply(appsettings.RemapReplacing(command, conflict.Target, conflict.Owner.Command))
-				}
-			},
-		}
-		if shortcut.Overridden {
-			line.Reset = func() {
-				s.stopRecording()
-				s.apply(appsettings.ResetBinding(command))
-			}
-		}
+		line := s.shortcutCapture(shown.Command, open, shown.Conflict)
 		ui.Row(c).WidthPercent(100).MinWidth(0).
 			Padding(0, inset, theme.Space12.DIPs(scale), start).Children(func() {
 			s.captureLine(c, semantic, line)
@@ -151,6 +128,37 @@ func (s *State) recorder(c *ui.Context, semantic theme.Theme, host string, start
 	if !open && reveal <= 0 {
 		delete(s.recorders, host)
 	}
+}
+
+// shortcutCapture is the capture line recording command's shortcut, live
+// or the picture of one closing, answering conflict where it is set: a
+// chord taken records it, Backspace clears, Use default resets a key
+// changed, and Replace takes a key another action holds.
+func (s *State) shortcutCapture(command keymap.CommandID, live bool, conflict *keyConflict) captureLine {
+	shortcut, _ := s.Data.Shortcut(command)
+	line := captureLine{
+		Key: "shortcut-capture-" + string(command), Prompt: locales.PressKeys(),
+		Live: live, Conflict: conflict,
+		Chosen: func(chord keymap.Chord) { s.recordShortcut(command, chord) },
+		Cancel: s.stopRecording,
+		Clear: func() {
+			s.stopRecording()
+			s.apply(appsettings.Unbind(command))
+		},
+		Replace: func() {
+			if conflict := s.keyConflict; conflict != nil {
+				s.stopRecording()
+				s.apply(appsettings.RemapReplacing(command, conflict.Target, conflict.Owner.Command))
+			}
+		},
+	}
+	if shortcut.Overridden {
+		line.Reset = func() {
+			s.stopRecording()
+			s.apply(appsettings.ResetBinding(command))
+		}
+	}
+	return line
 }
 
 // recorderView is what a recorder shows: the command recording, and the

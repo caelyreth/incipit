@@ -22,6 +22,9 @@ type captureLine struct {
 	// other controls; otherwise it is a little taller, to hold a sentence
 	// and its buttons with room.
 	Compact bool
+	// Height, when set, is the line's height, as where it stands in for
+	// a row's keys.
+	Height float32
 	// Live is false for the picture of a closing line: it takes no focus
 	// or keys, and its buttons do nothing.
 	Live bool
@@ -64,7 +67,10 @@ func (s *State) captureLine(c *ui.Context, semantic theme.Theme, line captureLin
 		}
 	}
 	height := metrics.Height
-	if !line.Compact {
+	switch {
+	case line.Height > 0:
+		height = line.Height
+	case !line.Compact:
 		height += theme.Space08.DIPs(scale)
 	}
 	capture := ui.Row(c).Key(line.Key).Role(ui.RoleTextField).Label(message).
