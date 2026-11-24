@@ -79,7 +79,7 @@ func (s *State) deskFoot(c *ui.Context, semantic theme.Theme, gutter float32, an
 	}
 	bar := ui.Column(c).Key("desk-scrubber").Absolute().Left(gutter).Bottom(gutter).
 		Clip().
-		Background(semantic.Surface.Panel).Border(components.Rim, semantic.Border.Variant).
+		Background(semantic.Surface.Elevated).Border(components.Rim, semantic.Border.Default).
 		Role(ui.RoleGroup).Label(locales.DeskOverview())
 	// grown is how far open the switcher is, 0 to 1, the guard, the
 	// corners and the body following it.
