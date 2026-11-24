@@ -29,6 +29,9 @@ type Pictures struct {
 	// than it, so small pictures hold the memory of what they show, not
 	// of the photos they show (ui.DecodeBitmapScaled).
 	MaxSide int
+	// Sync reads each picture as it is asked for, so a page drawn once,
+	// as one printed, shows them all.
+	Sync bool
 
 	mu      sync.Mutex
 	entries map[string]*pictureEntry
@@ -80,7 +83,13 @@ func (p *Pictures) Picture(media string, now time.Time) (*ui.Bitmap, PictureStat
 	if !ok {
 		entry = &pictureEntry{state: PictureLoading}
 		p.entries[media] = entry
-		go p.decode(media, entry)
+		if p.Sync {
+			p.mu.Unlock()
+			p.decode(media, entry)
+			p.mu.Lock()
+		} else {
+			go p.decode(media, entry)
+		}
 	}
 	entry.drawn = now
 	return entry.bitmap, entry.state

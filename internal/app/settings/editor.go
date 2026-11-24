@@ -66,6 +66,18 @@ func mustCompile(values policy.Values) *policy.Program {
 	return prog
 }
 
+// PrintProgram is the program a printed page is read through: the one
+// chosen, with the marks' signs not drawn, as a page is read rather than
+// written.
+func (s *State) PrintProgram() (*policy.Program, error) {
+	values := maps.Clone(s.Policy)
+	if values == nil {
+		values = policy.Values{}
+	}
+	values["notation.reveal"] = "hidden"
+	return manifest.Compile(values, false)
+}
+
 func (s *State) applyPolicy(change Change) (Outcome, error) {
 	info, ok := s.option(change.Option)
 	if !ok || !valid(info, change.OptionValue) {
