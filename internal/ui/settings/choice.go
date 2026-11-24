@@ -66,15 +66,15 @@ func (s *State) choiceView(c *ui.Context, semantic theme.Theme, o choiceOption) 
 }
 
 // radio is an option's mark: a ring, filled with the accent's dot when
-// chosen. Over a hovered row, whose fill is the ring's faint ink, the
-// ring takes the stronger border, so it still shows.
+// chosen. The ring is a control's edge, in the muted ink, so it reads on
+// either ground; over a hovered row it takes the text's own.
 func radio(c *ui.Context, semantic theme.Theme, on, hovered bool, k float32) {
 	size := 16 * k
 	ring := ui.Box(c.Key("radio")).Size(size, size).Shrink(0).Radius(size / 2).AlignItems(ui.Center).Justify(ui.Center)
 	if !on {
-		ink := semantic.Border.Variant
+		ink := semantic.Text.Muted
 		if hovered {
-			ink = semantic.Border.Default
+			ink = semantic.Text.Default
 		}
 		ring.Border(1.5*k, ink)
 		return
