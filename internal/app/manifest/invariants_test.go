@@ -174,19 +174,32 @@ func TestRandomTracesKeepTheInvariants(t *testing.T) {
 }
 
 func runTrace(t *testing.T, seed uint64, length int) {
+	start, _ := profile.EmptyPage(1, seed, doc.NewInterner())
+	runTraceFrom(t, seed, length, start, randomIntent)
+}
+
+// allSurfaces is every surface offers are drawn on.
+const allSurfaces = vocab.SurfaceTools | vocab.SurfaceDock | vocab.SurfaceMenu | vocab.SurfaceMenuBar
+
+// runTraceFrom runs length intents drawn by draw on start, checking the
+// invariants after each: no rule breaks (engine.ErrFault), in what is done
+// or in any command offered on any surface for the selection, as the menu
+// bar previews them every frame.
+func runTraceFrom(t *testing.T, seed uint64, length int, start *doc.Snapshot, draw func(*rand.Rand, *engine.Engine) vocab.Intent) {
+	t.Helper()
 	prog, err := Compile(nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	rng := rand.New(rand.NewPCG(seed, 99))
-	start, _ := profile.EmptyPage(1, seed, doc.NewInterner())
-	e := engine.New(start, prog, engine.Options{Log: true})
+	var faults []error
+	e := engine.New(start, prog, engine.Options{Log: true, Fault: func(err error) { faults = append(faults, err) }})
 	e.OpenView(1)
 	now := time.Unix(1000, 0)
 	var states [][]store.Row
 	var trail []string
 	for i := range length {
-		in := randomIntent(rng, e)
+		in := draw(rng, e)
 		now = now.Add(time.Duration(rng.IntN(1500)) * time.Millisecond)
 		input := vocab.Input{Intent: in, At: now}
 		trail = append(trail, fmt.Sprintf("%T%+v", in, in))
@@ -195,12 +208,16 @@ func runTrace(t *testing.T, seed uint64, length int) {
 		v, _ := e.View(1)
 		preview, perr, pub, err := doCaught(t, e, input, step+"\nbefore: "+before+fmt.Sprintf("\nselection %+v", v.Selection))
 		if err != nil {
-			t.Fatalf("%s: rejected: %v\n%s", step, err, outline(e.Snapshot().Root()))
+			t.Fatalf("%s: rejected: %v\nselection %+v\n%s", step, err, v.Selection, outline(e.Snapshot().Root()))
 		}
 		if perr == nil {
 			if v := pub.Views[1]; preview.Selection != v.Selection {
 				t.Fatalf("%s: preview selection %v, applied %v", step, preview.Selection, v.Selection)
 			}
+		}
+		e.Offers(1, allSurfaces)
+		if len(faults) > 0 {
+			t.Fatalf("%s: a rule broke: %v\nbefore: %s", step, faults[0], before)
 		}
 		checkPublished(t, e, step)
 		checkKept(t, e, step)
