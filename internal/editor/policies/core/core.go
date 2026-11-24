@@ -125,30 +125,50 @@ func swallow[I vocab.Intent](*policy.Ctx, I, policy.At[doc.SlotRef]) policy.Resu
 
 // --- text ---------------------------------------------------------------------
 
-// endOfNewBlock puts the caret at the end of the block created at a gap.
-func endOfNewBlock(gap doc.Pos) func(doc.Reader) doc.Selection {
-	return func(r doc.Reader) doc.Selection {
-		if c, ok := vocab.BlockCaret(r, gap, vocab.Forward); ok {
-			return doc.Collapsed(c)
-		}
-		return doc.Collapsed(doc.CaretAt(gap))
+// opening is a block opened at a gap that earlier edits of the same
+// transaction may have moved, as deleting a selection moves it.
+type opening struct{ gap doc.Pos }
+
+// openAt is the edit opening a block at gap, mapped through the edits
+// before it.
+func openAt(gap doc.Pos) (*opening, vocab.Edit) {
+	o := &opening{gap: gap}
+	return o, func(tx *doc.Tx) error {
+		gap, _ := doc.Steps(tx.Steps()).Map(o.gap, doc.BiasBefore)
+		_, err := o.open(tx, gap)
+		return err
 	}
+}
+
+// open opens a block the slot at gap takes (GapBlock) there, a gap in the
+// transaction's document, and returns the start of its text.
+func (o *opening) open(tx *doc.Tx, gap doc.Pos) (doc.Pos, error) {
+	o.gap = gap
+	spec, ok := vocab.SlotSpec(tx, gap.Ref())
+	if !ok {
+		return doc.Pos{}, doc.ErrSlot
+	}
+	block, ok := vocab.GapBlock(tx.Schema(), spec)
+	if !ok {
+		return doc.Pos{}, doc.ErrSlot
+	}
+	if err := tx.Apply(doc.Insert{Parent: gap.Node, Slot: gap.Slot, Index: gap.Offset, Nodes: []*doc.Node{block}}); err != nil {
+		return doc.Pos{}, err
+	}
+	n, _ := tx.Node(gap.Node)
+	return doc.Pos{Node: n.Slot(gap.Slot).Child(gap.Offset).ID()}, nil
+}
+
+// caret puts the caret at the end of the opened block.
+func (o *opening) caret(r doc.Reader) doc.Selection {
+	if c, ok := vocab.BlockCaret(r, o.gap, vocab.Forward); ok {
+		return doc.Collapsed(c)
+	}
+	return doc.Collapsed(doc.CaretAt(o.gap))
 }
 
 // plain is an empty plain block.
 func plain(s *doc.Schema) *doc.Node { return vocab.NewBlock(s, s.Plain(), doc.Attrs{}) }
-
-// insertAt is where typed content lands for a caret: a text position, or,
-// at a gap between blocks, the start of a new paragraph made there.
-func insertAt(r doc.Reader, at doc.Pos) (doc.Pos, vocab.Edit) {
-	spec, ok := vocab.SlotSpec(r, at.Ref())
-	if !ok || !spec.Blocks {
-		return at, nil
-	}
-	return at, func(tx *doc.Tx) error {
-		return tx.Apply(doc.Insert{Parent: at.Node, Slot: at.Slot, Index: at.Offset, Nodes: []*doc.Node{plain(tx.Schema())}})
-	}
-}
 
 // typeText inserts text at the caret, replacing a selection. Text takes
 // pending marks, or the marks of the text before it.
@@ -174,10 +194,11 @@ func typeText(c *policy.Ctx, in vocab.Type, _ policy.At[doc.SlotRef]) policy.Res
 	if p := c.Pending(); p != nil {
 		pending, res.DropPending = p.Marks, true
 	}
-	edits = append(edits, insertText(pos, text, pending, pending != nil))
+	o := &opening{gap: pos}
+	edits = append(edits, insertText(pos, text, pending, pending != nil, o))
 	res.Edits = edits
 	if spec, ok := vocab.SlotSpec(c.Doc(), pos.Ref()); ok && spec.Blocks {
-		res.Then = endOfNewBlock(pos)
+		res.Then = o.caret
 	}
 	res.Effects = []policy.Effect{{Kind: policy.EffectReveal}}
 	return res
@@ -185,16 +206,19 @@ func typeText(c *policy.Ctx, in vocab.Type, _ policy.At[doc.SlotRef]) policy.Res
 
 // insertText inserts text at a position that may have moved under earlier
 // edits of the same transaction: it is resolved against the transaction
-// by mapping the caret, so it runs after a selection was deleted.
-func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool) vocab.Edit {
+// by mapping the caret, so it runs after a selection was deleted. At a
+// gap, the text goes into a block o opens there.
+func insertText(at doc.Pos, text string, marks *doc.MarkSet, explicit bool, o *opening) vocab.Edit {
 	return func(tx *doc.Tx) error {
 		pos, _ := doc.Steps(tx.Steps()).Map(at, doc.BiasBefore)
 		if spec, ok := vocab.SlotSpec(tx, pos.Ref()); ok && spec.Blocks {
-			if err := tx.Apply(doc.Insert{Parent: pos.Node, Slot: pos.Slot, Index: pos.Offset, Nodes: []*doc.Node{plain(tx.Schema())}}); err != nil {
+			if o == nil {
+				o = &opening{}
+			}
+			var err error
+			if pos, err = o.open(tx, pos); err != nil {
 				return err
 			}
-			n, _ := tx.Node(pos.Node)
-			pos = doc.Pos{Node: n.Slot(pos.Slot).Child(pos.Offset).ID()}
 		}
 		spec, ok := vocab.SlotSpec(tx, pos.Ref())
 		if !ok {
@@ -355,9 +379,9 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 		return policy.Swallow
 	}
 	if spec.Blocks {
-		_, edit := insertAt(r, pos)
+		o, edit := openAt(pos)
 		res := policy.Do(append(edits, edit)...)
-		res.Then = endOfNewBlock(pos)
+		res.Then = o.caret
 		return res
 	}
 	if _, whole := vocab.ObjectOf(r, pos.Node); spec.Lines && (spec.Literal || whole) {
@@ -366,7 +390,7 @@ func breakBlock(c *policy.Ctx, _ vocab.Break, _ policy.At[doc.SlotRef]) policy.R
 				return res
 			}
 		}
-		return policy.Do(append(edits, insertText(pos, "\n", nil, true))...)
+		return policy.Do(append(edits, insertText(pos, "\n", nil, true, nil))...)
 	}
 	if vocab.Inline(r, pos.Node) {
 		return policy.Swallow
@@ -486,7 +510,7 @@ func softBreak(c *policy.Ctx, _ vocab.SoftBreak, at policy.At[doc.SlotRef]) poli
 		if cleared {
 			edits = append(edits, clear)
 		}
-		return policy.Do(append(edits, insertText(pos, "\n", nil, true))...)
+		return policy.Do(append(edits, insertText(pos, "\n", nil, true, nil))...)
 	}
 	return breakBlock(c, vocab.Break{}, at)
 }

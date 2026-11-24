@@ -3,6 +3,9 @@ package manifest
 import (
 	"testing"
 
+	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/engine"
+
 	"github.com/caelyreth/neverland/internal/editor/policies/notation"
 	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
@@ -147,5 +150,52 @@ func TestASelectionAfterTheMarkerCoversOnlyText(t *testing.T) {
 	}
 	if sp := covers[0].Spans[0]; sp.To-sp.From != 4 {
 		t.Fatalf("span %+v covers %d steps, want 4", sp, sp.To-sp.From)
+	}
+}
+
+// Text typed over a range from before an item's marker lands in a block
+// the gap left takes: a new item where the range starts inside a list,
+// a paragraph where that list went whole, the caret after it (seeds 52
+// and 280 of TestRandomShapesKeepTheInvariants, rejected before).
+func TestTypingOverARangeFromBeforeAMarkerKeepsItsLists(t *testing.T) {
+	item := func(text string, body ...*doc.Node) *doc.Node {
+		return doc.NewNode(profile.Item, doc.Attrs{}, doc.InlineSlot(doc.TextItem(text, nil)), doc.BlockSlot(body...))
+	}
+	list := func(items ...*doc.Node) *doc.Node {
+		return doc.NewNode(profile.List, doc.Attrs{}, doc.BlockSlot(items...))
+	}
+	head := func(n *doc.Node) doc.Caret { return doc.Caret{Pos: doc.Pos{Node: n.ID()}, Stop: doc.StopFirst} }
+	cases := []struct {
+		first []*doc.Node
+		from  int
+		over  vocab.Intent
+		want  string
+	}{
+		{[]*doc.Node{item("a")}, 0, vocab.Type{Text: "x"}, "page(paragraph(xy) list(item(c|)) paragraph())"},
+		{[]*doc.Node{item("a"), item("a2")}, 1, vocab.Type{Text: "x"}, "page(list(item(a|) item(xy|)) list(item(c|)) paragraph())"},
+		// Enter opens the block alike (seed 957).
+		{[]*doc.Node{item("a")}, 0, vocab.Break{}, "page(paragraph(y) list(item(c|)) paragraph())"},
+	}
+	for _, c := range cases {
+		p := open(t)
+		tx := p.e.Snapshot().Begin(doc.Origin{Class: doc.OriginCommand})
+		blocks := []*doc.Node{list(c.first...), list(item("b", list(item("c"))))}
+		if err := tx.Apply(doc.Insert{Parent: 1, Nodes: blocks}); err != nil {
+			t.Fatal(err)
+		}
+		snap, err := tx.Commit()
+		if err != nil {
+			t.Fatal(err)
+		}
+		prog, _ := Compile(nil, true)
+		p.e = engine.New(snap, prog, engine.Options{})
+		p.e.OpenView(1)
+		root := snap.Root()
+		from := head(root.Slot(0).Child(0).Slot(0).Child(c.from))
+		nested := root.Slot(0).Child(1).Slot(0).Child(0).Slot(1).Child(0).Slot(0).Child(0)
+		p.do(vocab.Place{Stop: head(nested), Clicks: 1, Extend: true, Anchor: &from})
+		p.do(c.over)
+		p.do(vocab.Type{Text: "y"})
+		p.want(c.want)
 	}
 }

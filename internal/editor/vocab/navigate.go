@@ -26,6 +26,25 @@ func NewBlock(s *doc.Schema, kind doc.Kind, attrs doc.Attrs, text ...doc.Item) *
 	return doc.NewNode(kind, attrs, slots...)
 }
 
+// GapBlock is the empty block content typed at a gap of a block slot
+// opens: a plain block where the slot takes one, else the first text
+// block kind of the schema it takes, as an item in a list's items. It is
+// false when the slot takes no text block, as a table's rows.
+func GapBlock(s *doc.Schema, spec doc.SlotSpec) (*doc.Node, bool) {
+	if !spec.Blocks || spec.Accepts == nil {
+		return nil, false
+	}
+	if spec.Accepts(s.Plain()) {
+		return NewBlock(s, s.Plain(), doc.Attrs{}), true
+	}
+	for _, k := range s.Kinds() {
+		if s.IsTextBlock(k) && !s.IsObject(k) && spec.Accepts(k) {
+			return NewBlock(s, k, doc.Attrs{}), true
+		}
+	}
+	return nil, false
+}
+
 // FirstTextSlot is the first text slot at or below n.
 func FirstTextSlot(n *doc.Node) (doc.SlotRef, bool) {
 	for i, s := range n.Slots() {
