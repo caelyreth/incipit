@@ -35,24 +35,41 @@ func (sec Section) ID() string { return sec.Category.Key() + "/" + sec.Key }
 func (s *State) Sections(words string) []Section {
 	query := fold(words)
 	var out []Section
-	add := func(category appsettings.Category, key, title, description string, matches bool) {
-		if matches {
+	for _, category := range appsettings.AllCategories {
+		out = s.appendSections(out, category, query, "")
+	}
+	return out
+}
+
+// appendSections appends to out category's sections the folded query
+// finds, in their order: every one, or the one keyed only, which spares a
+// section drawn alone finding all the others first.
+func (s *State) appendSections(out []Section, category appsettings.Category, query, only string) []Section {
+	add := func(key, title, description string, matches func() bool) {
+		if (only == "" || key == only) && matches() {
 			out = append(out, Section{Category: category, Key: key, Title: title, Description: description})
 		}
 	}
-	for _, sec := range s.appearanceSections() {
-		add(appsettings.Appearance, sec.key, sec.title, sec.description, query == "" || containsFold(sec.words, query))
-	}
-	for _, card := range s.Data.Policies {
-		add(appsettings.Editor, card.ID, card.Title, s.spell(card.Description), query == "" || s.policyMatches(card, query))
-	}
-	groups := s.shortcutGroups(query)
-	if len(s.customized()) > 0 && s.Key == "" {
-		add(appsettings.Keymap, changedKey, locales.ResetKeys(), locales.ResetKeysDescription(),
-			query == "" || containsFold(locales.ResetKeys()+" "+locales.ResetKeysKeywords(), query))
-	}
-	for _, group := range groups {
-		add(appsettings.Keymap, group.key, group.title, group.description, true)
+	switch category {
+	case appsettings.Appearance:
+		for _, sec := range s.appearanceSections() {
+			add(sec.key, sec.title, sec.description, func() bool { return query == "" || containsFold(sec.words, query) })
+		}
+	case appsettings.Editor:
+		for _, card := range s.Data.Policies {
+			if only == "" || card.ID == only {
+				add(card.ID, card.Title, s.spell(card.Description), func() bool { return query == "" || s.policyMatches(card, query) })
+			}
+		}
+	case appsettings.Keymap:
+		if len(s.customized()) > 0 && s.Key == "" {
+			add(changedKey, locales.ResetKeys(), locales.ResetKeysDescription(), func() bool {
+				return query == "" || containsFold(locales.ResetKeys()+" "+locales.ResetKeysKeywords(), query)
+			})
+		}
+		for _, group := range s.shortcutGroups(query, only) {
+			add(group.key, group.title, group.description, func() bool { return true })
+		}
 	}
 	return out
 }
@@ -65,23 +82,26 @@ func (s *State) SectionView(c *ui.Context, semantic theme.Theme, id, words strin
 	defer s.reportRecording()
 	s.Query = words
 	query := fold(words)
-	for _, sec := range s.Sections(words) {
-		if sec.ID() != id {
+	for _, category := range appsettings.AllCategories {
+		key, ok := strings.CutPrefix(id, category.Key()+"/")
+		if !ok {
 			continue
 		}
-		scale := s.Theme.UIFontSize
-		ui.Column(c).Key("settings-section-" + id).WidthPercent(100).Gap(theme.Space08.DIPs(scale)).Children(func() {
-			components.Label(c, sec.Category.Title(), theme.TextXSmall, semantic.Text.Muted).
-				PaddingX(theme.Space04.DIPs(scale))
-			switch sec.Category {
-			case appsettings.Appearance:
-				s.appearanceSection(c, semantic, sec)
-			case appsettings.Editor:
-				s.editorSection(c, semantic, sec.Key, query)
-			case appsettings.Keymap:
-				s.keymapSection(c, semantic, sec, query)
-			}
-		})
+		for _, sec := range s.appendSections(nil, category, query, key) {
+			scale := s.Theme.UIFontSize
+			ui.Column(c).Key("settings-section-" + id).WidthPercent(100).Gap(theme.Space08.DIPs(scale)).Children(func() {
+				components.Label(c, sec.Category.Title(), theme.TextXSmall, semantic.Text.Muted).
+					PaddingX(theme.Space04.DIPs(scale))
+				switch sec.Category {
+				case appsettings.Appearance:
+					s.appearanceSection(c, semantic, sec)
+				case appsettings.Editor:
+					s.editorSection(c, semantic, sec.Key, query)
+				case appsettings.Keymap:
+					s.keymapSection(c, semantic, sec, query)
+				}
+			})
+		}
 		return
 	}
 }

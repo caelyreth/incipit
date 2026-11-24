@@ -29,8 +29,9 @@ type shortcutGroup struct {
 	shortcuts               []appsettings.Shortcut
 }
 
-// shortcutGroups are the groups of actions query finds, in order.
-func (s *State) shortcutGroups(query string) []shortcutGroup {
+// shortcutGroups are the groups of actions query finds, in order: every
+// one, or the one keyed only.
+func (s *State) shortcutGroups(query, only string) []shortcutGroup {
 	var out []shortcutGroup
 	for start := 0; start < len(s.Data.Shortcuts); {
 		first := s.Data.Shortcuts[start]
@@ -38,14 +39,16 @@ func (s *State) shortcutGroups(query string) []shortcutGroup {
 		for end < len(s.Data.Shortcuts) && s.Data.Shortcuts[end].Scope == first.Scope {
 			end++
 		}
-		group := shortcutGroup{key: first.Scope.Key(), title: first.Group, description: first.Scope.Description()}
-		for _, shortcut := range s.Data.Shortcuts[start:end] {
-			if s.shortcutMatches(shortcut, query) {
-				group.shortcuts = append(group.shortcuts, shortcut)
+		if key := first.Scope.Key(); only == "" || key == only {
+			group := shortcutGroup{key: key, title: first.Group, description: first.Scope.Description()}
+			for _, shortcut := range s.Data.Shortcuts[start:end] {
+				if s.shortcutMatches(shortcut, query) {
+					group.shortcuts = append(group.shortcuts, shortcut)
+				}
 			}
-		}
-		if len(group.shortcuts) > 0 {
-			out = append(out, group)
+			if len(group.shortcuts) > 0 {
+				out = append(out, group)
+			}
 		}
 		start = end
 	}
@@ -58,15 +61,12 @@ func (s *State) keymapSection(c *ui.Context, semantic theme.Theme, sec Section, 
 		s.section(c, semantic, sec, func() { s.changedKeys(c, semantic) })
 		return
 	}
-	for _, group := range s.shortcutGroups(query) {
-		if group.key == sec.Key {
-			s.section(c, semantic, sec, func() {
-				for index, shortcut := range group.shortcuts {
-					s.shortcutRow(c, semantic, shortcut, index == len(group.shortcuts)-1, 0)
-				}
-			})
-			return
-		}
+	for _, group := range s.shortcutGroups(query, sec.Key) {
+		s.section(c, semantic, sec, func() {
+			for index, shortcut := range group.shortcuts {
+				s.shortcutRow(c, semantic, shortcut, index == len(group.shortcuts)-1, 0)
+			}
+		})
 	}
 }
 
