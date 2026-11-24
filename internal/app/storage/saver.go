@@ -2,6 +2,8 @@ package storage
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -23,6 +25,11 @@ const (
 	// is dropped meanwhile.
 	retryDelay = 2 * time.Second
 )
+
+// ErrHeld reports a page's content not written because what would be on
+// disk does not load back as the page in memory: its disk keeps the last
+// good save.
+var ErrHeld = errors.New("storage: a page was held back unsaved")
 
 // Saver writes the notebook as it changes, off the caller's thread. Callers
 // hand it values it owns from then on; memory remains the truth, and what is
@@ -60,6 +67,8 @@ type Saver struct {
 	wrote      bool
 	lastBackup time.Time
 	now        func() time.Time
+	// verify checks a page's save before it is written (store.Verify).
+	verify func(prev, next *doc.Snapshot, d store.Diff) error
 }
 
 // Autosave starts saving the notebook.
@@ -74,6 +83,7 @@ func (s *Store) Autosave() *Saver {
 		done:       make(chan struct{}),
 		lastBackup: time.Now(),
 		now:        time.Now,
+		verify:     store.Verify,
 	}
 	go saver.run()
 	return saver
@@ -300,10 +310,18 @@ func (v *Saver) writePending() error {
 		return nil
 	}
 	work := change{library: records, layout: layout, settings: settings, written: written}
+	// A page whose save would not load back as it is in memory is held:
+	// its disk keeps the last good save, and the rest is written.
+	held := map[PageKey]error{}
 	for key, summary := range pending {
 		w := pageWrite{key: key, summary: summary}
 		if snap, ok := content[key]; ok {
-			w.content = &contentWrite{root: snap.Root().ID(), seed: snap.Seed(), diff: store.Changes(saved[key], snap)}
+			diff := store.Changes(saved[key], snap)
+			if err := v.verify(saved[key], snap, diff); err != nil {
+				held[key] = fmt.Errorf("%w: page %d: %w", ErrHeld, key, err)
+				continue
+			}
+			w.content = &contentWrite{root: snap.Root().ID(), seed: snap.Seed(), diff: diff}
 		}
 		work.pages = append(work.pages, w)
 	}
@@ -352,14 +370,36 @@ func (v *Saver) writePending() error {
 		return err
 	}
 	for key, snap := range content {
-		v.saved[key] = snap
+		if held[key] == nil {
+			v.saved[key] = snap
+		}
 	}
 	for key := range deleted {
 		delete(v.saved, key)
 	}
-	v.err = nil
 	v.wrote = true
-	return nil
+	v.err = nil
+	if len(held) == 0 {
+		return nil
+	}
+	// A held page waits for its next change, or a retry, to be checked
+	// again.
+	var errs []error
+	for key, err := range held {
+		if _, newer := v.pending[key]; !newer && !v.deleted[key] {
+			v.pending[key] = pending[key]
+		}
+		if _, newer := v.content[key]; !newer && !v.deleted[key] {
+			v.content[key] = content[key]
+		}
+		errs = append(errs, err)
+	}
+	if v.first.IsZero() {
+		v.first = v.now()
+	}
+	v.last = v.now()
+	v.err = errors.Join(errs...)
+	return v.err
 }
 
 // backup takes the periodic backup while the notebook changes, and the

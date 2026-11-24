@@ -92,3 +92,38 @@ func TestSaveIsAPointerDiff(t *testing.T) {
 		t.Fatalf("removing a list deletes its rows: %+v", d.Delete)
 	}
 }
+
+// Verify passes a save that loads back as the page, and refuses one that
+// would leave the disk holding another page: a row the diff loses, a row
+// it leaves behind, a row it writes otherwise.
+func TestVerifyRefusesASaveThatLoadsAsAnotherPage(t *testing.T) {
+	prev := sample(t)
+	list := prev.Root().Slot(0).Child(3)
+	tx := prev.Begin(doc.Origin{Class: doc.OriginCommand})
+	if err := tx.Apply(doc.EditText{At: doc.SlotRef{Node: prev.Root().Slot(0).Child(0).ID()}, Items: []doc.Item{doc.TextItem("new", nil)}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Apply(doc.Remove{IDs: []doc.ID{list.ID()}}); err != nil {
+		t.Fatal(err)
+	}
+	next, err := tx.Commit()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := Changes(prev, next)
+	if err := Verify(prev, next, d); err != nil {
+		t.Fatalf("a sound save refused: %v", err)
+	}
+	if err := Verify(nil, next, Changes(nil, next)); err != nil {
+		t.Fatalf("a first save refused: %v", err)
+	}
+	lost := Diff{Upsert: d.Upsert[1:], Delete: d.Delete}
+	behind := Diff{Upsert: d.Upsert, Delete: d.Delete[1:]}
+	other := Diff{Upsert: append([]Row(nil), d.Upsert...), Delete: d.Delete}
+	other.Upsert[0].Text = "nw"
+	for name, bad := range map[string]Diff{"lost": lost, "behind": behind, "other": other} {
+		if err := Verify(prev, next, bad); err == nil {
+			t.Errorf("%s: a save that loads as another page passed", name)
+		}
+	}
+}

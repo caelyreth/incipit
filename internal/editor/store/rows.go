@@ -1,6 +1,10 @@
 package store
 
 import (
+	"bytes"
+	"cmp"
+	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
@@ -201,4 +205,41 @@ func Load(schema *doc.Schema, marks *doc.Interner, root doc.ID, seed uint64, row
 		return nil, corrupt(root, "rows outside the tree")
 	}
 	return doc.NewSnapshot(schema, marks, n, seed)
+}
+
+// Verify checks a save before it is written: the rows d leaves over
+// prev's, as a store holding prev would hold them, load back as next does,
+// valid in every node and the same page row for row. A save that fails is
+// not to be written: the store keeps prev.
+func Verify(prev, next *doc.Snapshot, d Diff) error {
+	held := map[doc.ID]Row{}
+	if prev != nil {
+		for _, r := range Rows(prev) {
+			held[r.ID] = r
+		}
+	}
+	for _, id := range d.Delete {
+		delete(held, id)
+	}
+	for _, r := range d.Upsert {
+		held[r.ID] = r
+	}
+	rows := slices.Collect(maps.Values(held))
+	loaded, err := Load(next.Schema(), doc.NewInterner(), next.Root().ID(), next.Seed(), rows)
+	if err != nil {
+		return err
+	}
+	got, want := Rows(loaded), Rows(next)
+	byID := func(a, b Row) int { return cmp.Compare(a.ID, b.ID) }
+	slices.SortFunc(got, byID)
+	slices.SortFunc(want, byID)
+	if !slices.EqualFunc(got, want, sameRow) {
+		return fmt.Errorf("%w: the saved rows load as another page", ErrCorrupt)
+	}
+	return nil
+}
+
+func sameRow(a, b Row) bool {
+	return a.ID == b.ID && a.Parent == b.Parent && a.Slot == b.Slot && a.Ord == b.Ord && a.Kind == b.Kind &&
+		bytes.Equal(a.Attrs, b.Attrs) && a.Text == b.Text && bytes.Equal(a.Runs, b.Runs)
 }

@@ -1,10 +1,12 @@
 package storage
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/neverland/internal/editor/store"
 )
 
 func TestPageContentSavesAsRowsAndLoads(t *testing.T) {
@@ -97,5 +99,65 @@ func TestTagsTasksAndPictureSavedBeforeAreReadOnce(t *testing.T) {
 		if err := s.Close(); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// A page whose save would not load back as it is in memory is held, its
+// disk at the last good save, while the rest is written; its next good
+// change is written as ever.
+func TestAPageThatWouldNotLoadBackIsHeld(t *testing.T) {
+	s := openStore(t, t.TempDir())
+	defer s.Close()
+	page := func(text string) *doc.Snapshot {
+		snap, err := profile.EmptyPage(1, 7, doc.NewInterner())
+		if err != nil {
+			t.Fatal(err)
+		}
+		tx := snap.Begin(doc.Origin{Class: doc.OriginTyping})
+		if err := tx.Apply(doc.EditText{At: doc.SlotRef{Node: snap.Root().Slot(0).Child(0).ID()}, Items: []doc.Item{doc.TextItem(text, nil)}}); err != nil {
+			t.Fatal(err)
+		}
+		snap, _ = tx.Commit()
+		return snap
+	}
+	text := func(key PageKey) string {
+		t.Helper()
+		snap, err := s.LoadPage(key, profile.Schema(), doc.NewInterner())
+		if err != nil || snap == nil {
+			t.Fatalf("page %d: %v, %v", key, snap, err)
+		}
+		return snap.Root().Slot(0).Child(0).Text()
+	}
+	saver := s.Autosave()
+	saver.Content(1, Summary{}, page("good"))
+	if err := saver.Flush(); err != nil {
+		t.Fatal(err)
+	}
+	saver.verify = func(prev, next *doc.Snapshot, d store.Diff) error {
+		if next.Root().Slot(0).Child(0).Text() == "broken" {
+			return store.ErrCorrupt
+		}
+		return store.Verify(prev, next, d)
+	}
+	saver.Content(1, Summary{}, page("broken"))
+	saver.Content(2, Summary{}, page("other"))
+	if err := saver.Flush(); !errors.Is(err, ErrHeld) || !errors.Is(saver.Err(), ErrHeld) {
+		t.Fatalf("flush %v, err %v; want the page held", err, saver.Err())
+	}
+	if got := text(1); got != "good" {
+		t.Fatalf("held page on disk %q, want the last good save", got)
+	}
+	if got := text(2); got != "other" {
+		t.Fatalf("the other page %q", got)
+	}
+	saver.Content(1, Summary{}, page("fixed"))
+	if err := saver.Flush(); err != nil || saver.Err() != nil {
+		t.Fatalf("flush %v, err %v", err, saver.Err())
+	}
+	if got := text(1); got != "fixed" {
+		t.Fatalf("page %q, want the good change written", got)
+	}
+	if err := saver.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
