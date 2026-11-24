@@ -188,7 +188,7 @@ func (r *figureResize) move(x, _ float32, _ time.Time) { r.span = r.spanAt(x) }
 // finish commits the span as one intent, unless canceled.
 func (r *figureResize) finish(canceled bool, at time.Time) {
 	if !canceled {
-		r.el.Editor.Do(profile.ResizeFigure{ID: r.node, Span: r.span}, at)
+		r.el.Editor.Glance(vocab.Input{Intent: profile.ResizeFigure{ID: r.node, Span: r.span}, At: at})
 	}
 }
 
@@ -214,7 +214,7 @@ func (figureKind) controls(el *Element, u *unitLayout) []control {
 	id := u.pres.Unit
 	out := []control{{key: controlKey{unit: id, part: partFigure}, rect: ui.Rect{X: u.x + u.box.X, Y: u.y + u.box.Y, W: u.box.W, H: u.box.H},
 		menu: func(_, _ float32, at time.Time) {
-			el.Editor.Do(vocab.Place{Node: id}, at)
+			el.Editor.Glance(vocab.Input{Intent: vocab.Place{Node: id}, At: at})
 		}}}
 	if !el.gripsShown(u) {
 		return out

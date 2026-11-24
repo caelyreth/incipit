@@ -74,7 +74,9 @@ func (el *Element) scrollRange(pl *pageLayout) (float32, float32) {
 
 // follow keeps the caret's line in view by one rule: the page moves for
 // what the writer does, never on its own. It reveals the line after an
-// intent, a resize or a change of mode; typewriter mode centers it.
+// intent, a resize or a change of mode; typewriter mode centers it. What
+// the pointer does is a glance (Editor.Glance), which moves no view: the
+// next intent of the keyboard reveals the caret where it left it.
 // Leaving the mode coasts whatever glide is under way into the plain
 // range, at its speed, rather than finishing it and snapping.
 func (el *Element) follow(pl *pageLayout, now time.Time) {

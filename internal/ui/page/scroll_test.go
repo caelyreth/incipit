@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/egoist/mygo/ui"
 )
@@ -178,3 +180,97 @@ func TestTheCaretsLineClearsTheTopFade(t *testing.T) {
 // A double click on a word just selected by one, which the system counts
 // as the third and fourth presses of the run, selects that word again
 // through the page's own presses.
+
+// In Typewriter a click is a glance: placing the caret on another line, or
+// checking a task's box, leaves the page where it is, so a double click
+// lands where its first click did; the next key centres the caret where
+// the glance left it.
+func TestATypewriterClickIsAGlance(t *testing.T) {
+	el := newElement(t)
+	el.viewport = ui.Rect{W: 900, H: 400}
+	el.Typewriter = true
+	t0 := time.Unix(5000, 0)
+	for range 30 {
+		typeText(el, "a line")
+		el.Editor.Do(vocab.Break{}, t0)
+	}
+	typeText(el, "- [ ] a task")
+	for range 3 {
+		el.Editor.Do(vocab.Break{}, t0)
+		el.Editor.Do(vocab.Break{}, t0)
+		typeText(el, "more")
+	}
+	at := t0
+	settle := func() {
+		at = at.Add(5 * time.Second)
+		pl := el.relayout()
+		el.follow(pl, at)
+		el.stepViewport(at.Add(3*time.Second), true)
+	}
+	click := func(x, y float32) {
+		el.press(x, y, 1, false, at)
+		el.letGo(false, at)
+	}
+	settle()
+	parked := el.ScrollY()
+	caret := el.Editor.Selection().Head
+	r, _ := el.Editor.layout.caretBox(caret, el.Editor.metrics)
+	line := el.Prose.LineHeight()
+
+	// A click two lines up, then the second click of a double click there.
+	click(r.X, r.Y-2*line)
+	settle()
+	if el.ScrollY() != parked || el.Editor.Selection().Head == caret {
+		t.Fatalf("a click moved the page from %v to %v (caret moved: %v)", parked, el.ScrollY(), el.Editor.Selection().Head != caret)
+	}
+	// The task's box, five lines up, is checked where it stands.
+	before := el.Editor.Engine.Snapshot()
+	box := taskBox(t, el)
+	click(box.X, box.Y+box.H/2)
+	settle()
+	if el.ScrollY() != parked || el.Editor.Engine.Snapshot() == before {
+		t.Fatalf("checking the box: page %v, want %v; changed %v", el.ScrollY(), parked, el.Editor.Engine.Snapshot() != before)
+	}
+	// The next key centres the caret where the glance left it.
+	typeText(el, "x")
+	settle()
+	if el.ScrollY() == parked {
+		t.Fatal("a key after the glance left the page unrecentred")
+	}
+}
+
+// taskBox is the middle of the first task's box, in page coordinates:
+// between its marker's first stop and its text's.
+func taskBox(t *testing.T, el *Element) ui.Rect {
+	t.Helper()
+	snap := el.Editor.Engine.Snapshot()
+	var item doc.ID
+	var walk func(n *doc.Node)
+	walk = func(n *doc.Node) {
+		if item == 0 && n.Kind() == profile.Item && profile.TaskOf(n) != profile.NoTask {
+			item = n.ID()
+		}
+		for _, sl := range n.Slots() {
+			if !sl.IsInline() {
+				for _, c := range sl.Children() {
+					walk(c)
+				}
+			}
+		}
+	}
+	walk(snap.Root())
+	if item == 0 {
+		t.Fatal("no task")
+	}
+	text, ok := el.Editor.layout.caretBox(doc.Caret{Pos: doc.Pos{Node: item}}, el.Editor.metrics)
+	if !ok {
+		t.Fatal("no task text")
+	}
+	// The box is the marker's last glyph, between the stop before it and
+	// the text.
+	before, ok := el.Editor.layout.caretBox(doc.Caret{Pos: doc.Pos{Node: item}, Stop: -2}, el.Editor.metrics)
+	if !ok || before.X >= text.X {
+		t.Fatalf("no box before the task's text: %v %v", before, ok)
+	}
+	return ui.Rect{X: (before.X + text.X) / 2, Y: text.Y, H: text.H}
+}

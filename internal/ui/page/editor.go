@@ -188,6 +188,20 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 	return true
 }
 
+// Glance runs an input the pointer gave, where the writer looks rather than
+// writes: a click placing the caret, a double click, a task's box checked,
+// a control pressed. It moves no view: what the pointer reached is in view,
+// and Typewriter does not recentre the page under it, so the second click
+// of a double click lands where the first did. The next input that writes
+// or moves the caret by the keyboard reveals it again, centred in
+// Typewriter, wherever the glance left it.
+func (ed *Editor) Glance(in vocab.Input) bool {
+	pending := ed.reveal
+	ok := ed.DoInput(in)
+	ed.reveal = pending
+	return ok
+}
+
 // Wrote is when the writer last changed the page, zero before they did:
 // a deadline the engine answers changes it on its own, and is not counted.
 func (ed *Editor) Wrote() time.Time { return ed.wrote }

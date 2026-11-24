@@ -222,7 +222,7 @@ func (el *Element) placeForMenu(x, y float32, at time.Time) {
 			return
 		}
 	}
-	el.Editor.Do(vocab.Place{Stop: c}, at)
+	el.Editor.Glance(vocab.Input{Intent: vocab.Place{Stop: c}, At: at})
 }
 
 func (el *Element) tableUnit(u *unitLayout) *table.Unit {

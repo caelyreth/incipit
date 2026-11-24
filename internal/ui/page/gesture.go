@@ -119,7 +119,7 @@ func (g *gesture) finish(canceled bool, at time.Time) {
 		in.Extend = true
 		in.Anchor = &g.anchor
 	}
-	el.Editor.DoInput(vocab.Input{Intent: in, At: at})
+	el.Editor.Glance(vocab.Input{Intent: in, At: at})
 }
 
 // shownSelection is the selection the renderer draws: the gesture's

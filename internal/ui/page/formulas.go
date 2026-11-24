@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
@@ -375,7 +376,7 @@ func (el *Element) dialectControl(id doc.ID, key controlKey, rect ui.Rect, diale
 				rect: rect,
 				last: ui.Point{X: x, Y: y},
 				action: func(at time.Time) {
-					el.Editor.Do(profile.SetMathDialect{ID: id, Dialect: next}, at)
+					el.Editor.Glance(vocab.Input{Intent: profile.SetMathDialect{ID: id, Dialect: next}, At: at})
 				},
 			}
 		},
