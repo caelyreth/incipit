@@ -788,6 +788,8 @@
   "settingsSpellingCorrectDescription": "键入空格或标点符号时，将拼错的词替换为系统建议的更正词。点按加下划线的词可改回原文。",
   "settingsSpellingPredict": "显示内联预测文本",
   "settingsSpellingPredictDescription": "键入时以浅色文字显示补全建议，按 Tab 键即可采纳。",
+  "settingsSpellingPredictNextWord": "同时预测下一个词",
+  "settingsSpellingPredictNextWordDescription": "除补全正在输入的词外，也在键入空格后建议下一个词。",
   "commandsLearnSpelling": "学习拼写",
   "commandsIgnoreSpelling": "忽略拼写",
   "offersSpelling": "拼写",

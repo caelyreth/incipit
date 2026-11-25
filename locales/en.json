@@ -3088,6 +3088,14 @@
   "@settingsSpellingPredictDescription": {
     "description": "What an editor setting does, under its name in Settings."
   },
+  "settingsSpellingPredictNextWord": "Predict next word",
+  "@settingsSpellingPredictNextWord": {
+    "description": "An editor setting: also suggest the next word after typing a space, rather than only completing unfinished words."
+  },
+  "settingsSpellingPredictNextWordDescription": "Also suggest the next word after a space, not only completions for the word you are typing.",
+  "@settingsSpellingPredictNextWordDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
   "commandsLearnSpelling": "Learn Spelling",
   "@commandsLearnSpelling": {
     "description": "An editing command: adds the misspelled word to the user's dictionary, which every app shares, as macOS's Learn Spelling; in the page's menu, Settings' shortcuts and the commands."

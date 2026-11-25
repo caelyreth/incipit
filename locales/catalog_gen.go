@@ -11205,6 +11205,40 @@ func (msgs Messages) SettingsSpellingPredictDescription() string {
 	return Catalog.Format(msgs.locale, "settingsSpellingPredictDescription", nil)
 }
 
+// SettingsSpellingPredictNextWord says "Predict next word"
+// in the language the app shows.
+//
+// An editor setting: also suggest the next word after typing a space,
+// rather than only completing unfinished words.
+func SettingsSpellingPredictNextWord() string {
+	return In(i18n.Locale()).SettingsSpellingPredictNextWord()
+}
+
+// SettingsSpellingPredictNextWord says "Predict next word"
+// in the language of msgs.
+//
+// An editor setting: also suggest the next word after typing a space,
+// rather than only completing unfinished words.
+func (msgs Messages) SettingsSpellingPredictNextWord() string {
+	return Catalog.Format(msgs.locale, "settingsSpellingPredictNextWord", nil)
+}
+
+// SettingsSpellingPredictNextWordDescription says "Also suggest the next word after a space, not only completions for the word you are typing."
+// in the language the app shows.
+//
+// What an editor setting does, under its name in Settings.
+func SettingsSpellingPredictNextWordDescription() string {
+	return In(i18n.Locale()).SettingsSpellingPredictNextWordDescription()
+}
+
+// SettingsSpellingPredictNextWordDescription says "Also suggest the next word after a space, not only completions for the word you are typing."
+// in the language of msgs.
+//
+// What an editor setting does, under its name in Settings.
+func (msgs Messages) SettingsSpellingPredictNextWordDescription() string {
+	return Catalog.Format(msgs.locale, "settingsSpellingPredictNextWordDescription", nil)
+}
+
 // CommandsLearnSpelling says "Learn Spelling"
 // in the language the app shows.
 //

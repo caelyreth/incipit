@@ -788,6 +788,8 @@
   "settingsSpellingCorrectDescription": "スペースや句読点を入力すると、スペルミスの単語をシステムの候補に置き換えます。下線付きの単語をクリックすると元に戻ります。",
   "settingsSpellingPredict": "インライン予測候補を表示",
   "settingsSpellingPredictDescription": "入力中に薄い文字で補完候補を表示します。Tabキーで確定します。",
+  "settingsSpellingPredictNextWord": "次の単語も予測",
+  "settingsSpellingPredictNextWordDescription": "入力中の単語の補完だけでなく、スペースの後に続く単語も予測します。",
   "commandsLearnSpelling": "スペルを学習",
   "commandsIgnoreSpelling": "スペルを無視",
   "offersSpelling": "スペル",

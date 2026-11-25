@@ -321,8 +321,17 @@ func TestInlinePredictionLifecyclePrefixTrimTabAcceptAndDismiss(t *testing.T) {
 		t.Fatalf("expected Guides hidden while Suggestion is shown, got %+v", deco.Guides)
 	}
 
-	// Typing matching prefix trims the suggestion in place.
-	p.typeFast("r")
+	// Typing matching prefix trims the suggestion in place without re-requesting.
+	p.now = p.now.Add(100 * time.Millisecond)
+	pub, err := p.e.Do(1, vocab.Input{Intent: vocab.Type{Text: "r"}, At: p.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fx := range pub.Effects {
+		if fx.Kind == policy.EffectPredict {
+			t.Fatalf("did not expect EffectPredict while prefix-trimming an active Suggestion")
+		}
+	}
 	deco = p.e.Decorations(1)
 	if deco.Suggestion == nil || deco.Suggestion.Text != "omising" {
 		t.Fatalf("after typing 'r', Suggestion = %+v, want \"omising\"", deco.Suggestion)
@@ -354,5 +363,46 @@ func TestInlinePredictionLifecyclePrefixTrimTabAcceptAndDismiss(t *testing.T) {
 	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
 	if p.e.Decorations(1).Suggestion != nil {
 		t.Fatalf("expected Suggestion cleared on Move")
+	}
+}
+
+func TestInlinePredictionRequiresUnfinishedWordByDefaultAndRespectsNextWordOption(t *testing.T) {
+	spelling.Use(knows{})
+	t.Cleanup(func() { spelling.Use(nil) })
+
+	emitPredict := func(p *page, s string) bool {
+		var saw bool
+		for _, r := range s {
+			p.now = p.now.Add(100 * time.Millisecond)
+			pub, err := p.e.Do(1, vocab.Input{Intent: vocab.Type{Text: string(r)}, At: p.now})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, fx := range pub.Effects {
+				if fx.Kind == policy.EffectPredict {
+					saw = true
+				}
+			}
+		}
+		return saw
+	}
+
+	p := openWith(t, policy.Values{spelling.ID + ".predict": true})
+	if emitPredict(p, "it is ") {
+		t.Fatalf("did not expect EffectPredict for short 1-2 rune words or trailing spaces by default")
+	}
+	if !emitPredict(p, "uncomp") {
+		t.Fatalf("expected EffectPredict once unfinished word reaches 3+ runes")
+	}
+	if emitPredict(p, " ") {
+		t.Fatalf("did not expect EffectPredict on trailing space when predictNextWord is off")
+	}
+
+	pNext := openWith(t, policy.Values{spelling.ID + ".predict": true, spelling.ID + ".predictNextWord": true})
+	if emitPredict(pNext, "it") {
+		t.Fatalf("did not expect EffectPredict for 1-2 rune prefix even with predictNextWord")
+	}
+	if !emitPredict(pNext, " ") {
+		t.Fatalf("expected EffectPredict after space when predictNextWord is enabled")
 	}
 }

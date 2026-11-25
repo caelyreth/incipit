@@ -8,7 +8,7 @@ import (
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 )
 
-const defaultPredictDelay = 90 * time.Millisecond
+const defaultPredictDelay = 280 * time.Millisecond
 
 type pendingSuggestion struct {
 	seq     uint64

@@ -788,6 +788,8 @@
   "settingsSpellingCorrectDescription": "輸入空白或標點符號時，將拼錯的單字替換為系統建議的更正字詞。點一下加底線的單字可還原。",
   "settingsSpellingPredict": "顯示行內預測字詞",
   "settingsSpellingPredictDescription": "輸入時以淡色文字顯示自動補全建議，按 Tab 鍵即可接受。",
+  "settingsSpellingPredictNextWord": "同時預測下一個字詞",
+  "settingsSpellingPredictNextWordDescription": "除了補全正在輸入的單字外，也在輸入空白後建議下一個字詞。",
   "commandsLearnSpelling": "學習拼字",
   "commandsIgnoreSpelling": "忽略拼字",
   "offersSpelling": "拼字",

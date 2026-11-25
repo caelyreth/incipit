@@ -53,6 +53,10 @@ var Correct = policy.Bool("correct", false, policy.Label("settings.spelling.corr
 // Predict shows system inline text completions as dimmed ghost text ahead of the caret.
 var Predict = policy.Bool("predict", false, policy.Label("settings.spelling.predict"), policy.Description("settings.spelling.predict.description"))
 
+// PredictNextWord also suggests completions after a space when inline
+// predictions are enabled, rather than only finishing the current word.
+var PredictNextWord = policy.Bool("predictNextWord", false, policy.Label("settings.spelling.predictNextWord"), policy.Description("settings.spelling.predictNextWord.description"))
+
 const correctedDuration = 4 * time.Second
 
 // Corrected marks a word just replaced automatically so a click can restore
@@ -77,6 +81,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	grammar := policy.Get(p, Grammar)
 	correctOn := policy.Get(p, Correct)
 	predictOn := policy.Get(p, Predict)
+	predictNext := policy.Get(p, PredictNextWord)
 	c := checker
 	if c == nil {
 		p.Unlisted()
@@ -104,7 +109,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		p.Observe("typingWord", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observeTypingWord)
 	}
 	if c != nil && predictOn {
-		p.Observe("predict", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observePredict)
+		p.Observe("predict", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observePredict(predictNext))
 	}
 
 	p.Command(profile.LearnSpellingCommand, "commands.learnSpelling", profile.LearnSpelling{}, policy.Offer(profile.SpellingOffers, 0, ""))
@@ -375,34 +380,48 @@ func isProseForPrediction(ctx *policy.Ctx, pos doc.Pos) bool {
 	return true
 }
 
-func observePredict(ctx *policy.Ctx, _ []doc.Record) policy.Result {
-	if ctx.Composition() != nil {
-		return policy.Swallow
-	}
-	sel := ctx.Selection()
-	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
-		return policy.Swallow
-	}
-	pos := sel.Head.Pos
-	if !isProseForPrediction(ctx, pos) {
-		return policy.Swallow
-	}
-	in, ok := ctx.Inline(pos.Ref())
-	if !ok {
-		return policy.Swallow
-	}
-	flat := in.Flat()
-	lineFrom, _ := vocab.LineAround(flat, pos.Offset, pos.Offset)
-	start := max(lineFrom, pos.Offset-maxPredictPrefix)
-	for start < pos.Offset && !utf8.RuneStart(flat[start]) {
-		start++
-	}
-	prefix := strings.ReplaceAll(flat[start:pos.Offset], string(doc.NodeByte), " ")
-	if strings.TrimSpace(prefix) == "" {
-		return policy.Swallow
-	}
-	return policy.Result{
-		Effects: []policy.Effect{{Kind: policy.EffectPredict, Data: profile.PredictAsk{At: pos, Text: prefix}}},
+func observePredict(nextWord bool) policy.ObserverFunc {
+	return func(ctx *policy.Ctx, _ []doc.Record) policy.Result {
+		if ctx.Composition() != nil || ctx.Suggestion() != nil {
+			return policy.Swallow
+		}
+		sel := ctx.Selection()
+		if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
+			return policy.Swallow
+		}
+		pos := sel.Head.Pos
+		if !isProseForPrediction(ctx, pos) {
+			return policy.Swallow
+		}
+		in, ok := ctx.Inline(pos.Ref())
+		if !ok {
+			return policy.Swallow
+		}
+		flat := in.Flat()
+		lineFrom, _ := vocab.LineAround(flat, pos.Offset, pos.Offset)
+		prevRune, prevSize := utf8.DecodeLastRuneInString(flat[lineFrom:pos.Offset])
+		if prevSize == 0 {
+			return policy.Swallow
+		}
+		if vocab.ClassOf(prevRune)&vocab.ClassWord != 0 {
+			w, wok := vocab.WordAt(in, pos.Offset-prevSize)
+			if !wok || !w.Word || w.To != pos.Offset || utf8.RuneCountInString(flat[w.From:w.To]) < 3 {
+				return policy.Swallow
+			}
+		} else if !nextWord || vocab.ClassOf(prevRune)&vocab.ClassSpace == 0 {
+			return policy.Swallow
+		}
+		start := max(lineFrom, pos.Offset-maxPredictPrefix)
+		for start < pos.Offset && !utf8.RuneStart(flat[start]) {
+			start++
+		}
+		prefix := strings.ReplaceAll(flat[start:pos.Offset], string(doc.NodeByte), " ")
+		if strings.TrimSpace(prefix) == "" {
+			return policy.Swallow
+		}
+		return policy.Result{
+			Effects: []policy.Effect{{Kind: policy.EffectPredict, Data: profile.PredictAsk{At: pos, Text: prefix}}},
+		}
 	}
 }
 
