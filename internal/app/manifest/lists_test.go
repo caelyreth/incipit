@@ -233,3 +233,32 @@ func TestListNestAndOutdentGuides(t *testing.T) {
 		t.Fatalf("after mark, lists.nest missing: %+v, ok=%v", g, ok)
 	}
 }
+
+// Move Up and Move Down take the caret's item past its neighbour, the
+// caret going with it, and stay at either end of the list.
+func TestAnItemMovesUpAndDownItsList(t *testing.T) {
+	p := twoItems(t)
+	p.do(vocab.Command{ID: "blocks.moveUp"})
+	p.want("page(list(item(two|) item(one|)))")
+	p.wantShown("[- ]two|")
+	p.do(vocab.Command{ID: "blocks.moveUp"})
+	p.want("page(list(item(two|) item(one|)))")
+	p.do(vocab.Command{ID: "blocks.moveDown"})
+	p.want("page(list(item(one|) item(two|)))")
+	p.do(vocab.Command{ID: "blocks.moveDown"})
+	p.want("page(list(item(one|) item(two|)))")
+	p.do(vocab.Command{ID: "blocks.moveUp"})
+	p.do(vocab.Undo{})
+	p.want("page(list(item(one|) item(two|)))")
+}
+
+// A paragraph moves among the page's blocks the same way.
+func TestAParagraphMovesPastTheBlockBefore(t *testing.T) {
+	p := open(t)
+	p.typeText("one")
+	p.do(vocab.Break{})
+	p.typeText("two")
+	p.do(vocab.Command{ID: "blocks.moveUp"})
+	p.want("page(paragraph(two) paragraph(one))")
+	p.wantShown("two|")
+}

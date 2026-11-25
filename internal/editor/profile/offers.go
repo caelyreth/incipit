@@ -14,6 +14,10 @@ var (
 	InsertOffers = vocab.OfferGroup{ID: "insert", Label: "offers.insert", Shape: vocab.OfferActions,
 		Order: 10, In: vocab.SurfaceDock | vocab.SurfaceMenuBar}
 	// KindOffers are the kinds the blocks selected turn into.
+	// MoveOffers move the caret's block past its neighbour, in the menu
+	// bar beside their keys.
+	MoveOffers = vocab.OfferGroup{ID: "move", Label: "offers.move", Shape: vocab.OfferActions,
+		Order: 25, In: vocab.SurfaceMenuBar}
 	KindOffers = vocab.OfferGroup{ID: "kind", Label: "offers.kind", Shape: vocab.OfferChoice, Key: "t",
 		Order: 20, In: vocab.SurfaceTools | vocab.SurfaceDock | vocab.SurfaceMenuBar}
 	// MarkOffers are the marks of the text selected.

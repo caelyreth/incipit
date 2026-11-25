@@ -6925,6 +6925,34 @@ func (msgs Messages) CommandsNextHeading() string {
 	return Catalog.Format(msgs.locale, "commandsNextHeading", nil)
 }
 
+// CommandsMoveUp says "Move up"
+// in the language the app shows.
+//
+// An editing command, in Settings' shortcuts and the commands.
+func CommandsMoveUp() string { return In(i18n.Locale()).CommandsMoveUp() }
+
+// CommandsMoveUp says "Move up"
+// in the language of msgs.
+//
+// An editing command, in Settings' shortcuts and the commands.
+func (msgs Messages) CommandsMoveUp() string {
+	return Catalog.Format(msgs.locale, "commandsMoveUp", nil)
+}
+
+// CommandsMoveDown says "Move down"
+// in the language the app shows.
+//
+// An editing command, in Settings' shortcuts and the commands.
+func CommandsMoveDown() string { return In(i18n.Locale()).CommandsMoveDown() }
+
+// CommandsMoveDown says "Move down"
+// in the language of msgs.
+//
+// An editing command, in Settings' shortcuts and the commands.
+func (msgs Messages) CommandsMoveDown() string {
+	return Catalog.Format(msgs.locale, "commandsMoveDown", nil)
+}
+
 // CommandsLeft says "Move left"
 // in the language the app shows.
 //
@@ -7529,6 +7557,20 @@ func OffersLookUp() string { return In(i18n.Locale()).OffersLookUp() }
 // A group of the page's menu: looking up what a word means.
 func (msgs Messages) OffersLookUp() string {
 	return Catalog.Format(msgs.locale, "offersLookUp", nil)
+}
+
+// OffersMove says "Move"
+// in the language the app shows.
+//
+// A group of the Format menu: moving the caret's block up or down.
+func OffersMove() string { return In(i18n.Locale()).OffersMove() }
+
+// OffersMove says "Move"
+// in the language of msgs.
+//
+// A group of the Format menu: moving the caret's block up or down.
+func (msgs Messages) OffersMove() string {
+	return Catalog.Format(msgs.locale, "offersMove", nil)
 }
 
 // OffersPictureAlign says "Picture alignment"

@@ -1888,6 +1888,14 @@
   "@commandsNextHeading": {
     "description": "An editing command, in Settings' shortcuts and the commands."
   },
+  "commandsMoveUp": "Move up",
+  "@commandsMoveUp": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
+  "commandsMoveDown": "Move down",
+  "@commandsMoveDown": {
+    "description": "An editing command, in Settings' shortcuts and the commands."
+  },
   "commandsLeft": "Move left",
   "@commandsLeft": {
     "description": "An editing command, in Settings' shortcuts and the commands."
@@ -2059,6 +2067,10 @@
   "offersLookUp": "Look Up",
   "@offersLookUp": {
     "description": "A group of the page's menu: looking up what a word means."
+  },
+  "offersMove": "Move",
+  "@offersMove": {
+    "description": "A group of the Format menu: moving the caret's block up or down."
   },
   "offersPictureAlign": "Picture alignment",
   "@offersPictureAlign": {

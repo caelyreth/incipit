@@ -32,6 +32,7 @@ var (
 	intentSetDialect = vocab.NewIntentKind("SetMathDialect")
 	intentTogDialect = vocab.NewIntentKind("ToggleMathDialect")
 	intentHeading    = vocab.NewIntentKind("JumpHeading")
+	intentMoveBlock  = vocab.NewIntentKind("MoveBlock")
 	intentLookUp     = vocab.NewIntentKind("LookUp")
 )
 
@@ -60,6 +61,9 @@ type (
 	Nest struct{ Dir vocab.Direction }
 	// ToggleTask completes or reopens a task: item ID, or the caret's.
 	ToggleTask struct{ ID doc.ID }
+	// MoveBlock moves the caret's block, an item among them, past the one
+	// before it (Backward) or after it, among its siblings.
+	MoveBlock struct{ Dir vocab.Direction }
 	// PickPictures asks the host for pictures to place where the selection
 	// is; the host answers with PlaceFigures once it keeps them.
 	PickPictures struct{}
@@ -170,6 +174,7 @@ const (
 
 func (Format) Kind() vocab.IntentKind         { return intentFormat }
 func (JumpHeading) Kind() vocab.IntentKind    { return intentHeading }
+func (MoveBlock) Kind() vocab.IntentKind      { return intentMoveBlock }
 func (LookUp) Kind() vocab.IntentKind         { return intentLookUp }
 func (Retype) Kind() vocab.IntentKind         { return intentRetype }
 func (WrapQuote) Kind() vocab.IntentKind      { return intentWrapQuote }

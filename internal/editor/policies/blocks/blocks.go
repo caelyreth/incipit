@@ -26,16 +26,23 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "jump-heading", policy.Intent[profile.JumpHeading](), in, jumpHeading).Any()
 	p.Command("blocks.previousHeading", "commands.previousHeading", profile.JumpHeading{Dir: vocab.Backward}, policy.Key("alt+primary+up"))
 	p.Command("blocks.nextHeading", "commands.nextHeading", profile.JumpHeading{Dir: vocab.Forward}, policy.Key("alt+primary+down"))
+	policy.On(p, "move-block", policy.Intent[profile.MoveBlock](), in, moveBlock).Caret()
+	p.Command("blocks.moveUp", "commands.moveUp", profile.MoveBlock{Dir: vocab.Backward}, policy.Key("alt+primary+shift+up"),
+		policy.Offer(profile.MoveOffers, 0, "", policy.Spans(policy.SpanCaret)))
+	p.Command("blocks.moveDown", "commands.moveDown", profile.MoveBlock{Dir: vocab.Forward}, policy.Key("alt+primary+shift+down"),
+		policy.Offer(profile.MoveOffers, 1, "", policy.Spans(policy.SpanCaret)))
 
 	// The kinds are offered for whole blocks, or at a caret for its block:
 	// never for a part of a block's text.
 	kinds := policy.Spans(policy.SpanCaret | policy.SpanBlocks)
+	// Each kind has its key, as word processors give them: ⌥⌘0 for body
+	// text, ⌥⌘1 to ⌥⌘3 for the headings.
 	p.Command("blocks.paragraph", "commands.paragraph", profile.Retype{To: profile.Paragraph},
-		policy.Offer(profile.KindOffers, 0, "p", kinds))
+		policy.Offer(profile.KindOffers, 0, "p", kinds), policy.Key("alt+primary+0"))
 	for level := 1; level <= 3; level++ {
 		digit := string(rune('0' + level))
 		p.Command(vocab.CommandID("blocks.heading"+digit), "commands.heading"+digit, profile.Retype{To: profile.Heading, Attrs: headingAttrs(level)},
-			policy.Offer(profile.KindOffers, level, digit, kinds))
+			policy.Offer(profile.KindOffers, level, digit, kinds), policy.Key("alt+primary+"+digit))
 	}
 	p.Command("blocks.quote", "commands.quote", profile.WrapQuote{}, policy.Offer(profile.KindOffers, 4, "q", kinds))
 	p.Command("blocks.codeBlock", "commands.codeBlock", profile.Retype{To: profile.Code}, policy.Offer(profile.KindOffers, 7, "c", kinds))
