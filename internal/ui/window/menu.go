@@ -30,7 +30,8 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			}
 		})}
 		switch id {
-		case keymap.Typewriter, keymap.Motion, keymap.ShowTrash, keymap.ViewList, keymap.CheckSpelling, keymap.CheckGrammar:
+		case keymap.Typewriter, keymap.Motion, keymap.ShowTrash, keymap.ViewList,
+			keymap.CheckSpelling, keymap.CheckGrammar, keymap.CorrectSpelling:
 			item.Type = mygo.MenuItemCheckbox
 		}
 		a.menuItems[id] = &commandItem{item: item, label: item.Label, scope: declared.Scope}

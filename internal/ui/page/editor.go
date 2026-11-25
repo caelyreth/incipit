@@ -246,7 +246,7 @@ func (ed *Editor) schedule(deadlines []time.Time) {
 		return
 	}
 	wake := ed.Wake
-	ed.timer = time.AfterFunc(time.Until(first), wake)
+	ed.timer = time.AfterFunc(max(0, first.Sub(ed.now())), wake)
 }
 
 // Due answers a deadline that has passed with a Timer intent.

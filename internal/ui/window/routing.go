@@ -59,8 +59,9 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 	keymap.Settings:  func(a *AppState) { a.Shell.ShowSettings() },
 	keymap.Shortcuts: func(a *AppState) { a.Shell.ShowShortcuts() },
 
-	keymap.CheckSpelling: func(a *AppState) { a.toggleOption(checkSpellingKey) },
-	keymap.CheckGrammar:  func(a *AppState) { a.toggleOption(checkGrammarKey) },
+	keymap.CheckSpelling:   func(a *AppState) { a.toggleOption(checkSpellingKey) },
+	keymap.CheckGrammar:    func(a *AppState) { a.toggleOption(checkGrammarKey) },
+	keymap.CorrectSpelling: func(a *AppState) { a.toggleOption(correctSpellingKey) },
 }
 
 func init() {
@@ -110,6 +111,9 @@ func (a *AppState) commandState(id keymap.CommandID, label string) shell.VerbSta
 		state.Checked = a.optionOn(checkSpellingKey)
 	case id == keymap.CheckGrammar:
 		state.Checked = a.optionOn(checkGrammarKey)
+		state.Enabled = a.optionOn(checkSpellingKey)
+	case id == keymap.CorrectSpelling:
+		state.Checked = a.optionOn(correctSpellingKey)
 		state.Enabled = a.optionOn(checkSpellingKey)
 	}
 	return state

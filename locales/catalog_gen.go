@@ -11141,6 +11141,38 @@ func (msgs Messages) SettingsSpellingGrammarDescription() string {
 	return Catalog.Format(msgs.locale, "settingsSpellingGrammarDescription", nil)
 }
 
+// SettingsSpellingCorrect says "Correct spelling automatically"
+// in the language the app shows.
+//
+// An editor setting: replace a misspelled word with the system's guess as
+// you finish typing it.
+func SettingsSpellingCorrect() string { return In(i18n.Locale()).SettingsSpellingCorrect() }
+
+// SettingsSpellingCorrect says "Correct spelling automatically"
+// in the language of msgs.
+//
+// An editor setting: replace a misspelled word with the system's guess as
+// you finish typing it.
+func (msgs Messages) SettingsSpellingCorrect() string {
+	return Catalog.Format(msgs.locale, "settingsSpellingCorrect", nil)
+}
+
+// SettingsSpellingCorrectDescription says "Replaces a misspelled word with the system's correction as you type a space or punctuation. Click the underlined word…"
+// in the language the app shows.
+//
+// What an editor setting does, under its name in Settings.
+func SettingsSpellingCorrectDescription() string {
+	return In(i18n.Locale()).SettingsSpellingCorrectDescription()
+}
+
+// SettingsSpellingCorrectDescription says "Replaces a misspelled word with the system's correction as you type a space or punctuation. Click the underlined word…"
+// in the language of msgs.
+//
+// What an editor setting does, under its name in Settings.
+func (msgs Messages) SettingsSpellingCorrectDescription() string {
+	return Catalog.Format(msgs.locale, "settingsSpellingCorrectDescription", nil)
+}
+
 // CommandsLearnSpelling says "Learn Spelling"
 // in the language the app shows.
 //
@@ -11221,6 +11253,22 @@ func CommandCheckGrammar() string { return In(i18n.Locale()).CommandCheckGrammar
 // grammar, as macOS apps do.
 func (msgs Messages) CommandCheckGrammar() string {
 	return Catalog.Format(msgs.locale, "commandCheckGrammar", nil)
+}
+
+// CommandCorrectSpelling says "Correct Spelling Automatically"
+// in the language the app shows.
+//
+// A command, in Edit › Spelling and Grammar: automatically replaces
+// misspelled words as you type, as macOS apps do.
+func CommandCorrectSpelling() string { return In(i18n.Locale()).CommandCorrectSpelling() }
+
+// CommandCorrectSpelling says "Correct Spelling Automatically"
+// in the language of msgs.
+//
+// A command, in Edit › Spelling and Grammar: automatically replaces
+// misspelled words as you type, as macOS apps do.
+func (msgs Messages) CommandCorrectSpelling() string {
+	return Catalog.Format(msgs.locale, "commandCorrectSpelling", nil)
 }
 
 // MenuSpelling says "Spelling and Grammar"

@@ -189,6 +189,9 @@ type Result struct {
 	Deadlines []time.Time
 	Effects   []Effect
 	History   *HistoryRequest
+	// SeparateUndo requests that edits produced by this rewrite land in their
+	// own undo step outside the active typing group.
+	SeparateUndo bool
 	// GoalX, when set, is the new remembered horizontal position; motion
 	// that is not vertical clears it.
 	GoalX *float64

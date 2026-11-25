@@ -126,10 +126,12 @@ const (
 	Settings   CommandID = "app.settings"
 	Shortcuts  CommandID = "app.shortcuts"
 
-	// CheckSpelling and CheckGrammar turn the spelling policy and its
-	// grammar on and off, from Edit › Spelling and Grammar.
-	CheckSpelling CommandID = "window.check-spelling"
-	CheckGrammar  CommandID = "window.check-grammar"
+	// CheckSpelling, CheckGrammar and CorrectSpelling turn the spelling
+	// policy and its grammar and autocorrect on and off, from Edit ›
+	// Spelling and Grammar.
+	CheckSpelling   CommandID = "window.check-spelling"
+	CheckGrammar    CommandID = "window.check-grammar"
+	CorrectSpelling CommandID = "window.correct-spelling"
 )
 
 // Command is one declared command.
@@ -223,6 +225,7 @@ func appCommands() []Command {
 		{ID: Motion, Words: "commandMotion", Scope: ScopeWindow, Default: NewChord("m", ModifiersPrimary|ModifiersAlt)},
 		{ID: CheckSpelling, Words: "commandCheckSpelling", Scope: ScopeWindow},
 		{ID: CheckGrammar, Words: "commandCheckGrammar", Scope: ScopeWindow},
+		{ID: CorrectSpelling, Words: "commandCorrectSpelling", Scope: ScopeWindow},
 		{ID: Commands, Words: "commandCommands", Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
 		{ID: Settings, Words: "commandSettings", Scope: ScopeApp, Default: NewChord(",", ModifiersPrimary)},
 		{ID: Shortcuts, Words: "commandKeyboardShortcuts", Scope: ScopeApp, Default: NewChord("/", ModifiersPrimary)},

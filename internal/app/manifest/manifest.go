@@ -45,6 +45,9 @@ var Manifest = policy.Manifest{
 		// "$" in an empty formula is its source or a math block, not its
 		// close.
 		policy.Over(formulas.Policy, navigation.Policy, vocab.RoleCloser),
+		// Autocorrect finishes a word before typography shapes trailing
+		// punctuation.
+		policy.RunsBefore(spelling.Policy, typography.Policy, policy.PhaseCharacters),
 	},
 }
 

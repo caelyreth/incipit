@@ -1,6 +1,9 @@
 package profile
 
-import "github.com/caelyreth/neverland/internal/editor/vocab"
+import (
+	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/vocab"
+)
 
 // Spelling marks the words the system's checker finds misspelled, and the
 // grammar it questions, as the text reads: nothing is stored.
@@ -9,12 +12,17 @@ var (
 	GroupMisspelled = vocab.NewGroup("spelling.misspelled", 0)
 	// GroupGrammar is text the checker questions the grammar of.
 	GroupGrammar = vocab.NewGroup("spelling.grammar", 0)
+	// GroupCorrected is a word the checker replaced automatically.
+	GroupCorrected = vocab.NewGroup("spelling.corrected", 0)
+	// GroupTypingWord marks the word currently touching the caret while typing.
+	GroupTypingWord = vocab.NewGroup("spelling.typing", 0)
 )
 
 var (
 	intentLearnSpelling  = vocab.NewIntentKind("LearnSpelling")
 	intentIgnoreSpelling = vocab.NewIntentKind("IgnoreSpelling")
 	intentCorrect        = vocab.NewIntentKind("CorrectSpelling")
+	intentRevert         = vocab.NewIntentKind("RevertCorrection")
 )
 
 type (
@@ -28,11 +36,14 @@ type (
 	// CorrectSpelling writes Word over the misspelled word at the caret,
 	// as a guess the page's menu offers.
 	CorrectSpelling struct{ Word string }
+	// RevertCorrection restores the word an autocorrection replaced at At.
+	RevertCorrection struct{ At doc.Caret }
 )
 
-func (LearnSpelling) Kind() vocab.IntentKind   { return intentLearnSpelling }
-func (IgnoreSpelling) Kind() vocab.IntentKind  { return intentIgnoreSpelling }
-func (CorrectSpelling) Kind() vocab.IntentKind { return intentCorrect }
+func (LearnSpelling) Kind() vocab.IntentKind    { return intentLearnSpelling }
+func (IgnoreSpelling) Kind() vocab.IntentKind   { return intentIgnoreSpelling }
+func (CorrectSpelling) Kind() vocab.IntentKind  { return intentCorrect }
+func (RevertCorrection) Kind() vocab.IntentKind { return intentRevert }
 
 // The spelling commands.
 const (

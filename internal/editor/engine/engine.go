@@ -369,6 +369,8 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 	deadlines = append(deadlines, res.Deadlines...)
 
 	// Rewrite phases.
+	splitStep := -1
+	var splitSel doc.Selection
 	for _, phase := range policy.Phases {
 		visible := len(tx.Steps())
 		for _, rw := range prog.Rewrites(phase) {
@@ -384,6 +386,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 				stepStart := len(tx.Steps())
 				rctx := ctx.Over(tx, &view)
 				rres := rw.Run(rctx, site)
+				preSel := view.Selection
 				var held noted
 				if len(rres.Edits) > 0 {
 					held = e.note(viewID, tx, &view)
@@ -403,6 +406,10 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 					trace.Rewrites = append(trace.Rewrites, policy.RewriteTrace{Rule: rw.ID(), Phase: phase, Site: site, Records: len(recs)})
 				}
 				st := doc.Steps(tx.Steps()[stepStart:])
+				if rres.SeparateUndo && len(st) > 0 && splitStep < 0 {
+					splitStep = stepStart
+					splitSel = preSel
+				}
 				carry := e.carry(viewID, held, tx, &view, st)
 				view.Annotations = view.Annotations.Map(carry)
 				view.Pending = view.Pending.Map(carry)
@@ -467,19 +474,32 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 
 	// History. From here the engine keeps what the transaction did.
 	keeping = true
-	entry := doc.NewEntry(allSteps, class, viewID, before, view.Selection, in.At)
+	pushEntry := func(steps []*doc.Step, c doc.OriginClass, fromSel, toSel doc.Selection, canMerge bool) {
+		entry := doc.NewEntry(steps, c, viewID, fromSel, toSel, in.At)
+		merge := canMerge && e.groupOpen
+		if merge {
+			if g := prog.Grouping(); g != nil {
+				merge = g(e.history.Last(), entry)
+			} else {
+				merge = false
+			}
+		}
+		e.history = e.history.Push(entry, merge)
+	}
 	switch {
 	case plan != nil:
 		e.history = e.history.Applied(plan, allSteps, in.At, view.Selection)
 		e.groupOpen = false
-	case changed:
-		merge := e.groupOpen
-		if g := prog.Grouping(); g != nil {
-			merge = merge && g(e.history.Last(), entry)
+	case changed && splitStep >= 0:
+		if splitStep > 0 {
+			pushEntry(allSteps[:splitStep], class, before, splitSel, true)
+			pushEntry(allSteps[splitStep:], doc.OriginCommand, splitSel, view.Selection, false)
 		} else {
-			merge = false
+			pushEntry(allSteps, doc.OriginCommand, before, view.Selection, false)
 		}
-		e.history = e.history.Push(entry, merge)
+		e.groupOpen = false
+	case changed:
+		pushEntry(allSteps, class, before, view.Selection, true)
 		e.groupOpen = class == doc.OriginTyping
 	case view.Selection != before && class != doc.OriginTyping:
 		// A selection change not caused by typing ends the group.

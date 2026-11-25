@@ -9,6 +9,8 @@ package spelling
 import (
 	"slices"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/policy"
@@ -25,6 +27,9 @@ type Checker interface {
 	// Check reports text's misspelled words and, with grammar, its grammar
 	// issues, in bytes of text.
 	Check(text string, grammar bool) []Issue
+	// Correction returns a single spelling correction for bytes [from:to]
+	// of text, or "".
+	Correction(text string, from, to int) string
 }
 
 // Issue is a misspelled word, or a grammar issue: bytes From to To.
@@ -42,14 +47,32 @@ func Use(c Checker) { checker = c }
 // Grammar checks grammar along with spelling.
 var Grammar = policy.Bool("grammar", false, policy.Label("settings.spelling.grammar"), policy.Description("settings.spelling.grammar.description"))
 
+// Correct replaces misspelled words automatically when typing finishes a word.
+var Correct = policy.Bool("correct", false, policy.Label("settings.spelling.correct"), policy.Description("settings.spelling.correct.description"))
+
+const correctedDuration = 4 * time.Second
+
+// Corrected marks a word just replaced automatically so a click can restore
+// what was typed.
+var Corrected = policy.NewAnnotationKind("spelling.corrected", false)
+
+// TypingWord marks the word currently touching the caret while typing so its
+// misspelled wave waits until the caret leaves it.
+var TypingWord = policy.NewAnnotationKind("spelling.typing", false)
+
 // issue is a spelling fact's data.
 type issue struct{}
+
+type correctedWord struct {
+	Original, Replaced string
+}
 
 // Policy is the spelling policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	misspelled := policy.Facts[issue](p, "misspelled", policy.Styles(profile.GroupMisspelled))
 	questioned := policy.Facts[issue](p, "grammar", policy.Styles(profile.GroupGrammar))
 	grammar := policy.Get(p, Grammar)
+	correctOn := policy.Get(p, Correct)
 	c := checker
 	if c == nil {
 		p.Unlisted()
@@ -59,6 +82,23 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Analyze(policy.Lines, analyze(c, grammar, misspelled, questioned), []policy.FactID{misspelled.Kind(), questioned.Kind()},
 		policy.Where(func(u *policy.Unit) bool { return c != nil && !u.Spec.Literal && u.Spec.Marks != nil }),
 		policy.Config(struct{ Checker, Grammar bool }{c != nil, grammar}))
+
+	p.Annotation(Corrected, validCorrected)
+	p.Decorate(Corrected, profile.GroupCorrected)
+	p.Annotation(TypingWord, validTypingWord)
+	p.Decorate(TypingWord, profile.GroupTypingWord)
+
+	if c != nil && correctOn {
+		p.Rewrite("autocorrect", policy.PhaseCharacters).
+			Trigger(policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted}, Classes: []doc.OriginClass{doc.OriginTyping}}).
+			Extent(policy.ChangedRanges).
+			Spares(vocab.RoleSyntax).
+			Produces(doc.RecordTextInserted, doc.RecordTextDeleted).
+			Do(autocorrect(c))
+	}
+	if c != nil {
+		p.Observe("typingWord", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observeTypingWord)
+	}
 
 	p.Command(profile.LearnSpellingCommand, "commands.learnSpelling", profile.LearnSpelling{}, policy.Offer(profile.SpellingOffers, 0, ""))
 	p.Command(profile.IgnoreSpellingCommand, "commands.ignoreSpelling", profile.IgnoreSpelling{}, policy.Offer(profile.SpellingOffers, 1, ""))
@@ -72,6 +112,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		return ignore(c, wordOf(c, at))
 	}).Caret()
 	policy.On(p, "correct", policy.Intent[profile.CorrectSpelling](), misspelled.Inside(), correct).Caret()
+	policy.On(p, "revert-correction", policy.Intent[profile.RevertCorrection](), policy.Slot.Inside(), revertCorrection).Any()
 }, policy.Label("policies.spelling"), policy.Description("policies.spelling.description"))
 
 // ignored are the words a view no longer marks, the policy's mode: sorted,
@@ -117,6 +158,172 @@ func correct(c *policy.Ctx, in profile.CorrectSpelling, at policy.At[issue]) pol
 	ref, end := at.Slot, from+len(in.Word)
 	res := policy.Do(vocab.Ops(doc.EditText{At: ref, From: from, To: to, Items: []doc.Item{doc.TextItem(in.Word, marks)}}))
 	res.Then = func(doc.Reader) doc.Selection { return doc.Collapsed(doc.CaretAt(doc.At(ref, end))) }
+	return res
+}
+
+func isWordDelimiter(r rune) bool {
+	return r == ' ' || r == '\t' || strings.ContainsRune(".,;:!?)]}\"”’—–-/", r)
+}
+
+func slotInline(r doc.Reader, ref doc.SlotRef) (*doc.Inline, bool) {
+	n, ok := r.Node(ref.Node)
+	if !ok || ref.Slot >= n.NumSlots() || !n.Slot(ref.Slot).IsInline() {
+		return nil, false
+	}
+	return n.Slot(ref.Slot).Content(), true
+}
+
+func validCorrected(r doc.Reader, a policy.Annotation) bool {
+	data, ok := a.Data.(correctedWord)
+	if !ok {
+		return false
+	}
+	sp := a.Anchor.Span()
+	in, ok := slotInline(r, sp.Slot)
+	if !ok || sp.From < 0 || sp.To > in.Len() {
+		return false
+	}
+	return in.FlatRange(sp.From, sp.To) == data.Replaced
+}
+
+func validTypingWord(r doc.Reader, a policy.Annotation) bool {
+	sp := a.Anchor.Span()
+	in, ok := slotInline(r, sp.Slot)
+	return ok && sp.From >= 0 && sp.From < sp.To && sp.To <= in.Len()
+}
+
+func autocorrect(c Checker) policy.RewriteFunc {
+	return func(ctx *policy.Ctx, site policy.Site) policy.Result {
+		if site.From >= site.To {
+			return policy.Swallow
+		}
+		spec, ok := vocab.SlotSpec(ctx.Doc(), site.Slot)
+		if !ok || spec.Literal || spec.Marks == nil {
+			return policy.Swallow
+		}
+		in, ok := ctx.Inline(site.Slot)
+		if !ok || site.To > in.Len() {
+			return policy.Swallow
+		}
+		flat := in.Flat()
+		lastRune, lastSize := utf8.DecodeLastRuneInString(flat[site.From:site.To])
+		if lastSize == 0 || !isWordDelimiter(lastRune) {
+			return policy.Swallow
+		}
+		delimStart := site.To - lastSize
+		if delimStart <= 0 {
+			return policy.Swallow
+		}
+		prevRune, prevSize := utf8.DecodeLastRuneInString(flat[:delimStart])
+		if prevSize == 0 || vocab.ClassOf(prevRune)&vocab.ClassWord == 0 {
+			return policy.Swallow
+		}
+		w, ok := vocab.WordAt(in, delimStart-prevSize)
+		if !ok || !w.Word || w.To != delimStart || w.From >= w.To {
+			return policy.Swallow
+		}
+		word := flat[w.From:w.To]
+		if strings.ContainsRune(word, doc.NodeByte) {
+			return policy.Swallow
+		}
+		ignoring, _ := ctx.Mode(ID).(ignored)
+		if ignoring.has(word) {
+			return policy.Swallow
+		}
+		lineFrom, lineTo := vocab.LineAround(flat, w.From, w.To)
+		tags := profile.TagsIn(in, lineFrom, lineTo)
+		if slices.ContainsFunc(tags, func(t profile.Tag) bool { return t.From < w.To && w.From < t.To }) {
+			return policy.Swallow
+		}
+		lineText := strings.ReplaceAll(flat[lineFrom:lineTo], string(doc.NodeByte), " ")
+		corr := c.Correction(lineText, w.From-lineFrom, w.To-lineFrom)
+		if corr == "" || corr == word || strings.ContainsAny(corr, "\n"+string(doc.NodeByte)) {
+			return policy.Swallow
+		}
+		var marks *doc.MarkSet
+		if it, _, ok := in.ItemAt(w.From); ok {
+			marks = it.Marks
+		}
+		if marks.Has(profile.CodeMark) {
+			return policy.Swallow
+		}
+		until := ctx.Now().Add(correctedDuration)
+		res := policy.Do(vocab.Ops(doc.EditText{At: site.Slot, From: w.From, To: w.To, Items: []doc.Item{doc.TextItem(corr, marks)}}))
+		res.SeparateUndo = true
+		res.DropKinds = []policy.AnnotationKind{TypingWord}
+		res.Annotate = []policy.Annotate{{
+			Kind:     Corrected,
+			Anchor:   policy.Between(doc.At(site.Slot, w.From), doc.At(site.Slot, w.From+len(corr))),
+			Data:     correctedWord{Original: word, Replaced: corr},
+			Lifetime: policy.Until(until),
+		}}
+		res.Deadlines = []time.Time{until}
+		return res
+	}
+}
+
+func observeTypingWord(ctx *policy.Ctx, _ []doc.Record) policy.Result {
+	drop := policy.Result{DropKinds: []policy.AnnotationKind{TypingWord}}
+	sel := ctx.Selection()
+	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
+		return drop
+	}
+	pos := sel.Head.Pos
+	spec, ok := vocab.SlotSpec(ctx.Doc(), pos.Ref())
+	if !ok || spec.Literal || spec.Marks == nil {
+		return drop
+	}
+	in, ok := ctx.Inline(pos.Ref())
+	if !ok || pos.Offset <= 0 || pos.Offset > in.Len() {
+		return drop
+	}
+	flat := in.Flat()
+	r, sz := utf8.DecodeLastRuneInString(flat[:pos.Offset])
+	if sz == 0 || vocab.ClassOf(r)&vocab.ClassWord == 0 {
+		return drop
+	}
+	w, ok := vocab.WordAt(in, pos.Offset-sz)
+	if !ok || !w.Word || w.From >= w.To || w.To < pos.Offset {
+		return drop
+	}
+	lineFrom, lineTo := vocab.LineAround(flat, w.From, w.To)
+	tags := profile.TagsIn(in, lineFrom, lineTo)
+	if slices.ContainsFunc(tags, func(t profile.Tag) bool { return t.From < w.To && w.From < t.To }) {
+		return drop
+	}
+	return policy.Result{
+		DropKinds: []policy.AnnotationKind{TypingWord},
+		Annotate: []policy.Annotate{{
+			Kind:     TypingWord,
+			Anchor:   policy.Between(doc.At(pos.Ref(), w.From), doc.At(pos.Ref(), w.To)),
+			Lifetime: policy.Lifetime{Kind: policy.CaretLeaves},
+		}},
+	}
+}
+
+func revertCorrection(ctx *policy.Ctx, in profile.RevertCorrection, _ policy.At[doc.SlotRef]) policy.Result {
+	at := ctx.Annotations().At(Corrected, in.At)
+	if len(at) == 0 {
+		return policy.Pass
+	}
+	a := at[0]
+	data, ok := a.Data.(correctedWord)
+	if !ok || data.Original == "" {
+		return policy.Pass
+	}
+	sp := a.Anchor.Span()
+	inSlot, ok := ctx.Inline(sp.Slot)
+	if !ok || sp.From < 0 || sp.To > inSlot.Len() || inSlot.FlatRange(sp.From, sp.To) != data.Replaced {
+		return policy.Pass
+	}
+	var marks *doc.MarkSet
+	if it, _, ok := inSlot.ItemAt(sp.From); ok {
+		marks = it.Marks
+	}
+	end := sp.From + len(data.Original)
+	res := policy.Do(vocab.Ops(doc.EditText{At: sp.Slot, From: sp.From, To: sp.To, Items: []doc.Item{doc.TextItem(data.Original, marks)}}))
+	res.Drop = []policy.AnnotationID{a.ID}
+	res.Then = func(doc.Reader) doc.Selection { return doc.Collapsed(doc.CaretAt(doc.At(sp.Slot, end))) }
 	return res
 }
 

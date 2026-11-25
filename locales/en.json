@@ -3072,6 +3072,14 @@
   "@settingsSpellingGrammarDescription": {
     "description": "What an editor setting does, under its name in Settings."
   },
+  "settingsSpellingCorrect": "Correct spelling automatically",
+  "@settingsSpellingCorrect": {
+    "description": "An editor setting: replace a misspelled word with the system's guess as you finish typing it."
+  },
+  "settingsSpellingCorrectDescription": "Replaces a misspelled word with the system's correction as you type a space or punctuation. Click the underlined word to change it back.",
+  "@settingsSpellingCorrectDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
   "commandsLearnSpelling": "Learn Spelling",
   "@commandsLearnSpelling": {
     "description": "An editing command: adds the misspelled word to the user's dictionary, which every app shares, as macOS's Learn Spelling; in the page's menu, Settings' shortcuts and the commands."
@@ -3091,6 +3099,10 @@
   "commandCheckGrammar": "Check Grammar With Spelling",
   "@commandCheckGrammar": {
     "description": "A command, in Edit › Spelling and Grammar: also marks questioned grammar, as macOS apps do."
+  },
+  "commandCorrectSpelling": "Correct Spelling Automatically",
+  "@commandCorrectSpelling": {
+    "description": "A command, in Edit › Spelling and Grammar: automatically replaces misspelled words as you type, as macOS apps do."
   },
   "menuSpelling": "Spelling and Grammar",
   "@menuSpelling": {

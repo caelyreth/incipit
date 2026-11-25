@@ -125,7 +125,44 @@ func (el *Element) press(x, y float32, clicks int, extend bool, at time.Time) bo
 			return true
 		}
 	}
+	if clicks == 1 && !extend {
+		if caret, ok := el.correctedAt(x, y); ok && el.Editor.Glance(vocab.Input{Intent: profile.RevertCorrection{At: caret}, At: at}) {
+			return true
+		}
+	}
 	return el.beginGesture(x, y, clicks, extend, at)
+}
+
+func (el *Element) correctedAt(x, y float32) (doc.Caret, bool) {
+	pl := el.Editor.layout
+	if pl == nil {
+		return doc.Caret{}, false
+	}
+	for _, pt := range el.Editor.deco.Paints {
+		if pt.Group != profile.GroupCorrected {
+			continue
+		}
+		for _, cov := range pt.Covers {
+			if len(cov.Spans) == 0 {
+				continue
+			}
+			u := pl.unitOf(cov.Unit)
+			if u == nil || cov.Spans[0].From >= len(u.pres.Stops) {
+				continue
+			}
+			for _, pc := range pl.pieces(u, cov) {
+				for _, row := range pc.rows {
+					r := row.box
+					bottom := max(r.Y+r.H, row.base+underlineGap+waveHeight+underlineWidth)
+					r.H = bottom - r.Y
+					if contains(r, x, y) {
+						return u.pres.Stops[cov.Spans[0].From].Caret, true
+					}
+				}
+			}
+		}
+	}
+	return doc.Caret{}, false
 }
 
 // letGo ends the drag held, if any.
@@ -194,6 +231,9 @@ func (el *Element) cursorAt(x, y float32) (ui.Cursor, bool) {
 	}
 	if c, ok := el.controlAt(x, y, func(c control) bool { return c.cursor != 0 }); ok {
 		return c.cursor, true
+	}
+	if _, ok := el.correctedAt(x, y); ok {
+		return ui.CursorPointer, true
 	}
 	return 0, false
 }

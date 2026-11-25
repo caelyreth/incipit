@@ -22,6 +22,10 @@ func (systemSpelling) Check(text string, grammar bool) []spelling.Issue {
 	return out
 }
 
+func (systemSpelling) Correction(text string, from, to int) string {
+	return mygo.Spelling.Correction(text, from, to)
+}
+
 // spellingGuesses are the system's corrections for word, where it checks
 // spelling.
 func spellingGuesses(word string) []string { return mygo.Spelling.Guesses(word, 0, len(word)) }
@@ -37,8 +41,9 @@ func useSystemSpelling() {
 // The spelling options Edit › Spelling and Grammar turns on and off, as
 // the system's apps keep them there; Settings shows them too.
 var (
-	checkSpellingKey = policy.EnabledKey(spelling.ID)
-	checkGrammarKey  = spelling.ID + ".grammar"
+	checkSpellingKey   = policy.EnabledKey(spelling.ID)
+	checkGrammarKey    = spelling.ID + ".grammar"
+	correctSpellingKey = spelling.ID + ".correct"
 )
 
 // spellingMenu is Edit's Spelling and Grammar, where the system has a
@@ -48,8 +53,12 @@ func (a *AppState) spellingMenu(command func(keymap.CommandID) *mygo.MenuItem) [
 		return nil
 	}
 	return []*mygo.MenuItem{mygo.Separator(), {
-		Label:   locales.MenuSpelling(),
-		Submenu: []*mygo.MenuItem{command(keymap.CheckSpelling), command(keymap.CheckGrammar)},
+		Label: locales.MenuSpelling(),
+		Submenu: []*mygo.MenuItem{
+			command(keymap.CheckSpelling),
+			command(keymap.CheckGrammar),
+			command(keymap.CorrectSpelling),
+		},
 	}}
 }
 
