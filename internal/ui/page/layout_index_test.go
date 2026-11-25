@@ -83,3 +83,26 @@ func TestWideningPastTheMeasureLaysOutOnlyTheMargins(t *testing.T) {
 		t.Fatal("the table kept a layout from narrower margins")
 	}
 }
+
+// The stop index counts on from stop to stop, and finds what u16Of finds
+// for each: across marks, tags, code, formulas and wide text.
+func TestTheStopIndexAgreesWithU16Of(t *testing.T) {
+	el := newElement(t)
+	el.Editor.Do(vocab.Paste{Text: "Plain **strong** *em* `code` #tag $x+1$ 中文 and 😀 end.\n\n# Head **b**\n\n- [ ] task *it*\n"}, time.Unix(100, 0))
+	el.relayout()
+	checked := 0
+	for _, u := range el.Editor.layout.units {
+		for _, s := range u.surfaces {
+			for _, st := range s.stops {
+				ps := st.pres.Stops[st.i]
+				if want := s.u16Of(ps.Offset(), ps.Caret.Stop); st.u != want {
+					t.Fatalf("stop at %d (stop %d) indexed %d, u16Of %d", ps.Offset(), ps.Caret.Stop, st.u, want)
+				}
+				checked++
+			}
+		}
+	}
+	if checked < 40 {
+		t.Fatalf("checked only %d stops", checked)
+	}
+}

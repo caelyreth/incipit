@@ -459,11 +459,12 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		}
 	}
 	sl.stops = make([]stopAt, 0, n)
+	at := newU16Cursor(sl)
 	for i, st := range p.Stops {
 		if int(st.Surface) != index {
 			continue
 		}
-		sl.stops = append(sl.stops, stopAt{pres: p, i: int32(i), u: sl.u16Of(st.Offset(), st.Caret.Stop)})
+		sl.stops = append(sl.stops, stopAt{pres: p, i: int32(i), u: at.of(st.Offset(), st.Caret.Stop)})
 	}
 	return sl
 }

@@ -43,6 +43,80 @@ func (sl *surfaceLayout) u16Of(off, stop int) int {
 	return sl.segs[len(sl.segs)-1].u1
 }
 
+// u16Cursor answers u16Of for stops in the order a presentation lists
+// them, counting on from the last stop where it can: a long run of text
+// is counted once, not once per stop.
+type u16Cursor struct {
+	sl          *surfaceLayout
+	ghosts      bool
+	seg, off, u int
+}
+
+func newU16Cursor(sl *surfaceLayout) u16Cursor {
+	c := u16Cursor{sl: sl, seg: -1}
+	for _, sg := range sl.segs {
+		if sg.kind == segGhost {
+			c.ghosts = true
+			break
+		}
+	}
+	return c
+}
+
+func (c *u16Cursor) of(off, stop int) int {
+	if c.ghosts || c.seg < 0 || off < c.off {
+		u := c.sl.u16Of(off, stop)
+		c.mark(off, u)
+		return u
+	}
+	if sg := c.sl.segs[c.seg]; off <= sg.to {
+		c.u += utf16Len(sg.text[c.off-sg.from : off-sg.from])
+		c.off = off
+		return c.u
+	}
+	// On to the first segment after this one holding off, as u16Of finds
+	// it: those before this one end before the last stop.
+	for i := c.seg + 1; i < len(c.sl.segs); i++ {
+		sg := c.sl.segs[i]
+		switch sg.kind {
+		case segComposition, segSuggestion:
+			continue
+		}
+		if off < sg.from || off > sg.to {
+			continue
+		}
+		if sg.kind != segText {
+			c.seg = -1
+			if off == sg.from {
+				return sg.u0
+			}
+			return sg.u1
+		}
+		c.seg, c.off, c.u = i, off, sg.u0+utf16Len(sg.text[:off-sg.from])
+		return c.u
+	}
+	c.seg = -1
+	return c.sl.u16Of(off, stop)
+}
+
+// mark remembers where off stood, in the text segment holding it.
+func (c *u16Cursor) mark(off, u int) {
+	c.seg = -1
+	for i, sg := range c.sl.segs {
+		switch sg.kind {
+		case segGhost, segComposition, segSuggestion:
+			continue
+		}
+		if off < sg.from || off > sg.to {
+			continue
+		}
+		if sg.kind == segText {
+			c.seg, c.off, c.u = i, off, u
+		}
+		return
+	}
+}
+
 // graphemeOffset is the byte offset after the first k graphemes of s.
 func graphemeOffset(s string, k int) int {
 	off := 0
