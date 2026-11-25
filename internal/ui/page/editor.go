@@ -44,8 +44,7 @@ type Editor struct {
 	Guesses func(word string) []string
 	// Predict requests inline text prediction candidates asynchronously at
 	// byte offset at of text, calling cb with the predicted suffix or "".
-	Predict      func(text string, at int, cb func(string))
-	predictDelay time.Duration
+	Predict func(text string, at int, cb func(string))
 
 	theme   present.Theme
 	themeOf any
@@ -79,12 +78,11 @@ type Editor struct {
 	// page fading out, draws nothing more.
 	closed bool
 
-	mu           sync.Mutex
-	timer        *time.Timer
-	timeAt       time.Time
-	predictSeq   uint64
-	predictTimer *time.Timer
-	pendingSugg  *pendingSuggestion
+	mu          sync.Mutex
+	timer       *time.Timer
+	timeAt      time.Time
+	predictSeq  uint64
+	pendingSugg *pendingSuggestion
 }
 
 // builtFrom is what a layout is built from besides the asks.
@@ -205,7 +203,7 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 			continue
 		}
 		if ask, ok := fx.Data.(profile.PredictAsk); ok && fx.Kind == policy.EffectPredict {
-			ed.schedulePredict(ask, ed.Engine.Version())
+			ed.predict(ask, ed.Engine.Version())
 			continue
 		}
 		if ed.Effect != nil {

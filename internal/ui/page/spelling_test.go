@@ -175,7 +175,6 @@ func TestInlinePredictionGhostTextAndTabAccept(t *testing.T) {
 		t.Fatal(err)
 	}
 	ed := NewEditor(engine.New(snap, prog, engine.Options{}), 1)
-	ed.predictDelay = 5 * time.Millisecond
 	ed.Predict = func(text string, at int, cb func(string)) {
 		go func() {
 			if strings.HasSuffix(text[:at], "uncomp") {
@@ -193,10 +192,13 @@ func TestInlinePredictionGhostTextAndTabAccept(t *testing.T) {
 	for _, r := range "it is uncomp" {
 		ed.Do(vocab.Type{Text: string(r)}, tester.Now())
 	}
+	// Typing rests past the policy's pause, and the answer comes on a
+	// goroutine, as the system's does.
+	tester.Advance(400 * time.Millisecond)
 	deadline := time.Now().Add(2 * time.Second)
 	for ed.deco.Suggestion == nil && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
-		tester.Advance(10 * time.Millisecond)
+		tester.Frame()
 	}
 	if ed.deco.Suggestion == nil || ed.deco.Suggestion.Text != "romising" {
 		t.Fatalf("expected suggestion \"romising\", got %+v", ed.deco.Suggestion)

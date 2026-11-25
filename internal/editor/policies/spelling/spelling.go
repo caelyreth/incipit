@@ -59,6 +59,10 @@ var PredictNextWord = policy.Bool("predictNextWord", false, policy.Label("settin
 
 const correctedDuration = 4 * time.Second
 
+// predictPause is how long typing rests before a prediction is asked for:
+// quick typing asks nothing.
+const predictPause = 350 * time.Millisecond
+
 // Corrected marks a word just replaced automatically so a click can restore
 // what was typed.
 var Corrected = policy.NewAnnotationKind("spelling.corrected", false)
@@ -68,6 +72,10 @@ var Corrected = policy.NewAnnotationKind("spelling.corrected", false)
 // typing past the word ends it, and so does any input that is not typing
 // and changes the page or the selection, wherever the caret goes.
 var TypingWord = policy.NewAnnotationKind("spelling.typing", false)
+
+// PredictDue marks the caret a prediction is asked at once typing rests
+// there until its deadline; more typing moves the deadline on.
+var PredictDue = policy.NewAnnotationKind("spelling.predictDue", false)
 
 // issue is a spelling fact's data.
 type issue struct{}
@@ -97,6 +105,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Annotation(Corrected, validCorrected)
 	p.Decorate(Corrected, profile.GroupCorrected)
 	p.Annotation(TypingWord, validTypingWord)
+	p.Annotation(PredictDue, validPoint)
 
 	if c != nil && correctOn {
 		p.Rewrite("autocorrect", policy.PhaseCharacters).
@@ -113,7 +122,8 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		p.Observe("stopTyping", policy.Trigger{Classes: []doc.OriginClass{doc.OriginPaste, doc.OriginCommand, doc.OriginPointer, doc.OriginAgent, doc.OriginHistory}}, stopTyping)
 	}
 	if c != nil && predictOn {
-		p.Observe("predict", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observePredict(predictNext))
+		p.Observe("predict", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observePredict(predictNext))
+		policy.On(p, "predict-due", policy.Intent[vocab.Timer](), policy.Slot.Inside(), askPrediction(predictNext)).Caret()
 	}
 
 	p.Command(profile.LearnSpellingCommand, "commands.learnSpelling", profile.LearnSpelling{}, policy.Offer(profile.SpellingOffers, 0, ""))
@@ -203,6 +213,12 @@ func validCorrected(r doc.Reader, a policy.Annotation) bool {
 		return false
 	}
 	return in.FlatRange(sp.From, sp.To) == data.Replaced
+}
+
+func validPoint(r doc.Reader, a policy.Annotation) bool {
+	p := a.Anchor.From.Pos
+	in, ok := slotInline(r, p.Ref())
+	return ok && a.Anchor.IsPoint() && p.Offset >= 0 && p.Offset <= in.Len()
 }
 
 func validTypingWord(r doc.Reader, a policy.Annotation) bool {
@@ -320,12 +336,13 @@ func observeTypingWord(ctx *policy.Ctx, _ []doc.Record) policy.Result {
 	}
 }
 
-// stopTyping ends the typed word: the writer did something else.
+// stopTyping ends the typed word, and the prediction typing would have
+// asked for: the writer did something else.
 func stopTyping(ctx *policy.Ctx, _ []doc.Record) policy.Result {
-	if len(ctx.Annotations().Of(TypingWord)) == 0 {
+	if len(ctx.Annotations().Of(TypingWord)) == 0 && len(ctx.Annotations().Of(PredictDue)) == 0 {
 		return policy.Swallow
 	}
-	return policy.Result{DropKinds: []policy.AnnotationKind{TypingWord}}
+	return policy.Result{DropKinds: []policy.AnnotationKind{TypingWord, PredictDue}}
 }
 
 func revertCorrection(ctx *policy.Ctx, in profile.RevertCorrection, _ policy.At[doc.SlotRef]) policy.Result {
@@ -392,57 +409,93 @@ func isProseForPrediction(ctx *policy.Ctx, pos doc.Pos) bool {
 	return true
 }
 
+// observePredict keeps a suggestion the typing follows, and otherwise
+// sets a prediction due where typing that could be completed rests, a
+// pause on (askPrediction); typing that could not lets it go.
 func observePredict(nextWord bool) policy.ObserverFunc {
 	return func(ctx *policy.Ctx, _ []doc.Record) policy.Result {
-		if ctx.Composition() != nil {
-			return policy.Swallow
-		}
+		drop := policy.Result{DropKinds: []policy.AnnotationKind{PredictDue}}
 		if s := ctx.Suggestion(); s != nil {
 			// Typing what the suggestion said keeps the rest of it; any
 			// other typing lets it go, as the engine does by itself.
 			if rest, ok := typedAhead(ctx, *s); ok {
-				return policy.Result{Suggestion: &rest}
+				drop.Suggestion = &rest
+				return drop
 			}
-			return policy.Swallow
 		}
-		sel := ctx.Selection()
-		if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
-			return policy.Swallow
+		pos := ctx.Head().Pos
+		if _, ok := predictPrefix(ctx, nextWord); !ok {
+			return drop
 		}
-		pos := sel.Head.Pos
-		if !isProseForPrediction(ctx, pos) {
-			return policy.Swallow
+		due := ctx.Now().Add(predictPause)
+		drop.Annotate = []policy.Annotate{{Kind: PredictDue, Anchor: policy.PointAnchor(pos), Lifetime: policy.Until(due)}}
+		drop.Deadlines = []time.Time{due}
+		return drop
+	}
+}
+
+// askPrediction asks the host for a prediction once typing has rested
+// where one is due, from the text before the caret as it reads then.
+func askPrediction(nextWord bool) func(*policy.Ctx, vocab.Timer, policy.At[doc.SlotRef]) policy.Result {
+	return func(ctx *policy.Ctx, _ vocab.Timer, _ policy.At[doc.SlotRef]) policy.Result {
+		due := ctx.Annotations().At(PredictDue, ctx.Head())
+		if len(due) == 0 || ctx.Now().Before(due[0].Lifetime.At) || ctx.Suggestion() != nil {
+			return policy.Pass
 		}
-		in, ok := ctx.Inline(pos.Ref())
+		prefix, ok := predictPrefix(ctx, nextWord)
 		if !ok {
-			return policy.Swallow
-		}
-		flat := in.Flat()
-		lineFrom, _ := vocab.LineAround(flat, pos.Offset, pos.Offset)
-		prevRune, prevSize := utf8.DecodeLastRuneInString(flat[lineFrom:pos.Offset])
-		if prevSize == 0 {
-			return policy.Swallow
-		}
-		if vocab.ClassOf(prevRune)&vocab.ClassWord != 0 {
-			w, wok := vocab.WordAt(in, pos.Offset-prevSize)
-			if !wok || !w.Word || w.To != pos.Offset || utf8.RuneCountInString(flat[w.From:w.To]) < 3 {
-				return policy.Swallow
-			}
-		} else if !nextWord || vocab.ClassOf(prevRune)&vocab.ClassSpace == 0 {
-			return policy.Swallow
-		}
-		start := max(lineFrom, pos.Offset-maxPredictPrefix)
-		for start < pos.Offset && !utf8.RuneStart(flat[start]) {
-			start++
-		}
-		prefix := strings.ReplaceAll(flat[start:pos.Offset], string(doc.NodeByte), " ")
-		if strings.TrimSpace(prefix) == "" {
-			return policy.Swallow
+			return policy.Pass
 		}
 		return policy.Result{
-			Effects: []policy.Effect{{Kind: policy.EffectPredict, Data: profile.PredictAsk{At: pos, Text: prefix}}},
+			Drop:    []policy.AnnotationID{due[0].ID},
+			Effects: []policy.Effect{{Kind: policy.EffectPredict, Data: profile.PredictAsk{At: ctx.Head().Pos, Text: prefix}}},
 		}
 	}
+}
+
+// predictPrefix is the line's text before a collapsed caret a prediction
+// completes: an unfinished word of three letters or more, or with
+// nextWord a space after one; none in a composition or where the text is
+// not prose.
+func predictPrefix(ctx *policy.Ctx, nextWord bool) (string, bool) {
+	if ctx.Composition() != nil {
+		return "", false
+	}
+	sel := ctx.Selection()
+	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
+		return "", false
+	}
+	pos := sel.Head.Pos
+	if !isProseForPrediction(ctx, pos) {
+		return "", false
+	}
+	in, ok := ctx.Inline(pos.Ref())
+	if !ok {
+		return "", false
+	}
+	flat := in.Flat()
+	lineFrom, _ := vocab.LineAround(flat, pos.Offset, pos.Offset)
+	prevRune, prevSize := utf8.DecodeLastRuneInString(flat[lineFrom:pos.Offset])
+	if prevSize == 0 {
+		return "", false
+	}
+	if vocab.ClassOf(prevRune)&vocab.ClassWord != 0 {
+		w, wok := vocab.WordAt(in, pos.Offset-prevSize)
+		if !wok || !w.Word || w.To != pos.Offset || utf8.RuneCountInString(flat[w.From:w.To]) < 3 {
+			return "", false
+		}
+	} else if !nextWord || vocab.ClassOf(prevRune)&vocab.ClassSpace == 0 {
+		return "", false
+	}
+	start := max(lineFrom, pos.Offset-maxPredictPrefix)
+	for start < pos.Offset && !utf8.RuneStart(flat[start]) {
+		start++
+	}
+	prefix := strings.ReplaceAll(flat[start:pos.Offset], string(doc.NodeByte), " ")
+	if strings.TrimSpace(prefix) == "" {
+		return "", false
+	}
+	return prefix, true
 }
 
 // typedAhead is what is left of s once the caret, collapsed in its slot,

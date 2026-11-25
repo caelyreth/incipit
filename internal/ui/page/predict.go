@@ -15,9 +15,8 @@ import (
 )
 
 const (
-	defaultPredictDelay = 350 * time.Millisecond
-	suggEnterDuration   = 140 * time.Millisecond
-	suggExitDuration    = 105 * time.Millisecond
+	suggEnterDuration = 140 * time.Millisecond
+	suggExitDuration  = 105 * time.Millisecond
 )
 
 type suggSnap struct {
@@ -217,59 +216,44 @@ func (ed *Editor) wake() func() {
 	return fn
 }
 
+// cancelPredict lets an answer still to come go: the writer did
+// something since it was asked for.
 func (ed *Editor) cancelPredict() {
 	ed.mu.Lock()
 	ed.predictSeq++
-	if ed.predictTimer != nil {
-		ed.predictTimer.Stop()
-		ed.predictTimer = nil
-	}
 	ed.pendingSugg = nil
 	ed.mu.Unlock()
 }
 
-func (ed *Editor) schedulePredict(ask profile.PredictAsk, version uint64) {
+// predict asks the host for the prediction the spelling policy asked for,
+// once typing rested (its deadline); the answer waits for the next frame,
+// which drops it if anything happened meanwhile.
+func (ed *Editor) predict(ask profile.PredictAsk, version uint64) {
 	predict := ed.Predict
 	if predict == nil || ask.Text == "" {
 		return
 	}
-	delay := ed.predictDelay
-	if delay <= 0 {
-		delay = defaultPredictDelay
-	}
 	ed.mu.Lock()
 	ed.predictSeq++
 	seq := ed.predictSeq
-	if ed.predictTimer != nil {
-		ed.predictTimer.Stop()
-		ed.predictTimer = nil
-	}
 	ed.pendingSugg = nil
-	ed.predictTimer = time.AfterFunc(delay, func() {
-		ed.mu.Lock()
-		stale := ed.predictSeq != seq
-		ed.mu.Unlock()
-		if stale {
+	ed.mu.Unlock()
+	predict(ask.Text, len(ask.Text), func(sugg string) {
+		if sugg == "" {
 			return
 		}
-		predict(ask.Text, len(ask.Text), func(sugg string) {
-			if sugg == "" {
-				return
-			}
-			ed.mu.Lock()
-			if ed.predictSeq != seq {
-				ed.mu.Unlock()
-				return
-			}
-			ed.pendingSugg = &pendingSuggestion{seq: seq, version: version, at: ask.At, text: sugg}
-			wake := ed.Wake
+		ed.mu.Lock()
+		if ed.predictSeq != seq {
 			ed.mu.Unlock()
-			if wake != nil {
-				wake()
-			}
-		})
+			return
+		}
+		ed.pendingSugg = &pendingSuggestion{seq: seq, version: version, at: ask.At, text: sugg}
+		wake := ed.Wake
+		ed.mu.Unlock()
+		if wake != nil {
+			wake()
+		}
 	})
-	ed.mu.Unlock()
 }
 
 func (ed *Editor) flushSuggestion(now time.Time) {

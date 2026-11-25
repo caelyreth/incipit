@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/engine"
 	"github.com/caelyreth/neverland/internal/editor/policies/spelling"
 	"github.com/caelyreth/neverland/internal/editor/policy"
 	"github.com/caelyreth/neverland/internal/editor/present"
@@ -255,6 +256,56 @@ func TestALoneTypedWordWavesOnAMoveButNotOnASuggestion(t *testing.T) {
 	}
 }
 
+// asksAfter types s quickly, then rests until the page's next deadline,
+// and reports whether a prediction was asked for: never while typing.
+func (p *page) asksAfter(s string) bool {
+	p.t.Helper()
+	asks := func(pub *engine.Published) bool {
+		return slices.ContainsFunc(pub.Effects, func(fx policy.Effect) bool { return fx.Kind == policy.EffectPredict })
+	}
+	var last *engine.Published
+	for _, r := range s {
+		p.now = p.now.Add(100 * time.Millisecond)
+		pub, err := p.e.Do(1, vocab.Input{Intent: vocab.Type{Text: string(r)}, At: p.now})
+		if err != nil {
+			p.t.Fatal(err)
+		}
+		if asks(pub) {
+			p.t.Fatalf("typing %q asked for a prediction", r)
+		}
+		last = pub
+	}
+	if last == nil || len(last.Deadlines) == 0 {
+		return false
+	}
+	p.now = last.Deadlines[0]
+	pub, err := p.e.Do(1, vocab.Input{Intent: vocab.Timer{Deadline: p.now}, At: p.now})
+	if err != nil {
+		p.t.Fatal(err)
+	}
+	return asks(pub)
+}
+
+// A prediction is asked for once typing rests, not while it goes on, and
+// not when the writer moved before the pause ended.
+func TestAPredictionIsAskedForOnceTypingRests(t *testing.T) {
+	spelling.Use(knows{})
+	t.Cleanup(func() { spelling.Use(nil) })
+	p := openWith(t, policy.Values{spelling.ID + ".predict": true})
+	if !p.asksAfter("uncomp") {
+		t.Fatal("resting after uncomp asked for nothing")
+	}
+	p.typeFast(" sea")
+	p.now = p.now.Add(100 * time.Millisecond)
+	pub, err := p.e.Do(1, vocab.Input{Intent: vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward}, At: p.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pub.Deadlines) != 0 {
+		t.Fatalf("a move left deadlines %v", pub.Deadlines)
+	}
+}
+
 func TestInlinePredictionDefaultsOffAndSkipsNonProse(t *testing.T) {
 	p := checking(t, "uncomp")
 	p.now = p.now.Add(100 * time.Millisecond)
@@ -272,22 +323,7 @@ func TestInlinePredictionDefaultsOffAndSkipsNonProse(t *testing.T) {
 	t.Cleanup(func() { spelling.Use(nil) })
 	p = openWith(t, policy.Values{spelling.ID + ".predict": true})
 
-	hasPredict := func(s string) bool {
-		var saw bool
-		for _, r := range s {
-			p.now = p.now.Add(100 * time.Millisecond)
-			pub, err := p.e.Do(1, vocab.Input{Intent: vocab.Type{Text: string(r)}, At: p.now})
-			if err != nil {
-				p.t.Fatal(err)
-			}
-			for _, fx := range pub.Effects {
-				if fx.Kind == policy.EffectPredict {
-					saw = true
-				}
-			}
-		}
-		return saw
-	}
+	hasPredict := func(s string) bool { return p.asksAfter(s) }
 
 	if !hasPredict("it is uncomp") {
 		t.Fatalf("expected EffectPredict in prose when spelling.predict is enabled")
@@ -384,22 +420,7 @@ func TestInlinePredictionRequiresUnfinishedWordByDefaultAndRespectsNextWordOptio
 	spelling.Use(knows{})
 	t.Cleanup(func() { spelling.Use(nil) })
 
-	emitPredict := func(p *page, s string) bool {
-		var saw bool
-		for _, r := range s {
-			p.now = p.now.Add(100 * time.Millisecond)
-			pub, err := p.e.Do(1, vocab.Input{Intent: vocab.Type{Text: string(r)}, At: p.now})
-			if err != nil {
-				t.Fatal(err)
-			}
-			for _, fx := range pub.Effects {
-				if fx.Kind == policy.EffectPredict {
-					saw = true
-				}
-			}
-		}
-		return saw
-	}
+	emitPredict := func(p *page, s string) bool { return p.asksAfter(s) }
 
 	p := openWith(t, policy.Values{spelling.ID + ".predict": true})
 	if emitPredict(p, "it is ") {
