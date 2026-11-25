@@ -91,6 +91,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	for _, row := range rows {
 		p.Fill(ui.Rect{X: ox + row.X, Y: oy + row.Y, W: row.W, H: row.H}, wash, 2)
 	}
+	el.paintDecoLines(p, ox, oy, now, animate)
 	for _, su := range shown {
 		el.clipUnit(p, su.u, ox, su.uy, func() {
 			for _, ss := range su.surfaces {

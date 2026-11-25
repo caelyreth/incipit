@@ -187,7 +187,8 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 		}
 	}
 	// In layers, whatever order they were found in: the text's backgrounds,
-	// the highlights' over them, then every line over both.
+	// then the highlights' over them; the lines come after the selection's
+	// wash (paintDecoLines).
 	for _, layer := range []func(k decoKey) bool{
 		func(k decoKey) bool { return !k.highlight },
 		func(k decoKey) bool { return k.highlight },
@@ -198,11 +199,15 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 			}
 		}
 	}
+}
+
+// paintDecoLines draws every decoration's line, over the backgrounds and
+// the selection's wash, so a mark under selected text stays in sight.
+func (el *Element) paintDecoLines(p *ui.Painter, ox, oy float32, now time.Time, animate bool) {
 	for _, sd := range el.decos {
-		if sd.away {
-			continue
+		if !sd.away {
+			el.paintLine(p, sd, ox, oy, now, animate)
 		}
-		el.paintLine(p, sd, ox, oy, now, animate)
 	}
 }
 
@@ -383,10 +388,10 @@ const (
 	// amplitude, waveSamples the points a period is drawn through, and
 	// waveWidth its stroke: long and shallow, so it reads as a line that
 	// wavers rather than a zigzag.
-	waveLength  = 7
-	waveHeight  = 1.25
-	waveSamples = 14
-	waveWidth   = 1
+	waveLength  = 8
+	waveHeight  = 1.4
+	waveSamples = 16
+	waveWidth   = 1.6
 )
 
 const (
