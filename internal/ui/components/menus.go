@@ -7,9 +7,10 @@ import (
 
 // Menus has the window show its popup menus as Neverland does on its
 // platform (menuPresentation): the system's on macOS unless drawn is
-// chosen there, elsewhere drawn in flyouts of the window, as macOS's stand: the raised surface over the
-// system's material, a faint light rim, the row under the pointer washed
-// in the words' ink.
+// chosen there, elsewhere drawn in flyouts of the window, as macOS's
+// stand: the raised surface laid thin over the system's material, frosted
+// glass where the system has it (menuGlass), a faint light rim, the row
+// under the pointer washed in the words' ink.
 func Menus(c *ui.Context, semantic theme.Theme, drawn bool) {
 	presentation := menuPresentation
 	if drawn {
@@ -35,7 +36,8 @@ func Menus(c *ui.Context, semantic theme.Theme, drawn bool) {
 	rim, rule, wash := ink.Alpha(0.1), ink.Alpha(0.12), ink.Alpha(0.1)
 	c.SetMenuStyle(ui.PopoverMenuOptions{
 		Panel: func(panel ui.Element) {
-			ElevatedSurface(panel, semantic, scale, PopoverElevation).Padding(inset).Border(Rim, rim)
+			ElevatedSurface(panel, semantic, scale, PopoverElevation).Padding(inset).Border(Rim, rim).
+				Background(semantic.Surface.Elevated.Alpha(menuGlass))
 		},
 		Item: func(item ui.Element) {
 			item.Radius(controls.PanelRadius-inset).FontSize(size).FixedLineHeight(line).Padding(pad, across)
