@@ -222,6 +222,25 @@ func TestDoubleClickSelectsAWord(t *testing.T) {
 	}
 }
 
+func TestTripleClickSelectsASentence(t *testing.T) {
+	h := newHarness(t)
+	h.typeText("First sentence. Second sentence.")
+	for _, tc := range []struct {
+		at       int
+		from, to int
+	}{
+		{at: 3, from: 0, to: len("First sentence.")},
+		{at: 20, from: len("First sentence. "), to: len("First sentence. Second sentence.")},
+	} {
+		h.do(vocab.Place{Stop: h.caret(tc.at), Clicks: 3})
+		view, _ := h.e.View(1)
+		from, to := view.Selection.Ordered(h.e.Snapshot())
+		if from.Pos.Offset != tc.from || to.Pos.Offset != tc.to {
+			t.Fatalf("triple click at %d selected %d..%d, want %d..%d", tc.at, from.Pos.Offset, to.Pos.Offset, tc.from, tc.to)
+		}
+	}
+}
+
 // A run of clicks goes on in turn past its third press: a double click on
 // a word just double clicked, which comes as the run's third and fourth
 // presses, selects the block and then the word again.

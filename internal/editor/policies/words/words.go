@@ -45,6 +45,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "select-word", policy.Clicking(vocab.DoubleClick), policy.Slot.Inside(), func(context *policy.Ctx, input vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
 		return selectWord(context, input, nearby)
 	}).Any()
+	policy.On(p, "select-sentence", policy.Clicking(vocab.TripleClick), policy.Slot.Inside(), selectSentence).Any()
 
 	// The card's demonstration, played by the engine itself.
 	p.Showcase(2400*time.Millisecond,
@@ -295,6 +296,21 @@ func selectWord(c *policy.Ctx, in vocab.Place, nearby bool) policy.Result {
 	}
 	from, to := segmentAt(content, stop.Pos.Offset, in.Over, nearby)
 	return policy.Reveal(doc.TextRange(doc.CaretAt(doc.At(stop.Pos.Ref(), from)), doc.CaretAt(doc.At(stop.Pos.Ref(), to))))
+}
+
+// selectSentence selects the sentence a triple click hits, using the same
+// sentence span as the selection ladder; with none there, core takes the slot.
+func selectSentence(c *policy.Ctx, in vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
+	stop := in.Stop
+	content, ok := c.Inline(stop.Pos.Ref())
+	if in.Node != 0 || in.Cells != nil || !ok {
+		return policy.Pass
+	}
+	s, ok := vocab.SentenceAround(content, stop.Pos.Offset, stop.Pos.Offset)
+	if !ok {
+		return policy.Pass
+	}
+	return policy.Reveal(doc.TextRange(doc.CaretAt(doc.At(stop.Pos.Ref(), s.From)), doc.CaretAt(doc.At(stop.Pos.Ref(), s.To))))
 }
 
 // segmentAt is the word segment a double click selects: the one holding
