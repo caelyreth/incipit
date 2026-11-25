@@ -19,14 +19,15 @@ const ID = "lists"
 // Policy is the lists policy.
 var Policy = policy.Define(ID, func(p *policy.P) {
 	kinds := policy.Spans(policy.SpanCaret | policy.SpanBlocks)
-	p.Command("lists.bullet", "commands.bulletList", profile.MakeList{}, policy.Offer(profile.KindOffers, 5, "l", kinds))
+	// ⇧⌘8 and ⇧⌘7 make lists, as word processors have them.
+	p.Command("lists.bullet", "commands.bulletList", profile.MakeList{}, policy.Offer(profile.KindOffers, 5, "l", kinds), policy.Key("shift+primary+8"))
 	p.Command("lists.nest", "commands.nest", profile.Nest{Dir: vocab.Forward}, policy.Key("tab"))
 	p.Command("lists.outdent", "commands.outdent", profile.Nest{Dir: vocab.Backward}, policy.Key("shift+tab"))
 	p.Command("lists.toggleTask", "commands.toggleTask", profile.ToggleTask{}, policy.Key("primary+enter"))
 	p.Command("lists.numbered", "commands.numberedList", profile.MakeList{
 		Attrs: doc.MakeAttrs(doc.Field{Num: profile.FieldListStyle, Value: doc.Int(int64(profile.Ordered))},
 			doc.Field{Num: profile.FieldListStart, Value: doc.Int(1)}),
-	}, policy.Offer(profile.KindOffers, 6, "n", kinds))
+	}, policy.Offer(profile.KindOffers, 6, "n", kinds), policy.Key("shift+primary+7"))
 	policy.State(p, policy.Intent[profile.MakeList](), listed)
 
 	items := policy.Node(profile.Item)
