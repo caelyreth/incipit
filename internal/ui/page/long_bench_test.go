@@ -20,7 +20,7 @@ func longPage(n int, oneParagraph bool) string {
 }
 
 // A keystroke in the middle of a long page, laid out as the page does
-// for a frame.
+// for a frame: a letter typed, then taken back, so the page stays as long.
 func BenchmarkAKeystrokeOnALongPage(b *testing.B) {
 	for _, c := range []struct {
 		name string
@@ -44,7 +44,11 @@ func BenchmarkAKeystrokeOnALongPage(b *testing.B) {
 			el.relayout()
 			for i := 0; b.Loop(); i++ {
 				now = now.Add(time.Second)
-				el.Editor.Do(vocab.Type{Text: string(rune('a' + i%26))}, now)
+				if i%2 == 0 {
+					el.Editor.Do(vocab.Type{Text: string(rune('a' + i/2%26))}, now)
+				} else {
+					el.Editor.Do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward}, now)
+				}
 				el.relayout()
 			}
 		})

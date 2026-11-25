@@ -27,6 +27,10 @@ func keyMetrics(p *present.Presentation, m Metrics) Metrics {
 	return m
 }
 
+// sweepSketches is how many builds go by between lettings go of the
+// sketches of units no longer in the page.
+const sweepSketches = 64
+
 // build lays the presentations out. Units whose presentation, metrics and
 // composition are unchanged keep their shaped text.
 //
@@ -157,9 +161,13 @@ func (lc *layoutCache) build(pres []*present.Presentation, hint []*unitLayout, d
 			delete(lc.units, id)
 		}
 	}
-	for id, u := range lc.sketches {
-		if u.gen != lc.gen {
-			delete(lc.sketches, id)
+	if lc.gen%sweepSketches == 0 {
+		// Sketches of units gone are let go now and then, not at every
+		// build: a long page holds thousands.
+		for id, u := range lc.sketches {
+			if u.gen != lc.gen {
+				delete(lc.sketches, id)
+			}
 		}
 	}
 	if len(lc.measured) > len(lc.units)+len(lc.sketches) {
