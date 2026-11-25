@@ -256,3 +256,38 @@ func TestARangeActsAloneWhateverTheUnit(t *testing.T) {
 		}
 	}
 }
+
+// lookedUp is what the last intent asked the host to look up, if any.
+func lookedUp(pub *engine.Published) (profile.LookUpAsk, bool) {
+	for _, fx := range pub.Effects {
+		if ask, ok := fx.Data.(profile.LookUpAsk); ok && fx.Kind == policy.EffectLookUp {
+			return ask, true
+		}
+	}
+	return profile.LookUpAsk{}, false
+}
+
+// Look Up asks for the word at the caret, the text selected, or the word
+// a force click is on, leaving the selection as it is; never a space.
+func TestLookUpAsksForTheWordOrTheTextSelected(t *testing.T) {
+	h := newHarness(t)
+	h.typeText("low tide turns")
+	h.place(6)
+	if ask, ok := lookedUp(h.do(profile.LookUp{})); !ok || ask.Text != "tide" || ask.From != 4 || ask.To != 8 {
+		t.Fatalf("at the caret: %+v, %v; want tide at 4–8", ask, ok)
+	}
+	h.place(4)
+	h.do(vocab.Place{Stop: h.caret(14), Extend: true})
+	if ask, ok := lookedUp(h.do(profile.LookUp{})); !ok || ask.Text != "tide turns" {
+		t.Fatalf("selected: %+v, %v; want tide turns", ask, ok)
+	}
+	h.place(1)
+	ask, ok := lookedUp(h.do(profile.LookUp{At: &vocab.Place{Stop: h.caret(10), Over: vocab.Forward}}))
+	if !ok || ask.Text != "turns" {
+		t.Fatalf("force clicked: %+v, %v; want turns", ask, ok)
+	}
+	h.wantHead(1)
+	if _, ok := lookedUp(h.do(profile.LookUp{At: &vocab.Place{Stop: h.caret(3), Over: vocab.Forward}})); ok {
+		t.Fatal("a force click on a space looked something up")
+	}
+}

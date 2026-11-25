@@ -32,6 +32,7 @@ var (
 	intentSetDialect = vocab.NewIntentKind("SetMathDialect")
 	intentTogDialect = vocab.NewIntentKind("ToggleMathDialect")
 	intentHeading    = vocab.NewIntentKind("JumpHeading")
+	intentLookUp     = vocab.NewIntentKind("LookUp")
 )
 
 type (
@@ -131,7 +132,24 @@ type (
 	// ToggleMathDialect toggles the active formula or math block between TeX
 	// and Typst.
 	ToggleMathDialect struct{}
+	// LookUp asks the host to show what the text selected means, or the
+	// word under the caret; with At, the word At is over, as a force click
+	// asks, the selection left as it is. The host is asked with a
+	// LookUpAsk.
+	LookUp struct{ At *vocab.Place }
 )
+
+// LookUpCommand is the command that looks up what the text selected
+// means (LookUp), which the page offers only where the window can show it.
+const LookUpCommand vocab.CommandID = "words.lookUp"
+
+// LookUpAsk is the text a look up asks the host to show the meaning of:
+// From to To, in bytes, of the slot Slot.
+type LookUpAsk struct {
+	Slot     doc.SlotRef
+	From, To int
+	Text     string
+}
 
 // GridOp is what EditGrid does to a table's lines.
 type GridOp uint8
@@ -152,6 +170,7 @@ const (
 
 func (Format) Kind() vocab.IntentKind         { return intentFormat }
 func (JumpHeading) Kind() vocab.IntentKind    { return intentHeading }
+func (LookUp) Kind() vocab.IntentKind         { return intentLookUp }
 func (Retype) Kind() vocab.IntentKind         { return intentRetype }
 func (WrapQuote) Kind() vocab.IntentKind      { return intentWrapQuote }
 func (MakeList) Kind() vocab.IntentKind       { return intentMakeList }

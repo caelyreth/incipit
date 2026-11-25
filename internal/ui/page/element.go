@@ -304,6 +304,7 @@ func (el *Element) View(c *ui.Context) {
 			box.Cursor(cursor)
 		}
 		box.ContextMenu(func(m *ui.Menu) { el.contextMenu(m, services) })
+		el.showLookUp(services, box.Bounds())
 		// The paint reads what the build knew, never the build's elements:
 		// a container leaving keeps painting what it held after the frames
 		// that built it, as a pane fading out. Such a paint draws the page
@@ -433,6 +434,8 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 		el.menuOffers, el.menuChosen = false, false
 	}
 	switch ev.Kind {
+	case ui.InputLookUp:
+		return el.lookUpAt(ev.X, ev.Y)
 	case ui.InputPointerDown:
 		x, y := el.toPage(ev.X, ev.Y)
 		if ev.Button == 1 {

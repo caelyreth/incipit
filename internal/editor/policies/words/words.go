@@ -12,6 +12,7 @@ import (
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/policy"
+	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 )
 
@@ -35,6 +36,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		policy.On(p, "extend-"+unit.name, policy.Extending(unit.unit, 0), policy.Slot.Inside(), move).Caret().Range()
 		policy.On(p, "delete-"+unit.name, policy.Deleting(unit.unit, 0), policy.Slot.Inside(), delete)
 	}
+	// Look Up asks the host to show what a word means: the selection's,
+	// or the one a force click is on.
+	p.Command(profile.LookUpCommand, "commands.lookUp", profile.LookUp{}, policy.Offer(profile.LookUpOffers, 0, ""))
+	policy.On(p, "look-up", policy.Intent[profile.LookUp](), policy.Slot.Inside(), lookUp).Any()
+
 	nearby := policy.Get(p, NearbyContent)
 	policy.On(p, "select-word", policy.Clicking(vocab.DoubleClick), policy.Slot.Inside(), func(context *policy.Ctx, input vocab.Place, _ policy.At[doc.SlotRef]) policy.Result {
 		return selectWord(context, input, nearby)
@@ -50,6 +56,73 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		policy.Presses(vocab.Move{Unit: vocab.ByWord, Dir: vocab.Forward, Extend: true}),
 	)
 }, policy.Label("policies.words"), policy.Description("policies.words.description"))
+
+// lookUp asks the host to show what a word means: the one At is over,
+// the selection left as it is; else the text selected in one slot, or
+// the word at the caret. Formulas' source is not words, and nothing else
+// is a word to look up.
+func lookUp(c *policy.Ctx, in profile.LookUp, _ policy.At[doc.SlotRef]) policy.Result {
+	var ref doc.SlotRef
+	var from, to int
+	switch sel := c.Selection(); {
+	case in.At != nil:
+		if in.At.Node != 0 {
+			return policy.Pass
+		}
+		content, ok := c.Inline(in.At.Stop.Pos.Ref())
+		if !ok {
+			return policy.Pass
+		}
+		w, ok := wordOver(content, in.At.Stop.Pos.Offset, in.At.Over)
+		if !ok {
+			return policy.Pass
+		}
+		ref, from, to = in.At.Stop.Pos.Ref(), w.From, w.To
+	case sel.Kind == doc.SelectText && sel.IsCollapsed():
+		head := c.Head().Pos
+		content, ok := c.Inline(head.Ref())
+		if !ok {
+			return policy.Pass
+		}
+		w, ok := vocab.WordAt(content, head.Offset)
+		if !ok {
+			return policy.Pass
+		}
+		ref, from, to = head.Ref(), w.From, w.To
+	case sel.Kind == doc.SelectText:
+		lo, hi := c.Range()
+		if lo.Ref() != hi.Ref() {
+			return policy.Pass
+		}
+		ref, from, to = lo.Ref(), lo.Offset, hi.Offset
+	default:
+		return policy.Pass
+	}
+	if n, ok := c.Doc().Node(ref.Node); !ok || n.Kind() == profile.Formula || n.Kind() == profile.Math {
+		return policy.Pass
+	}
+	content, ok := c.Inline(ref)
+	if !ok {
+		return policy.Pass
+	}
+	text := strings.TrimSpace(content.Flat()[from:to])
+	if text == "" {
+		return policy.Pass
+	}
+	return policy.Result{Effects: []policy.Effect{{Kind: policy.EffectLookUp,
+		Data: profile.LookUpAsk{Slot: ref, From: from, To: to, Text: text}}}}
+}
+
+// wordOver is the word holding the grapheme on the over side of off,
+// before it where the side is not known; none over a space or a sign.
+func wordOver(in *doc.Inline, off int, over vocab.Direction) (vocab.TextUnit, bool) {
+	for _, w := range vocab.Words(in) {
+		if w.Word && (over == vocab.Forward && w.From <= off && off < w.To || over != vocab.Forward && w.From < off && off <= w.To) {
+			return w, true
+		}
+	}
+	return vocab.TextUnit{}, false
+}
 
 type span struct{ from, to int }
 

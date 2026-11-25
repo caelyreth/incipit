@@ -196,7 +196,7 @@ func TestFigureSizesReadWell(t *testing.T) {
 // The page's menu offers what the rules offer for what is selected: a
 // secondary click on a picture selects the figure and offers its
 // commands, and a menu opened from the keyboard offers those where the
-// selection is, a figure's as a table's, and none in text.
+// selection is, a figure's as a table's, and in text only Look Up.
 func TestMenusOfferWhatIsSelected(t *testing.T) {
 	el, u := figurePage(t)
 	el.readyMenu(u.x+u.box.X+u.box.W/2, u.y+u.box.Y+u.box.H/2, time.Unix(300, 0))
@@ -211,13 +211,14 @@ func TestMenusOfferWhatIsSelected(t *testing.T) {
 		t.Fatalf("the keyboard menu by a selected figure offers %v", got)
 	}
 	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Forward}, time.Unix(301, 0))
-	if got := el.menuGroups(); got != nil {
-		t.Fatalf("the keyboard menu in text offers %v, want none", got)
+	if got := el.menuGroups(); len(got) != 1 || len(got[0]) != 1 || got[0][0] != profile.LookUpCommand {
+		t.Fatalf("the keyboard menu in text offers %v, want Look Up alone", got)
 	}
 
 	tel, _ := tablePage(t, 2, 2, "a")
-	if got := tel.menuGroups(); len(got) == 0 || got[0][0] != "table.row-above" {
-		t.Fatalf("the keyboard menu in a cell offers %v, want the table's", got)
+	// On a word in a cell, Look Up first, as in text, then the table's.
+	if got := tel.menuGroups(); len(got) < 2 || got[0][0] != profile.LookUpCommand || got[1][0] != "table.row-above" {
+		t.Fatalf("the keyboard menu in a cell offers %v, want Look Up, then the table's", got)
 	}
 }
 

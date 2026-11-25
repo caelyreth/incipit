@@ -6,6 +6,10 @@ import "github.com/caelyreth/neverland/internal/editor/vocab"
 // their commands forward in; the selection's own are vocab's
 // (vocab.SelectionOffers).
 var (
+	// LookUpOffers look up what the text selected, or the word at the
+	// caret, means: first in the page's menu, as the system's are.
+	LookUpOffers = vocab.OfferGroup{ID: "lookUp", Label: "offers.lookUp", Shape: vocab.OfferActions,
+		Order: 1, In: vocab.SurfaceMenu}
 	// InsertOffers are what is inserted at the selection.
 	InsertOffers = vocab.OfferGroup{ID: "insert", Label: "offers.insert", Shape: vocab.OfferActions,
 		Order: 10, In: vocab.SurfaceDock | vocab.SurfaceMenuBar}

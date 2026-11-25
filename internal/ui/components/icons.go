@@ -73,6 +73,7 @@ const (
 	IconRowRemove       IconName = "row-remove"
 	IconColumnRemove    IconName = "column-remove"
 	IconPreview         IconName = "eye"
+	IconLookUp          IconName = "book-open"
 )
 
 var AllIcons = [...]IconName{
@@ -135,6 +136,7 @@ var AllIcons = [...]IconName{
 	IconRowRemove,
 	IconColumnRemove,
 	IconPreview,
+	IconLookUp,
 }
 
 // GroupIcons are the icons a group can wear, in the order the picker

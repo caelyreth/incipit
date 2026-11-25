@@ -7415,6 +7415,24 @@ func (msgs Messages) CommandsReplacePicture() string {
 	return Catalog.Format(msgs.locale, "commandsReplacePicture", nil)
 }
 
+// CommandsLookUp says "Look Up"
+// in the language the app shows.
+//
+// An editing command: shows what the word or the text selected means, from
+// the system's dictionaries; in the page's menu, Settings' shortcuts and
+// the commands.
+func CommandsLookUp() string { return In(i18n.Locale()).CommandsLookUp() }
+
+// CommandsLookUp says "Look Up"
+// in the language of msgs.
+//
+// An editing command: shows what the word or the text selected means, from
+// the system's dictionaries; in the page's menu, Settings' shortcuts and
+// the commands.
+func (msgs Messages) CommandsLookUp() string {
+	return Catalog.Format(msgs.locale, "commandsLookUp", nil)
+}
+
 // CommandsInsertTable says "Insert table"
 // in the language the app shows.
 //
@@ -7497,6 +7515,20 @@ func OffersPicture() string { return In(i18n.Locale()).OffersPicture() }
 // The name of an editor setting, offers.picture.
 func (msgs Messages) OffersPicture() string {
 	return Catalog.Format(msgs.locale, "offersPicture", nil)
+}
+
+// OffersLookUp says "Look Up"
+// in the language the app shows.
+//
+// A group of the page's menu: looking up what a word means.
+func OffersLookUp() string { return In(i18n.Locale()).OffersLookUp() }
+
+// OffersLookUp says "Look Up"
+// in the language of msgs.
+//
+// A group of the page's menu: looking up what a word means.
+func (msgs Messages) OffersLookUp() string {
+	return Catalog.Format(msgs.locale, "offersLookUp", nil)
 }
 
 // OffersPictureAlign says "Picture alignment"

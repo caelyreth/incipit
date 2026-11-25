@@ -2028,6 +2028,10 @@
   "@commandsReplacePicture": {
     "description": "An editing command, in Settings' shortcuts and the commands."
   },
+  "commandsLookUp": "Look Up",
+  "@commandsLookUp": {
+    "description": "An editing command: shows what the word or the text selected means, from the system's dictionaries; in the page's menu, Settings' shortcuts and the commands."
+  },
   "commandsInsertTable": "Insert table",
   "@commandsInsertTable": {
     "description": "An editing command, in Settings' shortcuts and the commands."
@@ -2051,6 +2055,10 @@
   "offersPicture": "Picture",
   "@offersPicture": {
     "description": "The name of an editor setting, offers.picture."
+  },
+  "offersLookUp": "Look Up",
+  "@offersLookUp": {
+    "description": "A group of the page's menu: looking up what a word means."
   },
   "offersPictureAlign": "Picture alignment",
   "@offersPictureAlign": {

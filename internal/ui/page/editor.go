@@ -11,6 +11,7 @@ import (
 	"github.com/caelyreth/neverland/internal/editor/engine"
 	"github.com/caelyreth/neverland/internal/editor/policy"
 	"github.com/caelyreth/neverland/internal/editor/present"
+	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
@@ -50,6 +51,9 @@ type Editor struct {
 	wrote time.Time
 	// reveal asks the next frame to scroll the caret into view.
 	reveal bool
+	// lookUp is what the rules last asked to be looked up, which the next
+	// frame shows (Element.showLookUp).
+	lookUp *profile.LookUpAsk
 	// typed is whether the last input answered typed or deleted text, as
 	// a tag picker opens.
 	typed bool
@@ -175,6 +179,10 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 	for _, fx := range pub.Effects {
 		if fx.Kind == policy.EffectReveal {
 			ed.reveal = true
+			continue
+		}
+		if ask, ok := fx.Data.(profile.LookUpAsk); ok && fx.Kind == policy.EffectLookUp {
+			ed.lookUp = &ask
 			continue
 		}
 		if ed.Effect != nil {

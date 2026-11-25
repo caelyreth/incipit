@@ -6,6 +6,7 @@ import (
 
 	"github.com/caelyreth/neverland/internal/app/keymap"
 	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/page/table"
@@ -239,6 +240,9 @@ func (el *Element) contextMenu(m *ui.Menu, services ui.Services) {
 	labels := el.commandLabels()
 	for _, group := range el.menuGroups() {
 		for _, id := range group {
+			if id == profile.LookUpCommand && !services.CanShowDefinition() {
+				continue
+			}
 			it := components.MenuItem(m.Item(labels[id]), toolIcon(id))
 			if el.Keys != nil {
 				if chord, ok := el.Keys.ChordFor(keymap.CommandID(id)); ok {

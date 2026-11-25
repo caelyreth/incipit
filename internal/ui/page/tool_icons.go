@@ -1,6 +1,7 @@
 package page
 
 import (
+	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/components"
 )
@@ -19,6 +20,7 @@ var toolIcons = map[vocab.CommandID]components.IconName{
 	"scopes.shrink":    components.IconShrinkSelection,
 	"scopes.expand":    components.IconExpandSelection,
 	// The page's menu.
+	profile.LookUpCommand:    components.IconLookUp,
 	"figures.copy":           components.IconDuplicate,
 	"figures.save":           components.IconExport,
 	"figures.preview":        components.IconPreview,

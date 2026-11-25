@@ -133,6 +133,9 @@ const (
 	// EffectMedia asks the host for media, or to use it: Data says what,
 	// as the profile has it. The host answers with an intent, if any.
 	EffectMedia
+	// EffectLookUp asks the host to show what text means: Data says
+	// which, as the profile has it.
+	EffectLookUp
 )
 
 // Effect is a view effect.
