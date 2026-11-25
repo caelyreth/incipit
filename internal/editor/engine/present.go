@@ -37,6 +37,22 @@ func (e *Engine) Present(view uint64, ids []doc.ID) []*present.Presentation {
 	return e.presenter(view).Present(e.prog, e.store, e.snap, v, ids)
 }
 
+// Sketch returns stand-ins for units a renderer places without their
+// text, far from its view (present.Presenter.Sketch).
+func (e *Engine) Sketch(view uint64, ids []doc.ID) []*present.Presentation {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.presenter(view).Sketch(e.snap, ids)
+}
+
+// UnitAt is the index in Units of the unit holding pos's stops, as
+// present.Presenter.UnitAt finds it.
+func (e *Engine) UnitAt(view uint64, pos doc.Pos) (int, bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.presenter(view).UnitAt(e.snap, pos)
+}
+
 // Decorations returns a view's decorations over every unit.
 func (e *Engine) Decorations(view uint64) present.Decorations {
 	units := e.Units(view)

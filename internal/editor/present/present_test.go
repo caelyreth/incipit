@@ -227,3 +227,38 @@ func TestTypingKeepsTheUnits(t *testing.T) {
 		t.Fatalf("after a new block: %d units, want %d", len(after), len(before)+1)
 	}
 }
+
+// A unit sketched far from a renderer's view stands in with its look and
+// no text, the same pointer while it is unchanged; a presentation no
+// renderer asks for any more is let go.
+func TestASketchStandsInWithoutTextAndPresentationsNotAskedForGo(t *testing.T) {
+	prog, err := manifest.Compile(nil, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, _ := profile.EmptyPage(1, 3, doc.NewInterner())
+	e := engine.New(snap, prog, engine.Options{})
+	e.OpenView(1)
+	if _, err := e.Do(1, vocab.Input{Intent: vocab.Paste{Text: "one\n\ntwo\n"}, At: time.Unix(1, 0)}); err != nil {
+		t.Fatal(err)
+	}
+	units := e.Units(1)
+	ids := []doc.ID{units[0].ID, units[len(units)-1].ID}
+	sk := e.Sketch(1, ids)
+	if sk[0] == nil || !sk[0].Sketch || len(sk[0].Surfaces) != 0 || len(sk[0].Stops) != 0 || sk[0].Unit != ids[0] {
+		t.Fatalf("sketch %+v", sk[0])
+	}
+	if again := e.Sketch(1, ids); again[0] != sk[0] || again[1] != sk[1] {
+		t.Fatal("an unchanged unit's sketch is a new pointer")
+	}
+	first := e.Present(1, ids[:1])[0]
+	if again := e.Present(1, ids[:1])[0]; again != first {
+		t.Fatal("an unchanged unit was presented again")
+	}
+	for range 100 {
+		e.Present(1, ids[1:])
+	}
+	if again := e.Present(1, ids[:1])[0]; again == first {
+		t.Fatal("a presentation not asked for in 100 calls was kept")
+	}
+}

@@ -130,6 +130,9 @@ type Presentation struct {
 	Gaps [2]bool
 	// Object is set for a unit the caret selects whole.
 	Object bool
+	// Sketch is set for a stand-in (Presenter.Sketch): a unit placed
+	// without its text, far from a renderer's view.
+	Sketch bool
 
 	// Role and Level are what assistive technology reads the unit as;
 	// Label, Value and AccessOffsets what it reads in it, made when
@@ -224,7 +227,21 @@ type Presenter struct {
 	mu    sync.Mutex
 	memo  map[doc.ID]*Presentation
 	units *unitList
+	// sketches are the stand-ins of units presented without their text
+	// (Sketch); gen counts the calls to Present, and used is the call
+	// each memoised presentation was last asked for in, so those of
+	// units no renderer reads any more, far from its view, go.
+	sketches map[doc.ID]*Presentation
+	gen      uint64
+	used     map[doc.ID]uint64
 }
+
+// keptCalls is how many calls to Present a presentation not asked for
+// is kept through, and sweepEvery how often those past it go.
+const (
+	keptCalls  = 32
+	sweepEvery = 64
+)
 
 // unitList is the units of one block structure, never changed once made,
 // so a scratch presenter shares it.
@@ -240,7 +257,7 @@ func NewPresenter(prof vocab.Profile) *Presenter {
 	if !ok {
 		look = plain{}
 	}
-	return &Presenter{look: look, memo: map[doc.ID]*Presentation{}}
+	return &Presenter{look: look, memo: map[doc.ID]*Presentation{}, sketches: map[doc.ID]*Presentation{}, used: map[doc.ID]uint64{}}
 }
 
 // plain presents a profile that tells nothing: every block is a text unit.
@@ -367,6 +384,10 @@ func (pr *Presenter) Unit(prog *policy.Program, store *policy.Store, r doc.Reade
 func (pr *Presenter) Present(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, ids []doc.ID) []*Presentation {
 	ul := pr.unitsOf(r)
 	out := make([]*Presentation, 0, len(ids))
+	pr.mu.Lock()
+	pr.gen++
+	gen := pr.gen
+	pr.mu.Unlock()
 	for _, id := range ids {
 		i, ok := ul.index[id]
 		if !ok {
@@ -374,9 +395,70 @@ func (pr *Presenter) Present(prog *policy.Program, store *policy.Store, r doc.Re
 			continue
 		}
 		out = append(out, pr.present(prog, store, r, view, ul.list[i]))
+		pr.mu.Lock()
+		pr.used[id] = gen
+		pr.mu.Unlock()
+	}
+	if gen%sweepEvery == 0 {
+		pr.sweep(gen)
 	}
 	return out
 }
+
+// sweep lets go the presentations not asked for in the last keptCalls
+// calls, and the stand-ins of units the page no longer has.
+func (pr *Presenter) sweep(gen uint64) {
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+	for id := range pr.memo {
+		if pr.used[id]+keptCalls < gen {
+			delete(pr.memo, id)
+			delete(pr.used, id)
+		}
+	}
+	if pr.units == nil {
+		return
+	}
+	for id := range pr.sketches {
+		if _, ok := pr.units.index[id]; !ok {
+			delete(pr.sketches, id)
+		}
+	}
+}
+
+// Sketch returns stand-ins for units presented without their text: a
+// unit as a renderer places it far from its view, with its kind, look,
+// context and gaps, and no surfaces or stops. A unit's stand-in is the
+// same pointer while what it is drawn from is unchanged.
+func (pr *Presenter) Sketch(r doc.Reader, ids []doc.ID) []*Presentation {
+	ul := pr.unitsOf(r)
+	out := make([]*Presentation, len(ids))
+	pr.mu.Lock()
+	defer pr.mu.Unlock()
+	for i, id := range ids {
+		at, ok := ul.index[id]
+		if !ok {
+			continue
+		}
+		u := ul.list[at]
+		n, ok := r.Node(id)
+		if !ok {
+			continue
+		}
+		if p, ok := pr.sketches[id]; ok && p.Node == n && p.Context == u.Context && samePos(p.Gap, u.Gap) && p.Gaps == u.Gaps {
+			out[i] = p
+			continue
+		}
+		style := pr.look.Style(r, n, u.Context)
+		p := &Presentation{Unit: id, Kind: n.Kind(), Node: n, Context: u.Context, Group: style.Group,
+			Role: style.Role, Level: style.Level, Gap: u.Gap, Gaps: u.Gaps, Object: r.Schema().IsObject(n.Kind()), Sketch: true}
+		pr.sketches[id] = p
+		out[i] = p
+	}
+	return out
+}
+
+func samePos(a, b *doc.Pos) bool { return a == b || a != nil && b != nil && *a == *b }
 
 // keyOf is a unit's key apart from the view's selection.
 func (pr *Presenter) keyOf(prog *policy.Program, u UnitRef, n *doc.Node) unitKey {
@@ -417,9 +499,6 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 		p.Stops = slices.Clone(p.Stops)
 	}
 	pr.mu.Lock()
-	if len(pr.memo) >= 1<<16 {
-		clear(pr.memo)
-	}
 	pr.memo[u.ID] = p
 	pr.mu.Unlock()
 	return p
