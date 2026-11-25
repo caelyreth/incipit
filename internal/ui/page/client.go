@@ -82,9 +82,9 @@ func (c *client) selectRange(r ui.TextInputRange) {
 		return
 	}
 	ed := c.el.Editor
-	ed.Do(vocab.Place{Stop: a.caret, Clicks: 1}, ed.now())
-	if b.caret != a.caret {
-		ed.Do(vocab.Place{Stop: b.caret, Clicks: 1, Extend: true}, ed.now())
+	ed.Do(vocab.Place{Stop: a.caret(), Clicks: 1}, ed.now())
+	if b.caret() != a.caret() {
+		ed.Do(vocab.Place{Stop: b.caret(), Clicks: 1, Extend: true}, ed.now())
 	}
 }
 

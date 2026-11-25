@@ -111,7 +111,7 @@ func (u *unitLayout) beside(after bool) doc.Caret {
 		side = 1
 	}
 	if g := u.gaps[side]; g != nil {
-		return g.caret
+		return g.caret()
 	}
 	pos := *u.pres.Gap
 	pos.Offset += side
@@ -279,8 +279,8 @@ func (u *unitLayout) place(c doc.Caret) (place, bool) {
 	if u.at == nil {
 		u.at = map[doc.Caret]place{}
 		for _, s := range orderedStops(u) {
-			if _, dup := u.at[s.stop.caret]; s.surface != nil && !dup {
-				u.at[s.stop.caret] = place{unit: u, surface: s.surface, stop: s.stop}
+			if _, dup := u.at[s.stop.caret()]; s.surface != nil && !dup {
+				u.at[s.stop.caret()] = place{unit: u, surface: s.surface, stop: s.stop}
 			}
 		}
 	}

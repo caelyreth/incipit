@@ -26,8 +26,8 @@ func TestEveryStopIsFoundThroughItsUnit(t *testing.T) {
 	var first, last *stopAt
 	for _, u := range pl.units {
 		for _, s := range orderedStops(u) {
-			if _, dup := want[s.stop.caret]; !dup {
-				want[s.stop.caret] = place{unit: u, surface: s.surface, stop: s.stop}
+			if _, dup := want[s.stop.caret()]; !dup {
+				want[s.stop.caret()] = place{unit: u, surface: s.surface, stop: s.stop}
 			}
 			if first == nil {
 				first = s.stop

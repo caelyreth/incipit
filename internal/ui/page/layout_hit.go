@@ -77,7 +77,7 @@ func (pl *pageLayout) hit(x, y float32) (vocab.Place, bool) {
 	if st == nil {
 		return vocab.Place{}, false
 	}
-	return vocab.Place{Stop: st.caret, Over: over(s.layout, at, x-ox)}, true
+	return vocab.Place{Stop: st.caret(), Over: over(s.layout, at, x-ox)}, true
 }
 
 // over is the side of boundary at the grapheme under x lies on, in
@@ -132,7 +132,7 @@ func (sl *surfaceLayout) boxAt(x, y float32) (doc.Caret, doc.ID, bool) {
 // stopBefore is the surface's stop at UTF-16 index u.
 func (sl *surfaceLayout) stopBefore(u int) doc.Caret {
 	if st := sl.nearest(u); st != nil {
-		return st.caret
+		return st.caret()
 	}
 	return doc.Caret{}
 }
@@ -301,7 +301,7 @@ func (r row) has(pc place) bool {
 // surface nearest across, on its first line going down, its last going up.
 func (r row) at(pl *pageLayout, u *unitLayout, goalX float32, up bool) doc.Caret {
 	if r.gap != nil {
-		return r.gap.caret
+		return r.gap.caret()
 	}
 	s, bd := r.band[0], float32(math.Inf(1))
 	for _, cand := range r.band {
@@ -409,7 +409,7 @@ func (pl *pageLayout) hitSurface(u *unitLayout, s *surfaceLayout, x, y float32) 
 		return c
 	}
 	if st := s.nearest(s.layout.IndexAt(ui.Point{X: x - ox, Y: ly})); st != nil {
-		return st.caret
+		return st.caret()
 	}
 	return doc.Caret{}
 }

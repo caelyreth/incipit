@@ -124,7 +124,7 @@ func TestGhostStopsHaveTheirOwnPlaces(t *testing.T) {
 	}
 	for i := 1; i < len(s.stops); i++ {
 		if s.stops[i].u <= s.stops[i-1].u {
-			t.Fatalf("stop %v at %d does not follow %v at %d", s.stops[i].caret, s.stops[i].u, s.stops[i-1].caret, s.stops[i-1].u)
+			t.Fatalf("stop %v at %d does not follow %v at %d", s.stops[i].caret(), s.stops[i].u, s.stops[i-1].caret(), s.stops[i-1].u)
 		}
 	}
 	// One stop at each glyph boundary, the marker's separator between the

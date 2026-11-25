@@ -89,8 +89,8 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 			if g == nil {
 				continue
 			}
-			if _, dup := pl.gaps[g.caret]; !dup {
-				pl.gaps[g.caret] = place{unit: u, stop: g}
+			if _, dup := pl.gaps[g.caret()]; !dup {
+				pl.gaps[g.caret()] = place{unit: u, stop: g}
 			}
 		}
 		pl.units = append(pl.units, u)
@@ -129,7 +129,7 @@ func orderedStops(u *unitLayout) []surfStop {
 	for _, st := range u.pres.Stops {
 		if st.Surface < 0 {
 			for _, g := range u.gaps {
-				if g != nil && g.caret == st.Caret {
+				if g != nil && g.caret() == st.Caret {
 					out = append(out, surfStop{nil, g})
 				}
 			}
@@ -140,7 +140,7 @@ func orderedStops(u *unitLayout) []surfStop {
 		}
 		s := u.surfaces[st.Surface]
 		i := next[st.Surface]
-		if i < len(s.stops) && s.stops[i].caret == st.Caret {
+		if i < len(s.stops) && s.stops[i].caret() == st.Caret {
 			out = append(out, surfStop{s, &s.stops[i]})
 			next[st.Surface]++
 		}
@@ -199,13 +199,13 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 	u.x = indentOf(p.Context, m)
 	width := max(m.Width-u.x, m.Body*4)
 	if p.Object {
-		for _, st := range p.Stops {
+		for i, st := range p.Stops {
 			if st.Surface < 0 {
 				side := 0
 				if p.Gap != nil && st.Caret.Pos != *p.Gap {
 					side = 1
 				}
-				u.gaps[side] = &stopAt{caret: st.Caret}
+				u.gaps[side] = &stopAt{pres: p, i: int32(i)}
 			}
 		}
 		// Its kind's renderer lays it out; the text it holds is its
@@ -409,11 +409,18 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 	for _, line := range sl.layout.Lines() {
 		sl.reach = max(sl.reach, line.Rect.X+line.Rect.W)
 	}
+	n := 0
 	for _, st := range p.Stops {
+		if int(st.Surface) == index {
+			n++
+		}
+	}
+	sl.stops = make([]stopAt, 0, n)
+	for i, st := range p.Stops {
 		if int(st.Surface) != index {
 			continue
 		}
-		sl.stops = append(sl.stops, stopAt{caret: st.Caret, u: sl.u16Of(st.Offset(), st.Caret.Stop)})
+		sl.stops = append(sl.stops, stopAt{pres: p, i: int32(i), u: sl.u16Of(st.Offset(), st.Caret.Stop)})
 	}
 	return sl
 }

@@ -20,7 +20,7 @@ func TestSelectLineTakesTheLineThenTheNext(t *testing.T) {
 	if len(lines) < 3 {
 		t.Fatalf("the text lays out in %d lines, want at least 3", len(lines))
 	}
-	el.Editor.Do(vocab.Place{Stop: sl.stops[3].caret}, time.Unix(5000, 0))
+	el.Editor.Do(vocab.Place{Stop: sl.stops[3].caret()}, time.Unix(5000, 0))
 	el.relayout()
 
 	clock := int64(6000)
@@ -37,7 +37,7 @@ func TestSelectLineTakesTheLineThenTheNext(t *testing.T) {
 	want := func(n int) (int, int) {
 		start, _ := sl.lineBounds(lines[0])
 		_, end := sl.lineBounds(lines[n-1])
-		return sl.nearest(start).caret.Pos.Offset, sl.nearest(end).caret.Pos.Offset
+		return sl.nearest(start).caret().Pos.Offset, sl.nearest(end).caret().Pos.Offset
 	}
 	for n := 1; n <= 2; n++ {
 		f, to := selectLine()

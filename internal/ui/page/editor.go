@@ -335,7 +335,7 @@ func (ed *Editor) lineEdge(in vocab.VisualMove, head doc.Caret) (vocab.VisualMov
 	if st == nil {
 		return in, false
 	}
-	in.Target, in.GoalX = st.caret, -1
+	in.Target, in.GoalX = st.caret(), -1
 	return in, true
 }
 
@@ -376,7 +376,7 @@ func (ed *Editor) lineSpan(in vocab.SelectLine) (vocab.SelectLine, bool) {
 	if s == nil || e == nil {
 		return in, false
 	}
-	in.Start, in.End = s.caret, e.caret
+	in.Start, in.End = s.caret(), e.caret()
 	return in, true
 }
 

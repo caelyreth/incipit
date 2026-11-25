@@ -138,11 +138,17 @@ func (d deco) same(o deco) bool {
 // invisible paints nothing; a zero color would take the layout's default.
 var invisible = ui.Color{R: 1}
 
-// stopAt is a stop and the UTF-16 index it stands at in its surface.
+// stopAt is a stop, the i-th of its presentation's, and the UTF-16
+// index it stands at in its surface. It names the stop rather than copying
+// its caret: a page holds one per grapheme.
 type stopAt struct {
-	caret doc.Caret
-	u     int
+	pres *present.Presentation
+	i    int32
+	u    int
 }
+
+// caret is the stop's caret.
+func (s stopAt) caret() doc.Caret { return s.pres.Stops[s.i].Caret }
 
 // surfaceLayout is one laid-out surface of a unit.
 type surfaceLayout struct {

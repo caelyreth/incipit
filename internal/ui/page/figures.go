@@ -544,9 +544,9 @@ func (el *Element) dropPlace(x, y float32) (doc.Caret, float32, bool) {
 		return u.beside(after), line, true
 	case len(u.surfaces) > 0 && len(u.surfaces[0].stops) > 0:
 		stops := u.surfaces[0].stops
-		at := stops[0].caret
+		at := stops[0].caret()
 		if after {
-			at = stops[len(stops)-1].caret
+			at = stops[len(stops)-1].caret()
 		}
 		return doc.CaretAt(at.Pos), line, true
 	}

@@ -59,7 +59,7 @@ func moveTo(t *testing.T, el *Element, u *unitLayout, cc doc.CellCoord) {
 	t.Helper()
 	for i, s := range u.surfaces {
 		if u.table.Cell(i) == cc {
-			el.Editor.Do(vocab.Place{Stop: s.stops[0].caret}, time.Unix(5000, 0))
+			el.Editor.Do(vocab.Place{Stop: s.stops[0].caret()}, time.Unix(5000, 0))
 			el.relayout()
 			return
 		}
