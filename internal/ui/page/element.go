@@ -293,6 +293,7 @@ func (el *Element) View(c *ui.Context) {
 			el.focusPending = false
 		}
 		services := c.Services()
+		ed.clock = services.Now
 		if el.Pictures != nil {
 			el.Pictures.Wake = services.Invalidate
 		}
@@ -429,7 +430,7 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 	ed := el.Editor
 	at := ev.Time
 	if at.IsZero() {
-		at = time.Now()
+		at = ed.now()
 	}
 	if ev.Kind == ui.InputPointerDown || ev.Kind == ui.InputKeyDown {
 		// The menu a secondary click chose lasts until the next press.

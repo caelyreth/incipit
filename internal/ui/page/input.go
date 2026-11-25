@@ -45,7 +45,7 @@ func (el *Element) keyIntent(ev ui.InputEvent) (vocab.Intent, bool) {
 	prog := ed.Engine.Program()
 	at := ev.Time
 	if at.IsZero() {
-		at = time.Now()
+		at = ed.now()
 	}
 	intent := func(chord keymap.Chord) (vocab.Intent, bool) {
 		var found []vocab.Intent

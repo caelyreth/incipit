@@ -45,6 +45,7 @@ type Editor struct {
 	theme   present.Theme
 	themeOf any
 	metrics Metrics
+	clock   func() time.Time
 	cache   *layoutCache
 	layout  *pageLayout
 	deco    present.Decorations
@@ -450,5 +451,10 @@ func (ed *Editor) pasted(data transfer.Data) vocab.Paste {
 }
 
 // now is the time of input the system delivers without one, as the input
-// methods' calls.
-func (ed *Editor) now() time.Time { return time.Now() }
+// methods' calls, using the UI runtime clock when attached.
+func (ed *Editor) now() time.Time {
+	if ed.clock != nil {
+		return ed.clock()
+	}
+	return time.Now()
+}
