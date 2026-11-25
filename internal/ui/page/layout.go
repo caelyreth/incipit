@@ -62,15 +62,22 @@ type seg struct {
 	node *doc.Node
 	card int
 	open bool
-	// face is how a box's or a ghost's text is drawn, as it was measured,
-	// and shaped is it shaped; groups resolve paint-time ink colors.
-	face   ui.Span
-	shaped *ui.TextLayout
+	// segFace is how a box's or a ghost's text is drawn, nil for text and
+	// breaks, which a page holds the most of; groups resolve paint-time ink
+	// colors.
+	*segFace
 	groups []vocab.Group
 	// inline is an inline object's renderer; what it keeps here (math)
 	// is its own.
 	inline inlineKind
 	math   mathSet
+}
+
+// segFace is how a box's or a ghost's text is drawn, as it was measured,
+// and shaped is it shaped.
+type segFace struct {
+	face   ui.Span
+	shaped *ui.TextLayout
 }
 
 // decoSpec records a surface decoration range and its highlight groups so

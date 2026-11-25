@@ -309,7 +309,7 @@ func (el *Element) paintCaret(p *ui.Painter, view, caret ui.Rect, collapsed bool
 // them.
 func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 	for _, sg := range s.segs {
-		if sg.kind != segGhost || sg.shaped == nil {
+		if sg.kind != segGhost || sg.segFace == nil || sg.shaped == nil {
 			continue
 		}
 		line, _, _ := s.lineOf(sg.u0)

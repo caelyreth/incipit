@@ -345,6 +345,8 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		sl.compSel = start + utf16Len(comp.Text[:min(max(comp.Selected[1], 0), len(comp.Text))])
 		compAt = -1
 	}
+	// A segment per item, and one more where the composition cuts one.
+	sl.segs = make([]seg, 0, len(s.Flow.Items)+1)
 	for _, it := range s.Flow.Items {
 		style := th.Resolve(it.Groups)
 		switch it.Kind {
@@ -374,7 +376,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Weight: face.Weight, Italic: face.Italic}, ui.TextShape{})
 			sp.Color = invisible
 			add(seg{kind: segGhost, from: it.From, to: it.From, text: string(it.Spelling), stopFrom: it.StopFrom, stops: it.StopTo - it.StopFrom,
-				face: face, shaped: lay}, sp, style, it.Groups)
+				segFace: &segFace{face: face, shaped: lay}}, sp, style, it.Groups)
 		case present.BoxItem:
 			if compAt == it.From {
 				addComp(it.Groups)
@@ -392,7 +394,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			w, h := lay.Size()
 			sp := span("\uFFFC", style, m)
 			sp.ObjectWidth, sp.ObjectHeight = max(w, m.Body*0.6)+boxPad*2, max(h*0.8, m.Body)
-			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), face: face, shaped: lay, groups: faceGroups}, sp, style, it.Groups)
+			add(seg{kind: segBox, from: it.From, to: it.To, text: src, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), segFace: &segFace{face: face, shaped: lay}, groups: faceGroups}, sp, style, it.Groups)
 		}
 	}
 	addComp([]vocab.Group{s.Group})

@@ -221,7 +221,7 @@ func (formulaKind) lay(lc *layoutCache, sg seg, style present.Style, m Metrics) 
 	ms := lc.typeset(sg.node.ID(), sg.node.Text(), profile.MathDialectOf(sg.node), false, m.Body*style.Size, 0)
 	sp := span("￼", style, m)
 	sg.text, sg.math = sg.node.Text(), ms
-	sg.face = span(locales.FormulaHint(), style, m)
+	sg.segFace = &segFace{face: span(locales.FormulaHint(), style, m)}
 	sg.face.Italic = true
 	if ms.box != nil {
 		sp.ObjectWidth = ms.to - ms.from + mathPad*2
