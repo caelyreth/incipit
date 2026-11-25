@@ -1,6 +1,7 @@
 package clipboard
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/caelyreth/neverland/internal/editor/profile"
@@ -69,5 +70,62 @@ func TestLocalPicturesWaitToBeKept(t *testing.T) {
 	c, _ = clip(t, map[string]string{FormatText: "![tide](/tmp/a.png)"}, nil)
 	if len(c.Pictures) != 0 {
 		t.Fatal("without a host that keeps pictures, none should wait")
+	}
+}
+
+// BenchmarkReadPaste measures external Markdown and HTML clipboard
+// translation into normalized vocab.Slices at 8 KiB and 64 KiB.
+func BenchmarkReadPaste(b *testing.B) {
+	mdUnit := "## Section\n\nA paragraph with **strong**, *emphasis*, and `code` tokens plus a [link](https://example.com).\n\n- First task item\n- Second task item\n\n"
+	htmlUnit := "<h2>Section</h2><p>A paragraph with <strong>strong</strong>, <em>emphasis</em>, and <code>code</code> plus a <a href=\"https://example.com\">link</a>.</p><ul><li>First item</li><li>Second item</li></ul>"
+	build := func(unit string, minBytes int) []byte {
+		var sb strings.Builder
+		sb.Grow(minBytes + len(unit))
+		for sb.Len() < minBytes {
+			sb.WriteString(unit)
+		}
+		return []byte(sb.String())
+	}
+	for _, tc := range []struct {
+		name  string
+		bytes int
+	}{
+		{"8KiB", 8 << 10},
+		{"64KiB", 64 << 10},
+	} {
+		md := build(mdUnit, tc.bytes)
+		b.Run("markdown/"+tc.name, func(b *testing.B) {
+			read := func(f string) []byte {
+				if f == FormatText {
+					return md
+				}
+				return nil
+			}
+			b.SetBytes(int64(len(md)))
+			b.ReportAllocs()
+			for b.Loop() {
+				c := Read(read, nil)
+				if c.Paste.Slice.Empty() {
+					b.Fatal("empty markdown slice")
+				}
+			}
+		})
+		rawHTML := build(htmlUnit, tc.bytes)
+		b.Run("html/"+tc.name, func(b *testing.B) {
+			read := func(f string) []byte {
+				if f == FormatHTML {
+					return rawHTML
+				}
+				return nil
+			}
+			b.SetBytes(int64(len(rawHTML)))
+			b.ReportAllocs()
+			for b.Loop() {
+				c := Read(read, nil)
+				if c.Paste.Slice.Empty() {
+					b.Fatal("empty html slice")
+				}
+			}
+		})
 	}
 }
