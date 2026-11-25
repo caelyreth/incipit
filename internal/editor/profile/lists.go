@@ -7,7 +7,27 @@ import (
 
 // IntoList puts a text block into an item, joining adjacent lists of the
 // same style. Moving its text keeps the selection on what was selected.
-func IntoList(id doc.ID, attrs doc.Attrs) vocab.Edit {
+func IntoList(id doc.ID, attrs doc.Attrs) vocab.Edit { return intoList(id, attrs, doc.Attrs{}) }
+
+// IntoTask makes block id an open task: a text block becomes the task
+// item of a list of attrs, as IntoList makes it an item; an item that is
+// no task becomes one.
+func IntoTask(id doc.ID, attrs doc.Attrs) vocab.Edit {
+	task := doc.MakeAttrs(doc.Field{Num: FieldTask, Value: doc.Int(int64(TaskOpen))})
+	return func(tx *doc.Tx) error {
+		n, ok := tx.Node(id)
+		if !ok {
+			return doc.ErrNoNode
+		}
+		if n.Kind() == Item {
+			return tx.Apply(doc.SetNode{ID: id, Kind: Item, Attrs: n.Attrs().With(FieldTask, doc.Int(int64(TaskOpen)))})
+		}
+		return intoList(id, attrs, task)(tx)
+	}
+}
+
+// intoList is IntoList, its new item taking item.
+func intoList(id doc.ID, attrs, item doc.Attrs) vocab.Edit {
 	return func(tx *doc.Tx) error {
 		n, ok := tx.Node(id)
 		if !ok {
@@ -40,8 +60,8 @@ func IntoList(id doc.ID, attrs doc.Attrs) vocab.Edit {
 			return nil
 		}
 
-		item := doc.NewNode(Item, doc.Attrs{}, doc.InlineSlot(), doc.BlockSlot())
-		list := doc.NewNode(List, attrs, doc.BlockSlot(item))
+		node := doc.NewNode(Item, item, doc.InlineSlot(), doc.BlockSlot())
+		list := doc.NewNode(List, attrs, doc.BlockSlot(node))
 		if err := tx.Apply(doc.Insert{Parent: parent, Slot: slot, Index: index, Nodes: []*doc.Node{list}}); err != nil {
 			return err
 		}

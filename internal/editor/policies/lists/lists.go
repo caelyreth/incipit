@@ -108,17 +108,26 @@ func makeList(c *policy.Ctx, in profile.MakeList, _ policy.At[doc.SlotRef]) poli
 }
 
 // toggleTask completes or reopens the task the intent names, or the one
-// holding the caret, its body included.
-func toggleTask(c *policy.Ctx, in profile.ToggleTask, _ policy.At[doc.SlotRef]) policy.Result {
+// holding the caret, its body included. At a caret in an item that is no
+// task, or in a paragraph, it makes the line an open task, as typing
+// "- [ ] " before it does.
+func toggleTask(c *policy.Ctx, in profile.ToggleTask, at policy.At[doc.SlotRef]) policy.Result {
 	id := in.ID
 	if id == 0 {
 		id = itemAt(c.Doc(), c.Head().Pos)
 	}
 	n, ok := c.Doc().Node(id)
-	if !ok || n.Kind() != profile.Item || profile.TaskOf(n) == profile.NoTask {
-		return policy.Swallow
+	switch {
+	case ok && n.Kind() == profile.Item && profile.TaskOf(n) != profile.NoTask:
+		return policy.Do(profile.FlipTask(id))
+	case ok && n.Kind() == profile.Item:
+		return policy.Do(profile.IntoTask(id, doc.Attrs{}))
+	case in.ID == 0:
+		if b, ok := c.Doc().Node(at.Data.Node); ok && b.Kind() == profile.Paragraph {
+			return policy.Do(profile.IntoTask(b.ID(), doc.Attrs{}))
+		}
 	}
-	return policy.Do(profile.FlipTask(id))
+	return policy.Swallow
 }
 
 // itemAt is the item holding p, or zero.

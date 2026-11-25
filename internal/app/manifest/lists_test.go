@@ -262,3 +262,23 @@ func TestAParagraphMovesPastTheBlockBefore(t *testing.T) {
 	p.want("page(paragraph(two) paragraph(one))")
 	p.wantShown("two|")
 }
+
+// ⌘Enter makes the caret's line a task, as typing "- [ ] " before it does,
+// and then completes it and reopens it.
+func TestTheTaskKeyMakesALineATask(t *testing.T) {
+	p := open(t)
+	p.typeText("plain")
+	p.do(vocab.Command{ID: "lists.toggleTask"})
+	p.want("page(list(item(plain|)))")
+	p.wantShown("[- [ ] ]plain|")
+	p.do(vocab.Command{ID: "lists.toggleTask"})
+	p.wantShown("[- [x] ]plain|")
+	p.do(vocab.Command{ID: "lists.toggleTask"})
+	p.wantShown("[- [ ] ]plain|")
+
+	p = twoItems(t)
+	p.do(vocab.Command{ID: "lists.toggleTask"})
+	p.wantShown("[- [ ] ]two|")
+	p.do(vocab.Undo{})
+	p.wantShown("[- ]two|")
+}
