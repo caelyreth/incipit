@@ -15,7 +15,6 @@ import (
 	"reflect"
 	"runtime/debug"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -315,6 +314,10 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 	tx := e.snap.Begin(doc.Origin{Class: class, Phase: doc.PhaseHandler})
 	tx.SetPolicy(out.Policy)
 	before := view.Selection
+	// A suggestion lasts one input: whatever the input's rule, a rewrite or
+	// an observer does not set again goes (settleSuggestion), so an observer
+	// still reads the one the writer saw.
+	suggested := view.Suggestion
 	held := e.note(viewID, e.snap, &view)
 	var effects []policy.Effect
 	var deadlines []time.Time
@@ -364,25 +367,6 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 		view.Selection = doc.MapSelection(steps, doc.Collapsed(doc.CaretAt(*res.Replaced)), carry)
 	default:
 		view.Selection = doc.MapSelection(steps, before, carry)
-	}
-	if view.Suggestion != nil && res.Suggestion == nil && !res.EndSuggestion {
-		switch ti := in.Intent.(type) {
-		case vocab.Timer:
-		case vocab.Type:
-			if before.Kind == doc.SelectText && before.IsCollapsed() && before.Head.Pos == view.Suggestion.At &&
-				ti.Text != "" && strings.HasPrefix(view.Suggestion.Text, ti.Text) {
-				if rem := view.Suggestion.Text[len(ti.Text):]; rem != "" && view.Selection.Kind == doc.SelectText && view.Selection.IsCollapsed() {
-					s := policy.Suggestion{At: view.Selection.Head.Pos, Text: rem}
-					view.Suggestion = &s
-				} else {
-					view.Suggestion = nil
-				}
-			} else {
-				view.Suggestion = nil
-			}
-		default:
-			view.Suggestion = nil
-		}
 	}
 	e.applyView(&view, res, out.Policy, seq)
 	effects = append(effects, res.Effects...)
@@ -453,10 +437,8 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 	changed := len(allSteps) > 0
 	view.Selection = e.settleSelection(viewID, next, &view)
 	view.Pending = view.Pending.Settle(seq, headCaret(next, view.Selection))
-	if view.Suggestion != nil && (view.Composition != nil || view.Selection.Kind != doc.SelectText || !view.Selection.IsCollapsed() || view.Selection.Head.Pos != view.Suggestion.At) {
-		view.Suggestion = nil
-	}
 	if !commit {
+		settleSuggestion(&view, suggested, in.Intent)
 		return processed{preview: Outcome{
 			Available: out.Available() && (changed || view.Selection != before || plan != nil || res.History == nil),
 			Rule:      out.Rule, Selection: view.Selection, Steps: allSteps,
@@ -484,6 +466,8 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 		deadlines = append(deadlines, ores.Deadlines...)
 		trace.Observers = append(trace.Observers, o.ID())
 	}
+
+	settleSuggestion(&view, suggested, in.Intent)
 
 	// Lifetimes and owners' checks.
 	head := headCaret(next, view.Selection)
@@ -580,6 +564,22 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 		pub.Trace = trace
 	}
 	return processed{published: pub}, nil
+}
+
+// settleSuggestion ends the suggestion a transaction left: the one it
+// started with, unless the input was a timer, and any that no longer
+// stands at a collapsed caret with nothing composing.
+func settleSuggestion(v *policy.View, started *policy.Suggestion, in vocab.Intent) {
+	if v.Suggestion == nil {
+		return
+	}
+	if _, timer := in.(vocab.Timer); v.Suggestion == started && !timer {
+		v.Suggestion = nil
+		return
+	}
+	if sel := v.Selection; v.Composition != nil || sel.Kind != doc.SelectText || !sel.IsCollapsed() || sel.Head.Pos != v.Suggestion.At {
+		v.Suggestion = nil
+	}
 }
 
 // applyView applies a result's view changes: composition, pending marks,

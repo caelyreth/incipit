@@ -201,12 +201,17 @@ func TestAutocorrectSkipsNonProseAndIgnoredWords(t *testing.T) {
 	p.typeFast("$teh $ ")
 	p.want("page(paragraph(formula(teh ) ))")
 
-	// Ignored word stays uncorrected too.
+	// Ignored word stays uncorrected too: ignored once checked, the
+	// caret having left it and come back.
 	p = checkingCorrect(t, true, map[string]string{"teh": "the"}, "teh")
 	p.typeText("teh")
+	p.do(vocab.Break{})
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
 	p.do(profile.IgnoreSpelling{})
+	p.do(vocab.Move{Unit: vocab.ToSlotEdge, Dir: vocab.Forward})
 	p.typeText(" ")
-	p.want("page(paragraph(teh ))")
+	p.want("page(paragraph(teh ) paragraph())")
 
 	// Code block skips autocorrect.
 	p = checkingCorrect(t, true, map[string]string{"teh": "the"}, "teh")
@@ -216,28 +221,21 @@ func TestAutocorrectSkipsNonProseAndIgnoredWords(t *testing.T) {
 	p.want("page(code(teh ))")
 }
 
-func TestTypingWordTracksCurrentWordUntilDelimiterOrCaretLeaves(t *testing.T) {
+// The word being typed waves only once the caret leaves it: past a space,
+// or moved away.
+func TestTheWordBeingTypedWavesOnceTheCaretLeavesIt(t *testing.T) {
 	p := checking(t, "wnet", "teh")
-	p.typeText("wn")
-	if p.painted(profile.GroupTypingWord) != 1 {
-		t.Fatalf("expected GroupTypingWord while typing word, got %d", p.painted(profile.GroupTypingWord))
+	p.typeText("wnet")
+	if got := p.misspelled(); len(got) != 0 {
+		t.Fatalf("while typed, misspelled %q", got)
 	}
-	p.typeText("et")
-	if p.painted(profile.GroupTypingWord) != 1 {
-		t.Fatalf("expected GroupTypingWord on word end, got %d", p.painted(profile.GroupTypingWord))
-	}
-	p.typeText(" ")
-	if p.painted(profile.GroupTypingWord) != 0 {
-		t.Fatalf("expected GroupTypingWord cleared on delimiter, got %d", p.painted(profile.GroupTypingWord))
-	}
-
-	p.typeText("teh")
-	if p.painted(profile.GroupTypingWord) != 1 {
-		t.Fatalf("expected GroupTypingWord while typing second word, got %d", p.painted(profile.GroupTypingWord))
+	p.typeText(" teh")
+	if got := p.misspelled(); !slices.Equal(got, []string{"wnet"}) {
+		t.Fatalf("past a space, misspelled %q, want wnet alone", got)
 	}
 	p.do(vocab.Move{Unit: vocab.ToSlotEdge, Dir: vocab.Backward})
-	if p.painted(profile.GroupTypingWord) != 0 {
-		t.Fatalf("expected GroupTypingWord cleared when caret leaves word, got %d", p.painted(profile.GroupTypingWord))
+	if got := p.misspelled(); !slices.Equal(got, []string{"wnet", "teh"}) {
+		t.Fatalf("with the caret gone, misspelled %q", got)
 	}
 }
 

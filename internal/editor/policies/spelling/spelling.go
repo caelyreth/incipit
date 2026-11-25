@@ -63,8 +63,9 @@ const correctedDuration = 4 * time.Second
 // what was typed.
 var Corrected = policy.NewAnnotationKind("spelling.corrected", false)
 
-// TypingWord marks the word currently touching the caret while typing so its
-// misspelled wave waits until the caret leaves it.
+// TypingWord marks the word the caret is typing, which the analyzer does
+// not mark misspelled until the caret leaves it (its lifetime), as the
+// system's text views wait.
 var TypingWord = policy.NewAnnotationKind("spelling.typing", false)
 
 // issue is a spelling fact's data.
@@ -95,7 +96,6 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	p.Annotation(Corrected, validCorrected)
 	p.Decorate(Corrected, profile.GroupCorrected)
 	p.Annotation(TypingWord, validTypingWord)
-	p.Decorate(TypingWord, profile.GroupTypingWord)
 
 	if c != nil && correctOn {
 		p.Rewrite("autocorrect", policy.PhaseCharacters).
@@ -382,7 +382,15 @@ func isProseForPrediction(ctx *policy.Ctx, pos doc.Pos) bool {
 
 func observePredict(nextWord bool) policy.ObserverFunc {
 	return func(ctx *policy.Ctx, _ []doc.Record) policy.Result {
-		if ctx.Composition() != nil || ctx.Suggestion() != nil {
+		if ctx.Composition() != nil {
+			return policy.Swallow
+		}
+		if s := ctx.Suggestion(); s != nil {
+			// Typing what the suggestion said keeps the rest of it; any
+			// other typing lets it go, as the engine does by itself.
+			if rest, ok := typedAhead(ctx, *s); ok {
+				return policy.Result{Suggestion: &rest}
+			}
 			return policy.Swallow
 		}
 		sel := ctx.Selection()
@@ -423,6 +431,27 @@ func observePredict(nextWord bool) policy.ObserverFunc {
 			Effects: []policy.Effect{{Kind: policy.EffectPredict, Data: profile.PredictAsk{At: pos, Text: prefix}}},
 		}
 	}
+}
+
+// typedAhead is what is left of s once the caret, collapsed in its slot,
+// has typed the start of it: none where what stands between s's place and
+// the caret is not how s begins, or nothing of it is left.
+func typedAhead(ctx *policy.Ctx, s policy.Suggestion) (policy.Suggestion, bool) {
+	sel := ctx.Selection()
+	head := sel.Head.Pos
+	if sel.Kind != doc.SelectText || !sel.IsCollapsed() || head.Ref() != s.At.Ref() || head.Offset <= s.At.Offset {
+		return policy.Suggestion{}, false
+	}
+	in, ok := ctx.Inline(head.Ref())
+	if !ok || head.Offset > in.Len() {
+		return policy.Suggestion{}, false
+	}
+	typed := in.FlatRange(s.At.Offset, head.Offset)
+	rest, ok := strings.CutPrefix(s.Text, typed)
+	if !ok || rest == "" {
+		return policy.Suggestion{}, false
+	}
+	return policy.Suggestion{At: head, Text: rest}, true
 }
 
 func setSuggestion(ctx *policy.Ctx, in profile.SetSuggestion, _ policy.At[doc.SlotRef]) policy.Result {
@@ -492,7 +521,10 @@ func analyze(c Checker, grammar bool, misspelled, questioned *policy.FactKind[is
 		for _, is := range issues {
 			from, to := u.From+is.From, u.From+is.To
 			if !is.Grammar && from < to && !ignoring.has(text[is.From:is.To]) &&
-				!slices.ContainsFunc(tags, func(t profile.Tag) bool { return t.From < to && from < t.To }) {
+				!slices.ContainsFunc(tags, func(t profile.Tag) bool { return t.From < to && from < t.To }) &&
+				!slices.ContainsFunc(u.Annotations, func(a policy.Annotation) bool {
+					return a.Kind == TypingWord && a.Anchor.From.Offset < to && from < a.Anchor.To.Offset
+				}) {
 				words = append(words, is)
 			}
 		}

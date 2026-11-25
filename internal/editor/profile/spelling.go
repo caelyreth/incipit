@@ -14,8 +14,6 @@ var (
 	GroupGrammar = vocab.NewGroup("spelling.grammar", 0)
 	// GroupCorrected is a word the checker replaced automatically.
 	GroupCorrected = vocab.NewGroup("spelling.corrected", 0)
-	// GroupTypingWord marks the word currently touching the caret while typing.
-	GroupTypingWord = vocab.NewGroup("spelling.typing", 0)
 	// GroupSuggestion is an inline predictive completion ahead of the caret.
 	GroupSuggestion = vocab.NewGroup("spelling.suggestion", 0)
 )

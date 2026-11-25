@@ -2,12 +2,10 @@ package page
 
 import (
 	"math"
-	"slices"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/present"
-	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/motion"
@@ -123,28 +121,7 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 		uy := oy + u.y
 		return !(uy > bottom || uy+u.h < top)
 	}
-	type unitSurface struct {
-		unit    doc.ID
-		surface int
-	}
-	var typing map[unitSurface][]ui.TextInputRange
 	for _, pt := range paints {
-		if pt.Group == profile.GroupTypingWord {
-			for _, c := range pt.Covers {
-				u := pl.unitOf(c.Unit)
-				if u == nil {
-					continue
-				}
-				for s, rg := range pl.coverRanges(u, c) {
-					if typing == nil {
-						typing = map[unitSurface][]ui.TextInputRange{}
-					}
-					k := unitSurface{u.pres.Unit, s.index}
-					typing[k] = append(typing[k], rg)
-				}
-			}
-			continue
-		}
 		d := decoOf(ui.TextInputRange{}, el.Editor.theme.Resolve([]vocab.Group{pt.Group}))
 		if !d.drawn() {
 			continue
@@ -173,13 +150,6 @@ func (el *Element) paintDecos(p *ui.Painter, pl *pageLayout, paints []present.Pa
 				continue
 			}
 			for _, spec := range s.decos {
-				if typing != nil && slices.Contains(spec.groups, profile.GroupMisspelled) {
-					if slices.ContainsFunc(typing[unitSurface{u.pres.Unit, s.index}], func(rg ui.TextInputRange) bool {
-						return rg.Start < spec.rg.End && spec.rg.Start < rg.End
-					}) {
-						continue
-					}
-				}
 				d := decoOf(spec.rg, el.Editor.theme.Resolve(spec.groups))
 				if !d.drawn() {
 					continue

@@ -20,6 +20,8 @@ const (
 	LevelAnnotation
 	// LevelBoundary is the boundary between two blocks a caret crosses.
 	LevelBoundary
+	// LevelSuggestion is the view's inline prediction, at the caret.
+	LevelSuggestion
 )
 
 // Level is one entry of the scope stack.
@@ -73,10 +75,9 @@ func (l *Level) String() string {
 		return fmt.Sprintf("slot:%s", l.Slot)
 	case LevelFact:
 		return fmt.Sprintf("fact:%s[%d,%d]", l.Fact.Kind, l.Fact.Outer.From.At, l.Fact.Outer.To.At)
+	case LevelSuggestion:
+		return "suggestion"
 	case LevelAnnotation:
-		if l.Annotation == nil {
-			return "suggestion"
-		}
 		return "annotation:" + l.Annotation.Kind.String()
 	case LevelBoundary:
 		return "boundary"
@@ -197,7 +198,7 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 		}
 		if view.Suggestion != nil && view.Suggestion.At == pos {
 			s.Levels = append(s.Levels, &Level{
-				Class: LevelAnnotation, Node: owner, Slot: ref,
+				Class: LevelSuggestion, Node: owner, Slot: ref,
 				Start: doc.Caret{Pos: pos, Stop: doc.StopFirst},
 				End:   doc.Caret{Pos: pos, Stop: doc.StopLast},
 				keys:  []Scope{suggestionScope}, prog: p,
