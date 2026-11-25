@@ -159,10 +159,8 @@ func (el *Element) paintSuggestionHint(p *ui.Painter, view ui.Rect, ox, oy float
 		if ink == (ui.Color{}) {
 			ink = el.Theme.Text.Muted
 		}
-		p.Clip(ui.Rect{X: ox + lv.textX, Y: oy + lv.lineY - 4, W: lv.clipW, H: lv.lineH + 8}, 0, func() {
-			paintText(p, lv.shaped, ox+lv.textX+lv.dx, oy+lv.textY, ink.Alpha(lv.alpha))
-		})
-		paintCap(ox+lv.tabX+lv.dx, oy+lv.tabMidY-style.Height/2, lv.alpha)
+		paintText(p, lv.shaped, ox+lv.textX, oy+lv.textY+lv.dy, ink.Alpha(lv.alpha))
+		paintCap(ox+lv.tabX, oy+lv.tabMidY-style.Height/2+lv.dy, lv.alpha)
 	}
 	if !focused || ed.deco.Suggestion == nil || el.sugg.alpha <= 0.004 {
 		return
@@ -172,15 +170,15 @@ func (el *Element) paintSuggestionHint(p *ui.Painter, view ui.Rect, ox, oy float
 			if !s.shown || !s.hasSugg {
 				continue
 			}
-			dx := el.sugg.dx
+			dy := el.sugg.dy
 			for _, sg := range s.segs {
 				if sg.kind == segSuggestion && suggestionWrapped(s, sg) {
-					dx = 0
+					dy = 0
 					break
 				}
 			}
 			caret := s.caretRect(s.suggEnd)
-			paintCap(ox+u.x+s.x+caret.X+4+dx, oy+u.y+s.y+caret.Y+(caret.H-style.Height)/2, el.sugg.alpha)
+			paintCap(ox+u.x+s.x+caret.X+4, oy+u.y+s.y+caret.Y+(caret.H-style.Height)/2+dy, el.sugg.alpha)
 			return
 		}
 	}
@@ -409,7 +407,7 @@ func suggestionWrapped(s *surfaceLayout, sg seg) bool {
 }
 
 // paintSuggestion draws a single-line active suggestion in its reserved room,
-// fading and gliding in from the caret without overflowing behind it.
+// fading and lifting gently into place vertically.
 func (el *Element) paintSuggestion(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
 	if !s.hasSugg || !el.focused || el.sugg.alpha <= 0.004 {
 		return
@@ -428,9 +426,7 @@ func (el *Element) paintSuggestion(p *ui.Painter, s *surfaceLayout, sx, sy float
 		if ink == (ui.Color{}) {
 			ink = el.Theme.Text.Muted
 		}
-		p.Clip(ui.Rect{X: sx + r.X, Y: sy + line.Rect.Y - 4, W: max(s.w-r.X, 0) + 24, H: line.Rect.H + 8}, 0, func() {
-			paintText(p, sg.shaped, sx+r.X+el.sugg.dx, sy+line.Baseline-gb, ink.Alpha(el.sugg.alpha))
-		})
+		paintText(p, sg.shaped, sx+r.X, sy+line.Baseline-gb+el.sugg.dy, ink.Alpha(el.sugg.alpha))
 	}
 }
 

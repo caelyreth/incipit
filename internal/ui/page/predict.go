@@ -16,8 +16,8 @@ const (
 	defaultPredictDelay = 350 * time.Millisecond
 	suggEnterDuration   = 240 * time.Millisecond
 	suggExitDuration    = 180 * time.Millisecond
-	suggSlideX          = float32(6)
-	suggExitSlideX      = float32(3)
+	suggSlideY          = float32(4)
+	suggExitSlideY      = float32(3)
 )
 
 type suggSnap struct {
@@ -26,9 +26,6 @@ type suggSnap struct {
 	shaped  *ui.TextLayout
 	textX   float32
 	textY   float32
-	lineY   float32
-	lineH   float32
-	clipW   float32
 	tabX    float32
 	tabMidY float32
 }
@@ -38,23 +35,21 @@ type leavingSugg struct {
 	groups    []vocab.Group
 	textX     float32
 	textY     float32
-	lineY     float32
-	lineH     float32
-	clipW     float32
 	tabX      float32
 	tabMidY   float32
 	start     time.Time
 	fromAlpha float32
-	fromDX    float32
+	fromDY    float32
+	exitDY    float32
 	alpha     float32
-	dx        float32
+	dy        float32
 }
 
 type suggMotion struct {
 	active  *policy.Suggestion
 	start   time.Time
 	alpha   float32
-	dx      float32
+	dy      float32
 	last    suggSnap
 	leaving *leavingSugg
 }
@@ -77,21 +72,23 @@ func (el *Element) stepSuggestion(pl *pageLayout, focused bool, now time.Time, a
 	} else if m.active != nil && !same && !trimmed {
 		accepted := cur == nil && ed != nil && suggestionAccepted(ed.Engine.Snapshot(), *m.active)
 		if animate && m.last.valid && m.last.shaped != nil && m.alpha > 0.01 && !accepted {
+			exitDY := suggExitSlideY
+			if cur != nil {
+				exitDY = -suggExitSlideY
+			}
 			m.leaving = &leavingSugg{
 				shaped:    m.last.shaped,
 				groups:    m.last.groups,
 				textX:     m.last.textX,
 				textY:     m.last.textY,
-				lineY:     m.last.lineY,
-				lineH:     m.last.lineH,
-				clipW:     m.last.clipW,
 				tabX:      m.last.tabX,
 				tabMidY:   m.last.tabMidY,
 				start:     now,
 				fromAlpha: m.alpha,
-				fromDX:    m.dx,
+				fromDY:    m.dy,
+				exitDY:    exitDY,
 				alpha:     m.alpha,
-				dx:        m.dx,
+				dy:        m.dy,
 			}
 		}
 		if cur != nil {
@@ -99,7 +96,7 @@ func (el *Element) stepSuggestion(pl *pageLayout, focused bool, now time.Time, a
 		} else {
 			m.start = time.Time{}
 			m.alpha = 0
-			m.dx = 0
+			m.dy = 0
 		}
 	}
 
@@ -107,7 +104,7 @@ func (el *Element) stepSuggestion(pl *pageLayout, focused bool, now time.Time, a
 		c := *cur
 		m.active = &c
 		if !animate {
-			m.alpha, m.dx = 1, 0
+			m.alpha, m.dy = 1, 0
 		} else {
 			elapsed := now.Sub(m.start)
 			if elapsed < 0 {
@@ -115,13 +112,13 @@ func (el *Element) stepSuggestion(pl *pageLayout, focused bool, now time.Time, a
 			}
 			t := min(float32(elapsed)/float32(suggEnterDuration), 1)
 			m.alpha = components.Smoothstep(t)
-			m.dx = -suggSlideX * (1 - components.GlideEase(t))
+			m.dy = suggSlideY * (1 - components.GlideEase(t))
 		}
 		m.last = el.snapshotSuggestion(pl)
 	} else {
 		m.active = nil
 		m.alpha = 0
-		m.dx = 0
+		m.dy = 0
 		m.last.valid = false
 	}
 
@@ -135,13 +132,13 @@ func (el *Element) stepSuggestion(pl *pageLayout, focused bool, now time.Time, a
 			}
 			t := min(float32(elapsed)/float32(suggExitDuration), 1)
 			m.leaving.alpha = m.leaving.fromAlpha * (1 - components.Smoothstep(t))
-			m.leaving.dx = m.leaving.fromDX - suggExitSlideX*components.GlideEase(t)
+			m.leaving.dy = m.leaving.fromDY + m.leaving.exitDY*components.GlideEase(t)
 			if t >= 1 || m.leaving.alpha <= 0.001 {
 				m.leaving = nil
 			}
 		}
 	}
-	return (cur != nil && animate && (m.alpha < 1 || m.dx != 0)) || m.leaving != nil
+	return (cur != nil && animate && (m.alpha < 1 || m.dy != 0)) || m.leaving != nil
 }
 
 func suggestionAccepted(snap *doc.Snapshot, prev policy.Suggestion) bool {
@@ -183,9 +180,6 @@ func (el *Element) snapshotSuggestion(pl *pageLayout) suggSnap {
 					shaped:  sg.shaped,
 					textX:   u.x + s.x + r0.X,
 					textY:   u.y + s.y + line.Baseline - gb,
-					lineY:   u.y + s.y + line.Rect.Y,
-					lineH:   line.Rect.H,
-					clipW:   max(s.w-r0.X, 0) + 24,
 					tabX:    u.x + s.x + r1.X + 4,
 					tabMidY: u.y + s.y + r1.Y + r1.H/2,
 				}
