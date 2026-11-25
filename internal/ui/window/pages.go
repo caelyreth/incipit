@@ -112,6 +112,10 @@ func (a *AppState) openEditor(session *sheetSession, col workspace.ColumnID) *pa
 			if ask, ok := fx.Data.(profile.PictureAsk); ok {
 				a.pictureAsked(ed, ask)
 			}
+		case policy.EffectLearnWord:
+			if ask, ok := fx.Data.(profile.LearnWord); ok {
+				mygo.Spelling.Learn(ask.Word)
+			}
 		}
 	}
 	ed.Keep = a.keep

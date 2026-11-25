@@ -30,7 +30,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			}
 		})}
 		switch id {
-		case keymap.Typewriter, keymap.Motion, keymap.ShowTrash, keymap.ViewList:
+		case keymap.Typewriter, keymap.Motion, keymap.ShowTrash, keymap.ViewList, keymap.CheckSpelling, keymap.CheckGrammar:
 			item.Type = mygo.MenuItemCheckbox
 		}
 		a.menuItems[id] = &commandItem{item: item, label: item.Label, scope: declared.Scope}
@@ -84,7 +84,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		},
 		{
 			Label: locales.MenuEdit(),
-			Submenu: []*mygo.MenuItem{
+			Submenu: append([]*mygo.MenuItem{
 				a.fieldUndo(),
 				a.fieldRedo(),
 				{Role: mygo.RoleUndo},
@@ -98,7 +98,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 				{Role: mygo.RoleSelectAll},
 				mygo.Separator(),
 				ellipsis(command(keymap.FindInSheet)),
-			},
+			}, a.spellingMenu(command)...),
 		},
 		{
 			Label:   locales.MenuFormat(),

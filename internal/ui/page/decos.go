@@ -349,6 +349,8 @@ func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32, now t
 		switch sd.look.line {
 		case present.LineUnder:
 			p.Line(x, y, x+w, y, underlineWidth, ink)
+		case present.LineWave:
+			paintWave(p, x, y, w, ink)
 		case present.LineBox:
 			// A box around the text, as an object it marks is outlined,
 			// standing off it as a background does.
@@ -357,6 +359,29 @@ func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32, now t
 		}
 	}
 }
+
+// paintWave draws a wavy line from x to x+w along y, as a spell checker
+// marks a word: a whole wave per waveLength, starting on the line.
+func paintWave(p *ui.Painter, x, y, w float32, ink ui.Color) {
+	if w <= 0 {
+		return
+	}
+	steps := max(2, int(w/waveLength*4))
+	pts := make([][2]float32, steps+1)
+	for i := range pts {
+		t := float32(i) / float32(steps) * w
+		pts[i] = [2]float32{x + t, y + waveHeight*float32(math.Sin(float64(t/waveLength)*2*math.Pi))}
+	}
+	p.StrokePolyline(pts, waveWidth, ink)
+}
+
+const (
+	// waveLength and waveHeight are a spelling wave's period and
+	// amplitude; waveWidth its stroke.
+	waveLength = 4
+	waveHeight = 1
+	waveWidth  = 1.2
+)
 
 const (
 	// decoPad widens a background past the glyphs it lies under.

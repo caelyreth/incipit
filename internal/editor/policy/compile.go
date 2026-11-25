@@ -72,6 +72,8 @@ type PolicyInfo struct {
 	Label, Description string
 	Options            []OptionInfo
 	Showcase           *Showcase
+	// Unlisted policies have no card in Settings (P.Unlisted).
+	Unlisted bool
 }
 
 // Catalog lists policies, their options and the commands, for the
@@ -282,7 +284,7 @@ func Compile(m Manifest, values Values) (*Program, error) {
 		}
 		p := &P{policy: pol, values: values}
 		pol.build(p)
-		info := PolicyInfo{ID: pol.id, Enabled: enabled, Label: pol.meta.label, Description: pol.meta.description, Showcase: p.showcase}
+		info := PolicyInfo{ID: pol.id, Enabled: enabled, Label: pol.meta.label, Description: pol.meta.description, Showcase: p.showcase, Unlisted: p.unlisted}
 		info.Options = append(info.Options, OptionInfo{Key: EnabledKey(pol.id), Kind: OptionBool, Default: true, Label: "settings." + pol.id + ".enabled"})
 		for _, o := range p.options {
 			info.Options = append(info.Options, OptionInfo{Key: o.Key, Kind: o.Kind, Default: o.Default, Choices: o.Choices, ChoiceLabels: o.ChoiceLabels,

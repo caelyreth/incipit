@@ -10,16 +10,20 @@ var (
 	// caret, means: first in the page's menu, as the system's are.
 	LookUpOffers = vocab.OfferGroup{ID: "lookUp", Label: "offers.lookUp", Shape: vocab.OfferActions,
 		Order: 1, In: vocab.SurfaceMenu}
+	// SpellingOffers learn or ignore the misspelled word at the caret,
+	// after Look Up, as the system's are.
+	SpellingOffers = vocab.OfferGroup{ID: "spelling", Label: "offers.spelling", Shape: vocab.OfferActions,
+		Order: 2, In: vocab.SurfaceMenu}
 	// InsertOffers are what is inserted at the selection.
 	InsertOffers = vocab.OfferGroup{ID: "insert", Label: "offers.insert", Shape: vocab.OfferActions,
 		Order: 10, In: vocab.SurfaceDock | vocab.SurfaceMenuBar}
 	// KindOffers are the kinds the blocks selected turn into.
+	KindOffers = vocab.OfferGroup{ID: "kind", Label: "offers.kind", Shape: vocab.OfferChoice, Key: "t",
+		Order: 20, In: vocab.SurfaceTools | vocab.SurfaceDock | vocab.SurfaceMenuBar}
 	// MoveOffers move the caret's block past its neighbour, in the menu
 	// bar beside their keys.
 	MoveOffers = vocab.OfferGroup{ID: "move", Label: "offers.move", Shape: vocab.OfferActions,
 		Order: 25, In: vocab.SurfaceMenuBar}
-	KindOffers = vocab.OfferGroup{ID: "kind", Label: "offers.kind", Shape: vocab.OfferChoice, Key: "t",
-		Order: 20, In: vocab.SurfaceTools | vocab.SurfaceDock | vocab.SurfaceMenuBar}
 	// MarkOffers are the marks of the text selected.
 	MarkOffers = vocab.OfferGroup{ID: "marks", Label: "offers.marks", Shape: vocab.OfferToggles,
 		Order: 30, In: vocab.SurfaceTools | vocab.SurfaceDock | vocab.SurfaceMenuBar}

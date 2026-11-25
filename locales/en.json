@@ -3059,5 +3059,45 @@
   "errorExportTaken": "Something was saved where the export would write while it was open. Its files are planned again with free names; export again.",
   "@errorExportTaken": {
     "description": "Why an export stopped: a name it planned was taken meanwhile"
+  },
+  "policiesSpelling": "Spelling and Grammar",
+  "@policiesSpelling": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesSpellingDescription": "The system's checker marks words it doesn't know with a wave, in the languages your Mac is set to. Right-click a word to learn or ignore it. Code, formulas and tags aren't checked.",
+  "@policiesSpellingDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
+  "settingsSpellingGrammar": "Check grammar with spelling",
+  "@settingsSpellingGrammar": {
+    "description": "An editor setting: also mark the grammar the system's checker questions."
+  },
+  "settingsSpellingGrammarDescription": "Questioned grammar waves in a calmer color than a misspelled word.",
+  "@settingsSpellingGrammarDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
+  "commandsLearnSpelling": "Learn Spelling",
+  "@commandsLearnSpelling": {
+    "description": "An editing command: adds the misspelled word to the user's dictionary, which every app shares, as macOS's Learn Spelling; in the page's menu, Settings' shortcuts and the commands."
+  },
+  "commandsIgnoreSpelling": "Ignore Spelling",
+  "@commandsIgnoreSpelling": {
+    "description": "An editing command: stops marking the misspelled word on this page until it closes, as macOS's Ignore Spelling; in the page's menu, Settings' shortcuts and the commands."
+  },
+  "offersSpelling": "Spelling",
+  "@offersSpelling": {
+    "description": "A group of the page's menu: learning or ignoring a misspelled word."
+  },
+  "commandCheckSpelling": "Check Spelling While Typing",
+  "@commandCheckSpelling": {
+    "description": "A command, in Edit › Spelling and Grammar: marks misspelled words as you write, as macOS apps do."
+  },
+  "commandCheckGrammar": "Check Grammar With Spelling",
+  "@commandCheckGrammar": {
+    "description": "A command, in Edit › Spelling and Grammar: also marks questioned grammar, as macOS apps do."
+  },
+  "menuSpelling": "Spelling and Grammar",
+  "@menuSpelling": {
+    "description": "A submenu of Edit in the menu bar, as macOS apps have."
   }
 }

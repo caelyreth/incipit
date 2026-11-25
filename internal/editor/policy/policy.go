@@ -53,6 +53,7 @@ type P struct {
 	observers   []*observer
 	commands    []Command
 	showcase    *Showcase
+	unlisted    bool
 	paints      []Paint
 	guides      []Guide
 	states      []stateDecl
@@ -295,6 +296,10 @@ func Waits(d time.Duration) Beat { return Beat{Kind: BeatWait, Wait: d} }
 func (p *P) Showcase(hold time.Duration, beats ...Beat) {
 	p.showcase = &Showcase{Beats: beats, Hold: hold}
 }
+
+// Unlisted keeps the policy off Settings' cards, where what it needs is
+// missing, as a system service the platform does not have.
+func (p *P) Unlisted() { p.unlisted = true }
 
 // Paint styles where a place stands while the caret is collapsed in it:
 // the innermost level there, a fact whole with its delimiters.

@@ -39,6 +39,8 @@ const (
 	// LineBox is a box around the text, drawn as an object it holds is
 	// outlined: what the next delete takes, wherever it is.
 	LineBox
+	// LineWave is a wavy underline, as a spell checker marks a word.
+	LineWave
 )
 
 // Style is a closed set of style attributes. Layout attributes (font role,

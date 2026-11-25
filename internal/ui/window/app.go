@@ -21,6 +21,7 @@ func Run() error {
 	if os.Getenv(storage.HomeVariable) == "" && !mygo.App.RequestSingleInstanceLock() {
 		return nil
 	}
+	useSystemSpelling()
 	userData, _ := mygo.App.Path(mygo.PathUserData)
 	if path := keepLog(userData); path != "" {
 		log.Printf("Neverland %s started, logging to %s", mygo.App.Version(), path)

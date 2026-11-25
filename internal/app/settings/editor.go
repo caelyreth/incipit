@@ -132,6 +132,9 @@ func valid(info policy.OptionInfo, value any) bool {
 func (s State) policies(shortcuts []Shortcut) []Policy {
 	cards := []Policy{}
 	for _, info := range s.Program.Catalog().Policies {
+		if info.Unlisted {
+			continue
+		}
 		card := Policy{ID: info.ID, Title: phrases.Text(info.Label), Description: phrases.Text(info.Description), Enabled: info.Enabled,
 			Showcase: info.Showcase}
 		for _, o := range info.Options {

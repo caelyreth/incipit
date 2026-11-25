@@ -780,5 +780,15 @@
   "exportWriting": "正在寫入第 {done} 項，共 {total} 項…",
   "exportInto": "將 {count, plural, other {# 項}}匯出至 {place}",
   "chooseFolder": "選擇資料夾",
-  "errorExportTaken": "視窗開啟期間，匯出位置已有其他檔案儲存。已改用可用名稱重新規劃，請再次匯出。"
+  "errorExportTaken": "視窗開啟期間，匯出位置已有其他檔案儲存。已改用可用名稱重新規劃，請再次匯出。",
+  "policiesSpelling": "拼字與文法",
+  "policiesSpellingDescription": "系統檢查器會以 Mac 設定的語言，為不認識的單字加上波浪線。按右鍵點一下單字即可學習或忽略。程式碼、公式和標籤不會檢查。",
+  "settingsSpellingGrammar": "檢查拼字時檢查文法",
+  "settingsSpellingGrammarDescription": "有疑慮的文法會以比拼字錯誤更柔和的顏色加上波浪線。",
+  "commandsLearnSpelling": "學習拼字",
+  "commandsIgnoreSpelling": "忽略拼字",
+  "offersSpelling": "拼字",
+  "commandCheckSpelling": "輸入時檢查拼字",
+  "commandCheckGrammar": "檢查拼字時檢查文法",
+  "menuSpelling": "拼字與文法"
 }

@@ -136,6 +136,9 @@ const (
 	// EffectLookUp asks the host to show what text means: Data says
 	// which, as the profile has it.
 	EffectLookUp
+	// EffectLearnWord asks the host to add a word to the user's
+	// dictionary: Data says which, as the profile has it.
+	EffectLearnWord
 )
 
 // Effect is a view effect.

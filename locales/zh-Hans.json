@@ -780,5 +780,15 @@
   "exportWriting": "正在写入第 {done} 项，共 {total} 项…",
   "exportInto": "将 {count, plural, other {# 项}}导出到 {place}",
   "chooseFolder": "选择文件夹",
-  "errorExportTaken": "窗口打开期间，导出位置已有其他文件保存。已改用可用名称重新规划，请再次导出。"
+  "errorExportTaken": "窗口打开期间，导出位置已有其他文件保存。已改用可用名称重新规划，请再次导出。",
+  "policiesSpelling": "拼写和语法",
+  "policiesSpellingDescription": "系统检查器会以 Mac 设置的语言，为不认识的单词加上波浪线。右键点按单词即可学习或忽略。代码、公式和标签不会检查。",
+  "settingsSpellingGrammar": "检查拼写时检查语法",
+  "settingsSpellingGrammarDescription": "存疑的语法会以比拼写错误更柔和的颜色加上波浪线。",
+  "commandsLearnSpelling": "学习拼写",
+  "commandsIgnoreSpelling": "忽略拼写",
+  "offersSpelling": "拼写",
+  "commandCheckSpelling": "键入时检查拼写",
+  "commandCheckGrammar": "检查拼写时检查语法",
+  "menuSpelling": "拼写和语法"
 }

@@ -780,5 +780,15 @@
   "exportWriting": "{total} 件中 {done} 件を書き出し中…",
   "exportInto": "{count, plural, other {# 項目}}を {place} に書き出します",
   "chooseFolder": "フォルダを選択",
-  "errorExportTaken": "ウインドウを開いている間に、書き出し先に別のファイルが保存されました。空いている名前で計画し直したので、もう一度書き出してください。"
+  "errorExportTaken": "ウインドウを開いている間に、書き出し先に別のファイルが保存されました。空いている名前で計画し直したので、もう一度書き出してください。",
+  "policiesSpelling": "スペルと文法",
+  "policiesSpellingDescription": "システムのチェッカーが、Mac に設定された言語で知らない単語に波線を付けます。単語を右クリックすると、学習または無視できます。コード、数式、タグはチェックしません。",
+  "settingsSpellingGrammar": "スペルと一緒に文法をチェック",
+  "settingsSpellingGrammarDescription": "疑わしい文法には、スペルミスより穏やかな色の波線が付きます。",
+  "commandsLearnSpelling": "スペルを学習",
+  "commandsIgnoreSpelling": "スペルを無視",
+  "offersSpelling": "スペル",
+  "commandCheckSpelling": "入力中にスペルをチェック",
+  "commandCheckGrammar": "スペルと一緒に文法をチェック",
+  "menuSpelling": "スペルと文法"
 }

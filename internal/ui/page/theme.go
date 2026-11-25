@@ -58,6 +58,12 @@ func Theme(t theme.Theme) present.Theme {
 		// in, so tags add no hue to the page.
 		profile.GroupTag: {Set: present.SetBackground | present.SetColor,
 			Background: pack(t.Tag.Background), Color: pack(t.Tag.Foreground)},
+		// A word the checker does not know waves under it in the danger
+		// hue, and grammar it questions in a calmer one, as the system's do.
+		profile.GroupMisspelled: {Set: present.SetLine | present.SetLineColor, Line: present.LineWave,
+			LineColor: pack(t.Families[theme.Remnant].Foreground)},
+		profile.GroupGrammar: {Set: present.SetLine | present.SetLineColor, Line: present.LineWave,
+			LineColor: pack(t.Families[theme.Life].Foreground)},
 		vocab.GroupPairMatch: {Set: present.SetBackground, Background: pack(t.Families[t.AccentFamily].Surface.Alpha(0.60))},
 		vocab.GroupScope: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[t.AccentFamily].Muted)},

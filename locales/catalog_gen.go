@@ -11096,3 +11096,157 @@ func ErrorExportTaken() string { return In(i18n.Locale()).ErrorExportTaken() }
 func (msgs Messages) ErrorExportTaken() string {
 	return Catalog.Format(msgs.locale, "errorExportTaken", nil)
 }
+
+// PoliciesSpelling says "Spelling and Grammar"
+// in the language the app shows.
+//
+// The name of a group of editor settings, in Settings.
+func PoliciesSpelling() string { return In(i18n.Locale()).PoliciesSpelling() }
+
+// PoliciesSpelling says "Spelling and Grammar"
+// in the language of msgs.
+//
+// The name of a group of editor settings, in Settings.
+func (msgs Messages) PoliciesSpelling() string {
+	return Catalog.Format(msgs.locale, "policiesSpelling", nil)
+}
+
+// PoliciesSpellingDescription says "The system's checker marks words it doesn't know with a wave, in the languages your Mac is set to. Right-click a word…"
+// in the language the app shows.
+//
+// What a group of editor settings does, under its name in Settings.
+func PoliciesSpellingDescription() string { return In(i18n.Locale()).PoliciesSpellingDescription() }
+
+// PoliciesSpellingDescription says "The system's checker marks words it doesn't know with a wave, in the languages your Mac is set to. Right-click a word…"
+// in the language of msgs.
+//
+// What a group of editor settings does, under its name in Settings.
+func (msgs Messages) PoliciesSpellingDescription() string {
+	return Catalog.Format(msgs.locale, "policiesSpellingDescription", nil)
+}
+
+// SettingsSpellingGrammar says "Check grammar with spelling"
+// in the language the app shows.
+//
+// An editor setting: also mark the grammar the system's checker questions.
+func SettingsSpellingGrammar() string { return In(i18n.Locale()).SettingsSpellingGrammar() }
+
+// SettingsSpellingGrammar says "Check grammar with spelling"
+// in the language of msgs.
+//
+// An editor setting: also mark the grammar the system's checker questions.
+func (msgs Messages) SettingsSpellingGrammar() string {
+	return Catalog.Format(msgs.locale, "settingsSpellingGrammar", nil)
+}
+
+// SettingsSpellingGrammarDescription says "Questioned grammar waves in a calmer color than a misspelled word."
+// in the language the app shows.
+//
+// What an editor setting does, under its name in Settings.
+func SettingsSpellingGrammarDescription() string {
+	return In(i18n.Locale()).SettingsSpellingGrammarDescription()
+}
+
+// SettingsSpellingGrammarDescription says "Questioned grammar waves in a calmer color than a misspelled word."
+// in the language of msgs.
+//
+// What an editor setting does, under its name in Settings.
+func (msgs Messages) SettingsSpellingGrammarDescription() string {
+	return Catalog.Format(msgs.locale, "settingsSpellingGrammarDescription", nil)
+}
+
+// CommandsLearnSpelling says "Learn Spelling"
+// in the language the app shows.
+//
+// An editing command: adds the misspelled word to the user's dictionary,
+// which every app shares, as macOS's Learn Spelling; in the page's menu,
+// Settings' shortcuts and the commands.
+func CommandsLearnSpelling() string { return In(i18n.Locale()).CommandsLearnSpelling() }
+
+// CommandsLearnSpelling says "Learn Spelling"
+// in the language of msgs.
+//
+// An editing command: adds the misspelled word to the user's dictionary,
+// which every app shares, as macOS's Learn Spelling; in the page's menu,
+// Settings' shortcuts and the commands.
+func (msgs Messages) CommandsLearnSpelling() string {
+	return Catalog.Format(msgs.locale, "commandsLearnSpelling", nil)
+}
+
+// CommandsIgnoreSpelling says "Ignore Spelling"
+// in the language the app shows.
+//
+// An editing command: stops marking the misspelled word on this page until
+// it closes, as macOS's Ignore Spelling; in the page's menu, Settings'
+// shortcuts and the commands.
+func CommandsIgnoreSpelling() string { return In(i18n.Locale()).CommandsIgnoreSpelling() }
+
+// CommandsIgnoreSpelling says "Ignore Spelling"
+// in the language of msgs.
+//
+// An editing command: stops marking the misspelled word on this page until
+// it closes, as macOS's Ignore Spelling; in the page's menu, Settings'
+// shortcuts and the commands.
+func (msgs Messages) CommandsIgnoreSpelling() string {
+	return Catalog.Format(msgs.locale, "commandsIgnoreSpelling", nil)
+}
+
+// OffersSpelling says "Spelling"
+// in the language the app shows.
+//
+// A group of the page's menu: learning or ignoring a misspelled word.
+func OffersSpelling() string { return In(i18n.Locale()).OffersSpelling() }
+
+// OffersSpelling says "Spelling"
+// in the language of msgs.
+//
+// A group of the page's menu: learning or ignoring a misspelled word.
+func (msgs Messages) OffersSpelling() string {
+	return Catalog.Format(msgs.locale, "offersSpelling", nil)
+}
+
+// CommandCheckSpelling says "Check Spelling While Typing"
+// in the language the app shows.
+//
+// A command, in Edit › Spelling and Grammar: marks misspelled words as
+// you write, as macOS apps do.
+func CommandCheckSpelling() string { return In(i18n.Locale()).CommandCheckSpelling() }
+
+// CommandCheckSpelling says "Check Spelling While Typing"
+// in the language of msgs.
+//
+// A command, in Edit › Spelling and Grammar: marks misspelled words as
+// you write, as macOS apps do.
+func (msgs Messages) CommandCheckSpelling() string {
+	return Catalog.Format(msgs.locale, "commandCheckSpelling", nil)
+}
+
+// CommandCheckGrammar says "Check Grammar With Spelling"
+// in the language the app shows.
+//
+// A command, in Edit › Spelling and Grammar: also marks questioned
+// grammar, as macOS apps do.
+func CommandCheckGrammar() string { return In(i18n.Locale()).CommandCheckGrammar() }
+
+// CommandCheckGrammar says "Check Grammar With Spelling"
+// in the language of msgs.
+//
+// A command, in Edit › Spelling and Grammar: also marks questioned
+// grammar, as macOS apps do.
+func (msgs Messages) CommandCheckGrammar() string {
+	return Catalog.Format(msgs.locale, "commandCheckGrammar", nil)
+}
+
+// MenuSpelling says "Spelling and Grammar"
+// in the language the app shows.
+//
+// A submenu of Edit in the menu bar, as macOS apps have.
+func MenuSpelling() string { return In(i18n.Locale()).MenuSpelling() }
+
+// MenuSpelling says "Spelling and Grammar"
+// in the language of msgs.
+//
+// A submenu of Edit in the menu bar, as macOS apps have.
+func (msgs Messages) MenuSpelling() string {
+	return Catalog.Format(msgs.locale, "menuSpelling", nil)
+}
