@@ -159,8 +159,8 @@ func (el *Element) paintSuggestionHint(p *ui.Painter, view ui.Rect, ox, oy float
 		if ink == (ui.Color{}) {
 			ink = el.Theme.Text.Muted
 		}
-		paintText(p, lv.shaped, ox+lv.textX, oy+lv.textY+lv.dy, ink.Alpha(lv.alpha))
-		paintCap(ox+lv.tabX, oy+lv.tabMidY-style.Height/2+lv.dy, lv.alpha)
+		paintText(p, lv.shaped, ox+lv.textX, oy+lv.textY, ink.Alpha(lv.alpha))
+		paintCap(ox+lv.tabX, oy+lv.tabMidY-style.Height/2, lv.alpha)
 	}
 	if !focused || ed.deco.Suggestion == nil || el.sugg.alpha <= 0.004 {
 		return
@@ -170,15 +170,8 @@ func (el *Element) paintSuggestionHint(p *ui.Painter, view ui.Rect, ox, oy float
 			if !s.shown || !s.hasSugg {
 				continue
 			}
-			dy := el.sugg.dy
-			for _, sg := range s.segs {
-				if sg.kind == segSuggestion && suggestionWrapped(s, sg) {
-					dy = 0
-					break
-				}
-			}
 			caret := s.caretRect(s.suggEnd)
-			paintCap(ox+u.x+s.x+caret.X+4, oy+u.y+s.y+caret.Y+(caret.H-style.Height)/2+dy, el.sugg.alpha)
+			paintCap(ox+u.x+s.x+caret.X+4, oy+u.y+s.y+caret.Y+(caret.H-style.Height)/2, el.sugg.alpha)
 			return
 		}
 	}
@@ -218,13 +211,13 @@ func (el *Element) paintSurface(p *ui.Painter, s *surfaceLayout, ux, uy float32,
 	}
 	el.spanColors = el.spanColors[:0]
 	for _, sg := range s.segs {
-		if sg.kind == segGhost || (sg.kind == segSuggestion && !suggestionWrapped(s, sg)) {
+		if sg.kind == segGhost {
 			el.spanColors = append(el.spanColors, invisible)
 			continue
 		}
 		c := styleColor(el.Editor.theme.Resolve(sg.groups))
 		if sg.kind == segSuggestion {
-			if el.sugg.alpha <= 0.004 {
+			if !el.focused || el.sugg.alpha <= 0.004 {
 				el.spanColors = append(el.spanColors, invisible)
 				continue
 			}
@@ -237,7 +230,6 @@ func (el *Element) paintSurface(p *ui.Painter, s *surfaceLayout, ux, uy float32,
 	}
 	paintTextColors(p, s.layout, sx, sy, el.Theme.Prose.Text, el.spanColors)
 	el.paintGhosts(p, s, sx, sy)
-	el.paintSuggestion(p, s, sx, sy)
 	el.paintBoxes(p, s, sx, sy)
 	if panel && s.card && s.shown && s.cardFormula != 0 {
 		rect := el.dialectPillRect(area, s.cardDialect, false)
@@ -394,39 +386,6 @@ func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy float32) 
 			ink = el.Theme.Prose.Text
 		}
 		paintText(p, sg.shaped, sx+r.X, sy+line.Baseline-gb, ink)
-	}
-}
-
-func suggestionWrapped(s *surfaceLayout, sg seg) bool {
-	if sg.segFace == nil || sg.shaped == nil || sg.u1 <= sg.u0 {
-		return true
-	}
-	_, l0, n := s.lineOf(sg.u0)
-	_, l1, _ := s.lineOf(sg.u1 - 1)
-	return n == 0 || l0 != l1
-}
-
-// paintSuggestion draws a single-line active suggestion in its reserved room,
-// fading and lifting gently into place vertically.
-func (el *Element) paintSuggestion(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
-	if !s.hasSugg || !el.focused || el.sugg.alpha <= 0.004 {
-		return
-	}
-	for _, sg := range s.segs {
-		if sg.kind != segSuggestion || suggestionWrapped(s, sg) {
-			continue
-		}
-		line, _, _ := s.lineOf(sg.u0)
-		r := s.caretRect(sg.u0)
-		gb := float32(0)
-		if gl := sg.shaped.Lines(); len(gl) > 0 {
-			gb = gl[0].Baseline
-		}
-		ink := styleColor(el.Editor.theme.Resolve(sg.groups))
-		if ink == (ui.Color{}) {
-			ink = el.Theme.Text.Muted
-		}
-		paintText(p, sg.shaped, sx+r.X, sy+line.Baseline-gb+el.sugg.dy, ink.Alpha(el.sugg.alpha))
 	}
 }
 

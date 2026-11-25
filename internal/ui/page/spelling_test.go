@@ -244,48 +244,49 @@ func TestInlinePredictionAnimatesInChangeAndOut(t *testing.T) {
 	}
 	pos := ed.Selection().Head.Pos
 
-	// Fade + vertical lift in from alpha=0, dy=suggSlideY over suggEnterDuration.
+	// Fade in from alpha=0 -> 1 over suggEnterDuration without moving.
 	ed.Do(profile.SetSuggestion{At: pos, Text: "romising"}, tester.Now())
 	tester.Frame()
-	if el.sugg.alpha != 0 || el.sugg.dy != suggSlideY {
-		t.Fatalf("expected initial entrance (alpha=0, dy=%v), got alpha=%v dy=%v", suggSlideY, el.sugg.alpha, el.sugg.dy)
+	if el.sugg.alpha != 0 {
+		t.Fatalf("expected initial entrance alpha=0, got %v", el.sugg.alpha)
 	}
 	tester.Advance(suggEnterDuration / 2)
-	if el.sugg.alpha <= 0 || el.sugg.alpha >= 1 || el.sugg.dy <= 0 || el.sugg.dy >= suggSlideY {
-		t.Fatalf("expected mid entrance alpha in (0, 1) and dy in (0, %v), got alpha=%v dy=%v", suggSlideY, el.sugg.alpha, el.sugg.dy)
+	if el.sugg.alpha <= 0 || el.sugg.alpha >= 1 {
+		t.Fatalf("expected mid entrance alpha in (0, 1), got %v", el.sugg.alpha)
 	}
 	tester.Advance(suggEnterDuration)
-	if el.sugg.alpha != 1 || el.sugg.dy != 0 {
-		t.Fatalf("expected settled entrance (alpha=1, dy=0), got alpha=%v dy=%v", el.sugg.alpha, el.sugg.dy)
+	if el.sugg.alpha != 1 {
+		t.Fatalf("expected settled entrance alpha=1, got %v", el.sugg.alpha)
 	}
 
-	// Prefix trim keeps full opacity and rest offset with no leaving ghost.
+	// Prefix trim keeps full opacity with no leaving ghost.
 	ed.Do(vocab.Type{Text: "r"}, tester.Now())
 	tester.Frame()
-	if el.sugg.alpha != 1 || el.sugg.dy != 0 || el.sugg.leaving != nil {
-		t.Fatalf("expected prefix trim to keep alpha=1, dy=0 and leaving=nil, got alpha=%v dy=%v leaving=%+v", el.sugg.alpha, el.sugg.dy, el.sugg.leaving)
+	if el.sugg.alpha != 1 || el.sugg.leaving != nil {
+		t.Fatalf("expected prefix trim to keep alpha=1 and leaving=nil, got alpha=%v leaving=%+v", el.sugg.alpha, el.sugg.leaving)
 	}
 
-	// Changing to a different suggestion lifts the old one out while fading/lifting the new one in.
+	// Changing to a different suggestion cross-fades the old one out and fades the new one in.
 	ed.Do(profile.SetSuggestion{At: ed.Selection().Head.Pos, Text: "essed"}, tester.Now())
 	tester.Frame()
-	if el.sugg.leaving == nil || el.sugg.leaving.exitDY >= 0 || el.sugg.alpha != 0 || el.sugg.dy != suggSlideY {
-		t.Fatalf("expected cross-fade on change (leaving=%+v, alpha=%v, dy=%v)", el.sugg.leaving, el.sugg.alpha, el.sugg.dy)
+	if el.sugg.leaving == nil || el.sugg.alpha != 0 {
+		t.Fatalf("expected cross-fade on change (leaving=%+v, alpha=%v)", el.sugg.leaving, el.sugg.alpha)
 	}
 	tester.Advance(suggEnterDuration + 20*time.Millisecond)
-	if el.sugg.leaving != nil || el.sugg.alpha != 1 || el.sugg.dy != 0 {
-		t.Fatalf("expected settled cross-fade (leaving=%+v, alpha=%v, dy=%v)", el.sugg.leaving, el.sugg.alpha, el.sugg.dy)
+	if el.sugg.leaving != nil || el.sugg.alpha != 1 {
+		t.Fatalf("expected settled cross-fade (leaving=%+v, alpha=%v)", el.sugg.leaving, el.sugg.alpha)
 	}
 
-	// Dismissing fades and lowers out cleanly without leaving the scope.
+	// Dismissing fades out cleanly without leaving the scope.
 	el.handle(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEscape, Time: tester.Now()}, ui.Services{})
 	tester.Frame()
 	if el.sugg.leaving == nil || el.sugg.leaving.alpha <= 0 {
 		t.Fatalf("expected fade-out leaving ghost on dismiss, got %+v", el.sugg.leaving)
 	}
+	initialLeaving := el.sugg.leaving.alpha
 	tester.Advance(suggExitDuration / 2)
-	if el.sugg.leaving == nil || el.sugg.leaving.dy <= 0 {
-		t.Fatalf("expected mid-exit lowering leaving ghost (dy>0), got %+v", el.sugg.leaving)
+	if el.sugg.leaving == nil || el.sugg.leaving.alpha <= 0 || el.sugg.leaving.alpha >= initialLeaving {
+		t.Fatalf("expected mid-exit fading leaving ghost, got %+v", el.sugg.leaving)
 	}
 	tester.Advance(suggExitDuration + 20*time.Millisecond)
 	if el.sugg.leaving != nil {
