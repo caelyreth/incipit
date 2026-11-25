@@ -144,14 +144,14 @@ func (lc *layoutCache) build(pres []*present.Presentation, hint []*unitLayout, d
 		pl.units = append(pl.units, u)
 	}
 	for _, u := range pl.units {
-		if st := orderedStops(u); len(st) > 0 {
-			pl.first = st[0].stop
+		if st, ok := edgeStop(u, false); ok {
+			pl.first = st.stop
 			break
 		}
 	}
 	for i := len(pl.units) - 1; i >= 0; i-- {
-		if st := orderedStops(pl.units[i]); len(st) > 0 {
-			pl.last = st[len(st)-1].stop
+		if st, ok := edgeStop(pl.units[i], true); ok {
+			pl.last = st.stop
 			break
 		}
 	}
@@ -253,6 +253,43 @@ func orderedStops(u *unitLayout) []surfStop {
 		}
 	}
 	return out
+}
+
+// edgeStop is the first of orderedStops, or the last, found without the
+// others: the first stop, from that edge, that its surface holds at its own
+// edge.
+func edgeStop(u *unitLayout, last bool) (surfStop, bool) {
+	stops := u.pres.Stops
+	for k := range stops {
+		st := stops[k]
+		if last {
+			st = stops[len(stops)-1-k]
+		}
+		if st.Surface < 0 {
+			for j := range u.gaps {
+				g := u.gaps[j]
+				if last {
+					g = u.gaps[len(u.gaps)-1-j]
+				}
+				if g != nil && g.caret() == st.Caret {
+					return surfStop{nil, g}, true
+				}
+			}
+			continue
+		}
+		if int(st.Surface) >= len(u.surfaces) {
+			continue
+		}
+		s := u.surfaces[st.Surface]
+		i := 0
+		if last {
+			i = len(s.stops) - 1
+		}
+		if i >= 0 && i < len(s.stops) && s.stops[i].caret() == st.Caret {
+			return surfStop{s, &s.stops[i]}, true
+		}
+	}
+	return surfStop{}, false
 }
 
 // gapBetween is the room between two units, in gaps: the larger of what
