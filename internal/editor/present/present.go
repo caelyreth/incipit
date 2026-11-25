@@ -411,6 +411,11 @@ func (pr *Presenter) present(prog *policy.Program, store *policy.Store, r doc.Re
 		return m
 	}
 	p := build(env{prog, store, r, view, pr.look}, u, n, key)
+	// The stops were gathered in room for a stop per byte; the memo keeps
+	// only what they took.
+	if cap(p.Stops) > len(p.Stops) {
+		p.Stops = slices.Clone(p.Stops)
+	}
 	pr.mu.Lock()
 	if len(pr.memo) >= 1<<16 {
 		clear(pr.memo)
