@@ -282,3 +282,25 @@ func TestTheTaskKeyMakesALineATask(t *testing.T) {
 	p.do(vocab.Undo{})
 	p.wantShown("[- ]two|")
 }
+
+// Lines of text pasted into an item are items of its list, the first
+// joining the item's text, and the caret stands after the last.
+func TestLinesPastedIntoAnItemAreItsListsItems(t *testing.T) {
+	p := open(t)
+	p.typeText("- one")
+	p.do(vocab.Paste{Text: "two\nthree"})
+	p.want("page(list(item(onetwo|) item(three|)))")
+	p.wantShown("[- ]three|")
+	p.typeText("!")
+	p.want("page(list(item(onetwo|) item(three!|)))")
+}
+
+// A paste ending a block leaves the caret after what was pasted, not
+// where it was before.
+func TestTheCaretStandsAfterLinesPastedAtABlocksEnd(t *testing.T) {
+	p := open(t)
+	p.typeText("ab")
+	p.do(vocab.Paste{Text: "one\ntwo"})
+	p.want("page(paragraph(abone) paragraph(two))")
+	p.wantShown("two|")
+}

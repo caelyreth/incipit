@@ -206,7 +206,12 @@ func Fit(r doc.Reader, ref doc.SlotRef, s Slice) Slice {
 // the blocks go between the halves. An open edge joins its text to the
 // half beside it where the two are text blocks that can join, and a half
 // the split left empty goes.
-func InsertSlice(at doc.Pos, s Slice) Edit {
+func InsertSlice(at doc.Pos, s Slice) Edit { return PasteSlice(at, s, nil) }
+
+// PasteSlice is InsertSlice, setting end, where one is given, to where the
+// pasted content ends: where a caret stands after a paste, before what
+// followed the position. It stays unset where the content ends in no text.
+func PasteSlice(at doc.Pos, s Slice, end *doc.Pos) Edit {
 	return func(tx *doc.Tx) error {
 		spec, ok := SlotSpec(tx, at.Ref())
 		if !ok || spec.Blocks {
@@ -220,7 +225,13 @@ func InsertSlice(at doc.Pos, s Slice) Edit {
 					items[i].Marks = nil
 				}
 			}
-			return tx.Apply(doc.EditText{At: at.Ref(), From: at.Offset, To: at.Offset, Items: items})
+			if err := tx.Apply(doc.EditText{At: at.Ref(), From: at.Offset, To: at.Offset, Items: items}); err != nil {
+				return err
+			}
+			if end != nil {
+				*end = doc.Pos{Node: at.Node, Slot: at.Slot, Offset: at.Offset + itemsLen(items)}
+			}
+			return nil
 		}
 		block, _ := Block(tx, at)
 		nodes := s.Nodes
@@ -255,14 +266,32 @@ func InsertSlice(at doc.Pos, s Slice) Edit {
 		first := tn.Slot(target.Slot).Child(index + 1).ID()
 		last := tn.Slot(target.Slot).Child(index + len(nodes)).ID()
 		direct := left == block.ID()
+		// tail is the text of the right half that joins the last block, which
+		// the caret stands before.
+		tail := 0
 		if s.OpenEnd > 0 && direct && right != 0 {
+			before := textLen(tx, right)
 			if err := joinText(tx, last, right, false); err != nil {
 				return err
+			}
+			if _, ok := tx.Node(right); !ok {
+				tail = before
 			}
 		}
 		if s.OpenStart > 0 && direct {
 			if err := joinText(tx, block.ID(), first, true); err != nil {
 				return err
+			}
+			if _, ok := tx.Node(first); !ok && first == last {
+				last = block.ID()
+			}
+		}
+		if end != nil {
+			if n, ok := tx.Node(last); ok {
+				if ref, ok := LastTextSlot(n); ok {
+					tn, _ := tx.Node(ref.Node)
+					*end = doc.Pos{Node: ref.Node, Slot: ref.Slot, Offset: tn.Slot(ref.Slot).Len() - tail}
+				}
 			}
 		}
 		for _, half := range []doc.ID{block.ID(), right} {
@@ -296,6 +325,39 @@ func takesAll(spec doc.SlotSpec, nodes []*doc.Node) bool {
 		}
 	}
 	return true
+}
+
+// textLen is how far the first text slot of block id reaches, or 0.
+func textLen(r doc.Reader, id doc.ID) int {
+	n, ok := r.Node(id)
+	if !ok {
+		return 0
+	}
+	ref, ok := FirstTextSlot(n)
+	if !ok || ref.Node != id {
+		return 0
+	}
+	return n.Slot(ref.Slot).Len()
+}
+
+// AsEntries are plain text blocks, as lines of text pasted into an entry,
+// made entries of the entry's kind, so they stand in its container beside
+// it rather than after the whole container. Anything else is as given.
+func AsEntries(s *doc.Schema, block *doc.Node, nodes []*doc.Node) []*doc.Node {
+	if block == nil || !s.IsEntry(block.Kind()) {
+		return nodes
+	}
+	for _, n := range nodes {
+		if n.Kind() != s.Plain() {
+			return nodes
+		}
+	}
+	out := make([]*doc.Node, len(nodes))
+	for i, n := range nodes {
+		text := n.Slot(0).Content()
+		out[i] = NewBlock(s, block.Kind(), doc.Attrs{}, text.Slice(0, text.Len())...)
+	}
+	return out
 }
 
 // listed gathers each run of loose entries into a new container of the

@@ -526,7 +526,8 @@ func softBreak(c *policy.Ctx, _ vocab.SoftBreak, at policy.At[doc.SlotRef]) poli
 // to the slot.
 func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Result {
 	slice := in.Slice
-	if slice.Empty() {
+	text := slice.Empty()
+	if text {
 		slice = TextSlice(c.Doc().Schema(), in.Text)
 	}
 	if slice.Empty() {
@@ -537,6 +538,8 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 	if ok {
 		edits = append(edits, clear)
 	}
+	// The caret goes where the pasted content ends.
+	var end *doc.Pos
 	edits = append(edits, func(tx *doc.Tx) error {
 		at, _ := doc.Steps(tx.Steps()).Map(pos, doc.BiasBefore)
 		if spec, ok := vocab.SlotSpec(tx, at.Ref()); ok && spec.Blocks {
@@ -546,9 +549,31 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 			n, _ := tx.Node(at.Node)
 			at = doc.Pos{Node: n.Slot(at.Slot).Child(at.Offset).ID()}
 		}
-		return vocab.InsertSlice(at, slice)(tx)
+		end = &doc.Pos{}
+		if block, ok := vocab.Block(tx, at); ok && text {
+			// Lines of text pasted into an item are items of its list.
+			slice.Nodes = vocab.AsEntries(tx.Schema(), block, slice.Nodes)
+		}
+		if err := vocab.PasteSlice(at, slice, end)(tx); err != nil {
+			return err
+		}
+		if end.Node == 0 {
+			end = nil
+		}
+		return nil
 	})
 	res := policy.Result{Edits: edits, Effects: []policy.Effect{{Kind: policy.EffectReveal}}}
+	res.Then = func(r doc.Reader) doc.Selection {
+		if end == nil {
+			// Content ending in no text, as a figure: the caret after it.
+			at := pos
+			if tx, ok := r.(*doc.Tx); ok {
+				at, _ = doc.Steps(tx.Steps()).Map(pos, doc.BiasAfter)
+			}
+			return doc.Collapsed(doc.CaretAt(at))
+		}
+		return doc.Collapsed(doc.CaretAt(*end))
+	}
 	if ok {
 		res.Replaced = &pos
 	}
