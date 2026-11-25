@@ -9,6 +9,7 @@ package spelling
 import (
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -42,7 +43,50 @@ var checker Checker
 
 // Use makes c the checker the policy asks, before a program is compiled;
 // nil, as where the system has none, checks nothing.
-func Use(c Checker) { checker = c }
+func Use(c Checker) {
+	checker = nil
+	if c != nil {
+		checker = &recent{Checker: c}
+	}
+}
+
+// recent remembers the checker's last answers by text. The system takes
+// time in proportion to the text it reads, and one keystroke reads the
+// same sentence more than once: as the caret's line is laid out during
+// the transaction, then as the view is presented, and again as the word
+// being typed changes the sentence's context.
+type recent struct {
+	Checker
+	mu      sync.Mutex
+	answers []answer
+}
+
+type answer struct {
+	text    string
+	grammar bool
+	issues  []Issue
+}
+
+const recentAnswers = 8
+
+func (r *recent) Check(text string, grammar bool) []Issue {
+	r.mu.Lock()
+	for i, a := range r.answers {
+		if a.text == text && a.grammar == grammar {
+			copy(r.answers[1:i+1], r.answers[:i])
+			r.answers[0] = a
+			r.mu.Unlock()
+			return a.issues
+		}
+	}
+	r.mu.Unlock()
+	issues := r.Checker.Check(text, grammar)
+	r.mu.Lock()
+	r.answers = slices.Insert(r.answers, 0, answer{text, grammar, issues})
+	r.answers = r.answers[:min(len(r.answers), recentAnswers)]
+	r.mu.Unlock()
+	return issues
+}
 
 // Grammar checks grammar along with spelling.
 var Grammar = policy.Bool("grammar", false, policy.Label("settings.spelling.grammar"), policy.Description("settings.spelling.grammar.description"))
@@ -96,9 +140,10 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	if c == nil {
 		p.Unlisted()
 	}
-	// Lines are checked one by one, so a keystroke checks its own line
-	// again and every other line's marks come from the store.
-	p.Analyze(policy.Lines, analyze(c, grammar, misspelled, questioned), []policy.FactID{misspelled.Kind(), questioned.Kind()},
+	// Sentences are checked one by one, so a keystroke checks its own
+	// sentence again and every other's marks come from the store: the
+	// system's checker takes time in proportion to the text it reads.
+	p.Analyze(policy.Sentences, analyze(c, grammar, misspelled, questioned), []policy.FactID{misspelled.Kind(), questioned.Kind()},
 		policy.Where(func(u *policy.Unit) bool { return c != nil && !u.Spec.Literal && u.Spec.Marks != nil }),
 		policy.Config(struct{ Checker, Grammar bool }{c != nil, grammar}))
 

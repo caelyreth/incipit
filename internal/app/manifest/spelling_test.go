@@ -222,6 +222,33 @@ func TestAutocorrectSkipsNonProseAndIgnoredWords(t *testing.T) {
 	p.want("page(code(teh ))")
 }
 
+// reading is a checker that knows every word and keeps what it read.
+type reading struct{ read *[]string }
+
+func (r reading) Check(text string, _ bool) []spelling.Issue {
+	*r.read = append(*r.read, text)
+	return nil
+}
+
+func (reading) Correction(string, int, int) string { return "" }
+
+// A keystroke has the checker read its own sentence, once, however long
+// the paragraph: the system takes time in proportion to what it reads.
+func TestAKeystrokeChecksItsSentenceOnce(t *testing.T) {
+	var read []string
+	spelling.Use(reading{&read})
+	t.Cleanup(func() { spelling.Use(nil) })
+	p := open(t)
+	p.do(vocab.Type{Text: strings.Repeat("The tide went out at dawn. ", 40) + "Boats la"})
+	p.misspelled()
+	read = nil
+	p.typeText("y")
+	p.misspelled()
+	if !slices.Equal(read, []string{"Boats lay"}) {
+		t.Fatalf("a keystroke read %q", read)
+	}
+}
+
 // The word being typed waves only once the writer is done with it: past a
 // space, or on anything else, even a move to its own start.
 func TestTheWordBeingTypedWavesOnceTheCaretLeavesIt(t *testing.T) {

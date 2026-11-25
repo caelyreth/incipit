@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/vocab"
 )
 
 // Store is the fact store: facts per inline slot and analyzer, line facts
@@ -225,6 +226,20 @@ func lineRanges(in *doc.Inline) [][2]int {
 	return append(out, [2]int{start, len(text)})
 }
 
+// sentenceRanges splits a slot into sentences, which no line break
+// crosses; each holds its trailing spaces, or LF.
+func sentenceRanges(in *doc.Inline) [][2]int {
+	units := vocab.Sentences(in)
+	if len(units) == 0 {
+		return [][2]int{{0, 0}}
+	}
+	out := make([][2]int, len(units))
+	for i, s := range units {
+		out[i] = [2]int{s.From, s.To}
+	}
+	return out
+}
+
 // edges are a fact's four edges.
 func (f *Fact) edges() []*Edge {
 	return []*Edge{&f.Outer.From, &f.Outer.To, &f.Inner.From, &f.Inner.To}
@@ -249,7 +264,7 @@ func (s *Store) analyze(a *analyzer, u *Unit, ctx string) []Fact {
 	}
 	switch a.form {
 	case formUnit:
-		if a.granularity == Lines {
+		if a.granularity == Lines || a.granularity == Sentences {
 			return s.analyzeLines(a, u, ctx)
 		}
 		return s.analyzeSlot(a, u, ctx)
@@ -278,9 +293,10 @@ func (s *Store) analyzeSlot(a *analyzer, u *Unit, ctx string) []Fact {
 	return facts
 }
 
-// analyzeLines returns a line analyzer's facts for the unit's slot: as
-// last merged while the slot's content and context are those it was
-// merged from, else each line's from the line cache or the analyzer.
+// analyzeLines returns a line or sentence analyzer's facts for the unit's
+// slot: as last merged while the slot's content and context are those it
+// was merged from, else each line's, or sentence's, from the line cache
+// or the analyzer.
 func (s *Store) analyzeLines(a *analyzer, u *Unit, ctx string) []Fact {
 	key := slotKey{config: a.config, slot: u.Slot}
 	s.mu.Lock()
@@ -297,10 +313,15 @@ func (s *Store) analyzeLines(a *analyzer, u *Unit, ctx string) []Fact {
 	return out
 }
 
-// mergeLines reads each of the slot's lines and merges their facts.
+// mergeLines reads each of the slot's lines, or sentences, and merges
+// their facts.
 func (s *Store) mergeLines(a *analyzer, u *Unit) []Fact {
 	var out []Fact
-	for i, r := range lineRanges(u.Content) {
+	ranges := lineRanges(u.Content)
+	if a.granularity == Sentences {
+		ranges = sentenceRanges(u.Content)
+	}
+	for i, r := range ranges {
 		line := *u
 		line.From, line.To, line.Line = r[0], r[1], i
 		line.Annotations = annotationsIn(u.Annotations, r[0], r[1])

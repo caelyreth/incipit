@@ -326,9 +326,13 @@ const (
 	Lines Granularity = iota + 1
 	// Slots reads a whole inline slot.
 	Slots
+	// Sentences reads each sentence of an inline slot's lines, so an edit
+	// reads its own sentence again, however long the line.
+	Sentences
 )
 
-// Unit is what an analyzer reads: a line or a whole inline slot, with the
+// Unit is what an analyzer reads: a line, a sentence or a whole inline
+// slot, with the
 // slot's kind and enclosing kinds, and the annotations the analyzer's own
 // policy owns there and its mode for the view.
 type Unit struct {
@@ -339,8 +343,8 @@ type Unit struct {
 	// Enclosing are the kinds of the owner's ancestors, outermost first.
 	Enclosing []doc.Kind
 	Content   *doc.Inline
-	// From and To are the unit's range in the slot; Line is the line's
-	// index, or -1 for a whole slot.
+	// From and To are the unit's range in the slot; Line is the line's,
+	// or the sentence's, index, or -1 for a whole slot.
 	From, To int
 	Line     int
 	// Annotations are the analyzing policy's annotations anchored here.
@@ -349,7 +353,7 @@ type Unit struct {
 	Mode any
 	// Context is what the slot's place in the structure adds to its
 	// content, as the profile reports it (vocab.Profile.Context). It
-	// stands before the slot's text, so a line after the first has none.
+	// stands before the slot's text, so a unit after the first has none.
 	Context any
 }
 
