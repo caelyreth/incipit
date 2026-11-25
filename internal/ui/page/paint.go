@@ -277,6 +277,17 @@ func (el *Element) paintPanel(p *ui.Painter, s *surfaceLayout, ux, uy float32) {
 
 func (el *Element) paintCaret(p *ui.Painter, view, caret ui.Rect, collapsed bool, now time.Time, animate bool) {
 	breathes := animate && collapsed && el.textGesture() == nil && el.Editor.deco.Composition == nil
+	if breathes && !el.still && caret.Y+caret.H > view.Y && caret.Y < view.Y+view.H {
+		p.OverlayFill(caret, el.Theme.Accent.Foreground, 1, ui.Pulse{
+			Start:    el.Editor.active,
+			Delay:    motion.CaretSolid,
+			Period:   motion.CaretBreath,
+			Min:      0,
+			Max:      1,
+			Interval: motion.CaretInterval,
+		})
+		return
+	}
 	alpha := float32(1)
 	if breathes {
 		alpha = motion.CaretOpacity(el.Editor.active, now)
