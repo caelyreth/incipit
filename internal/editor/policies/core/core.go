@@ -461,7 +461,7 @@ func startOfNext(id doc.ID) func(doc.Reader) doc.Selection {
 }
 
 // leaveLines is Enter on the empty last line of a block whose text keeps
-// lines, as a code or math block: the block is left, the empty line going
+// lines, as a code or math block: the block is left, the empty lines going
 // and a plain block opening after it, where the slot around it takes one.
 // Shift+Enter still adds the line.
 func leaveLines(r doc.Reader, pos doc.Pos) (policy.Result, bool) {
@@ -478,13 +478,20 @@ func leaveLines(r doc.Reader, pos doc.Pos) (policy.Result, bool) {
 	if ps, ok := vocab.SlotSpec(r, doc.SlotRef{Node: parent, Slot: slot}); !ok || !ps.Blocks || ps.Accepts == nil || !ps.Accepts(r.Schema().Plain()) {
 		return policy.Result{}, false
 	}
-	// The last line holds nothing, not even an inline object.
+	// The last line holds nothing, not even an inline object. Code takes
+	// one empty line as its own, a blank between its parts, so it is left
+	// from the second, both going; an object's source, as a math block's,
+	// has no blank lines and is left from the first.
+	empty := "\n"
+	if _, whole := vocab.ObjectOf(r, pos.Node); !whole {
+		empty = "\n\n"
+	}
 	s := n.Slot(pos.Slot)
-	if pos.Offset != s.Len() || !strings.HasSuffix(s.Content().Flat(), "\n") {
+	if pos.Offset != s.Len() || !strings.HasSuffix(s.Content().Flat(), empty) {
 		return policy.Result{}, false
 	}
 	res := policy.Do(vocab.Ops(
-		doc.EditText{At: pos.Ref(), From: pos.Offset - 1, To: pos.Offset},
+		doc.EditText{At: pos.Ref(), From: pos.Offset - len(empty), To: pos.Offset},
 		doc.Insert{Parent: parent, Slot: slot, Index: index + 1, Nodes: []*doc.Node{plain(r.Schema())}},
 	))
 	res.Then = startOfNext(pos.Node)
