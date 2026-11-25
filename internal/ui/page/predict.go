@@ -1,9 +1,11 @@
 package page
 
 import (
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/caelyreth/neverland/internal/app/keymap"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/policy"
 	"github.com/caelyreth/neverland/internal/editor/profile"
@@ -159,7 +161,7 @@ func (el *Element) snapshotSuggestion(pl *pageLayout) suggSnap {
 				}
 				return suggSnap{
 					valid:   true,
-					groups:  slicesClone(sg.groups),
+					groups:  slices.Clone(sg.groups),
 					shaped:  sg.shaped,
 					textX:   u.x + s.x + r0.X,
 					textY:   u.y + s.y + line.Baseline - gb,
@@ -172,13 +174,27 @@ func (el *Element) snapshotSuggestion(pl *pageLayout) suggSnap {
 	return suggSnap{}
 }
 
-func slicesClone[T any](s []T) []T {
-	if len(s) == 0 {
-		return nil
+// acceptKeys are the caps of the key that takes a suggestion: the key of
+// the command leaving a scope (vocab.Leave), which the spelling policy
+// answers at a suggestion, as the keymap holds it; none where it has no
+// key. They are worked out again only as the keymap changes.
+func (el *Element) acceptKeys() []string {
+	km := el.keys()
+	if el.accept.keys == km {
+		return el.accept.caps
 	}
-	out := make([]T, len(s))
-	copy(out, s)
-	return out
+	el.accept.keys, el.accept.caps = km, nil
+	leave := vocab.Leave{}.Kind()
+	for _, c := range el.Editor.Engine.Program().Catalog().Commands {
+		if c.Intent == nil || c.Intent.Kind() != leave {
+			continue
+		}
+		if chord, ok := km.ChordFor(keymap.CommandID(c.ID)); ok {
+			el.accept.caps = keymap.Keycaps(chord, keymap.PlatformCurrent)
+			break
+		}
+	}
+	return el.accept.caps
 }
 
 type pendingSuggestion struct {

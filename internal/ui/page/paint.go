@@ -3,7 +3,6 @@ package page
 import (
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/motion"
@@ -144,7 +143,10 @@ func (el *Element) paintSuggestionHint(p *ui.Painter, view ui.Rect, ox, oy float
 	}
 	style := components.KeycapStyle(el.Theme, scale, true)
 	style.Ink = el.Theme.Text.Muted
-	keys := keymap.Keycaps(keymap.NewChord("tab", 0), keymap.PlatformCurrent)
+	keys := el.acceptKeys()
+	if len(keys) == 0 {
+		return
+	}
 	_, width := style.Widths(keys)
 	paintCap := func(left, top, alpha float32) {
 		if alpha <= 0.001 {

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/internal/app/keymap"
 	"github.com/caelyreth/neverland/internal/app/manifest"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/engine"
@@ -300,5 +301,31 @@ func TestInlinePredictionAnimatesInChangeAndOut(t *testing.T) {
 	tester.Frame()
 	if el.sugg.leaving != nil {
 		t.Fatalf("did not expect leaving ghost after Tab accept, got %+v", el.sugg.leaving)
+	}
+}
+
+// The hint beside a suggestion shows the key that takes it, as the keymap
+// holds it: a rebound key shows, and an unbound one shows none.
+func TestTheSuggestionsHintShowsTheKeyThatTakesIt(t *testing.T) {
+	el := newElement(t)
+	tab := keymap.Keycaps(keymap.NewChord("tab", 0), keymap.PlatformCurrent)
+	if got := el.acceptKeys(); !slices.Equal(got, tab) {
+		t.Fatalf("by default the hint shows %q, want %q", got, tab)
+	}
+	moved, err := el.keys().Remap("core.leave", keymap.NewChord("l", keymap.ModifiersPrimary), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	el.Keys = moved
+	if got, want := el.acceptKeys(), keymap.Keycaps(keymap.NewChord("l", keymap.ModifiersPrimary), keymap.PlatformCurrent); !slices.Equal(got, want) {
+		t.Fatalf("rebound, the hint shows %q, want %q", got, want)
+	}
+	unbound, err := moved.Unbind("core.leave")
+	if err != nil {
+		t.Fatal(err)
+	}
+	el.Keys = unbound
+	if got := el.acceptKeys(); len(got) != 0 {
+		t.Fatalf("unbound, the hint shows %q", got)
 	}
 }

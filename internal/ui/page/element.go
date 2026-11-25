@@ -90,6 +90,12 @@ type Element struct {
 	focusPending bool
 	wasFocused   bool
 	sugg         suggMotion
+	// accept holds the caps of the key that takes a suggestion, for the
+	// keymap they were read from (acceptKeys).
+	accept struct {
+		keys *keymap.Keymap
+		caps []string
+	}
 	// held is until when a scroll by hand holds the page; typewriter and
 	// viewH are the mode and the height last followed.
 	held       time.Time
