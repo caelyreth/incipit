@@ -17,7 +17,8 @@ const repoModule = "github.com/caelyreth/neverland/"
 //   - Nothing under internal/editor imports internal/app or internal/ui.
 //   - Format converters (internal/app/markdown, internal/app/html) import only
 //     doc, vocab, and profile (never engine, policy, policies, storage, or ui).
-//   - internal/app/clipboard imports only doc, vocab, profile, and store.
+//   - internal/app/clipboard imports only doc, vocab, profile, store and
+//     the two readers it chooses between (markdown, html).
 func TestD14ImportBoundary(t *testing.T) {
 	root := filepath.Join("..", "..", "..")
 	checks := []struct {
@@ -31,7 +32,7 @@ func TestD14ImportBoundary(t *testing.T) {
 		{dir: "internal/editor", forbidApp: true, forbidUI: true},
 		{dir: "internal/app/markdown", allowed: []string{"internal/editor/doc", "internal/editor/profile", "internal/editor/vocab"}, exactAllow: true},
 		{dir: "internal/app/html", allowed: []string{"internal/editor/doc", "internal/editor/profile", "internal/editor/vocab"}, exactAllow: true},
-		{dir: "internal/app/clipboard", allowed: []string{"internal/editor/doc", "internal/editor/profile", "internal/editor/store", "internal/editor/vocab"}, exactAllow: true},
+		{dir: "internal/app/clipboard", allowed: []string{"internal/app/html", "internal/app/markdown", "internal/editor/doc", "internal/editor/profile", "internal/editor/store", "internal/editor/vocab"}, exactAllow: true},
 	}
 
 	for _, c := range checks {

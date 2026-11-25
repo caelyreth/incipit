@@ -6,11 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/markdown"
+	"github.com/caelyreth/neverland/internal/app/clipboard"
 	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
@@ -173,38 +172,15 @@ func (ed *Editor) PlacePictures(pictures []Incoming, at *doc.Caret) {
 	})
 }
 
-// pasteMarkdownPictures keeps local pictures named in Markdown text, then
-// parses and pastes it as one normalized slice where kept pictures are figures.
-func (ed *Editor) pasteMarkdownPictures(pics []markdown.LocalPicture, text string) {
-	incoming := make([]Incoming, len(pics))
-	for i, pic := range pics {
+// pasteKept keeps the local pictures a pasted clip's Markdown names, then
+// pastes it with each one kept a figure.
+func (ed *Editor) pasteKept(clip clipboard.Clip) {
+	incoming := make([]Incoming, len(clip.Pictures))
+	for i, pic := range clip.Pictures {
 		incoming[i] = Incoming{Path: pic.Path, Name: filepath.Base(pic.Path)}
 	}
 	ed.Keep(incoming, func(kept []profile.Picture) {
-		idx := 0
-		slice, formatted := markdown.ParseWith(text, markdown.Options{
-			Picture: func(source string) (profile.Picture, bool) {
-				if idx < len(pics) && pics[idx].Source == source {
-					p := profile.Picture{}
-					if idx < len(kept) {
-						p = kept[idx]
-					}
-					idx++
-					return p, p.Media != ""
-				}
-				for i, lp := range pics {
-					if lp.Source == source && i < len(kept) {
-						return kept[i], kept[i].Media != ""
-					}
-				}
-				return profile.Picture{}, false
-			},
-		})
-		if formatted {
-			ed.Do(vocab.Paste{Slice: slice, Text: text}, ed.now())
-			return
-		}
-		ed.Do(vocab.Paste{Text: text}, ed.now())
+		ed.Do(clip.Kept(kept), ed.now())
 	})
 }
 

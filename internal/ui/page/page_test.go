@@ -233,7 +233,7 @@ func TestCopyPasteKeepsText(t *testing.T) {
 		t.Fatalf("copied %q", text)
 	}
 	el.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Forward}, time.Unix(401, 0))
-	el.Editor.Do(el.Editor.pasted(transfer.TextData(text)), time.Unix(402, 0))
+	el.Editor.Do(el.Editor.clipOf(transfer.TextData(text)).Paste, time.Unix(402, 0))
 	if got := pageText(el); got != "copy mecopy me" {
 		t.Fatalf("pasted %q", got)
 	}

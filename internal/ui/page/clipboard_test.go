@@ -31,7 +31,7 @@ func TestPastedPrefersAStructuredSlice(t *testing.T) {
 		transfer.Bytes(transfer.Format(clipboard.Format), encoded),
 		transfer.Bytes(transfer.Text, []byte(text)),
 	))
-	in := el.Editor.pasted(data)
+	in := el.Editor.clipOf(data).Paste
 	if in.Slice.Empty() || in.Text != text {
 		t.Fatalf("pasted = %+v, want the structured slice and text", in)
 	}
@@ -43,7 +43,7 @@ func TestPastedFallsBackToTextWhenTheSliceIsBad(t *testing.T) {
 		transfer.Bytes(transfer.Format(clipboard.Format), []byte("not a slice")),
 		transfer.Bytes(transfer.Text, []byte("from another app")),
 	))
-	in := el.Editor.pasted(data)
+	in := el.Editor.clipOf(data).Paste
 	if !in.Slice.Empty() || in.Text != "from another app" {
 		t.Fatalf("pasted = %+v, want the text fallback", in)
 	}
@@ -161,7 +161,7 @@ func TestPasteTranslatesHTMLAndMarkdownAndMatchStyleStaysLiteral(t *testing.T) {
 			transfer.Bytes(transfer.HTML, []byte(`<h2>From Web</h2><p>Hello <b>world</b></p>`)),
 			transfer.Bytes(transfer.Text, []byte("From Web\n\nHello world")),
 		))
-		in := el.Editor.pasted(data)
+		in := el.Editor.clipOf(data).Paste
 		if got, want := markdown.Slice(in.Slice), "## From Web\n\nHello **world**"; got != want {
 			t.Fatalf("pasted HTML slice = %q, want %q", got, want)
 		}
@@ -173,7 +173,7 @@ func TestPasteTranslatesHTMLAndMarkdownAndMatchStyleStaysLiteral(t *testing.T) {
 			transfer.Bytes(transfer.HTML, []byte(`<div style="font-family:monospace"><div><span># Title</span></div><br><div><span>**bold**</span></div></div>`)),
 			transfer.Bytes(transfer.Text, []byte("# Title\n\n**bold**")),
 		))
-		in := el.Editor.pasted(data)
+		in := el.Editor.clipOf(data).Paste
 		if got, want := markdown.Slice(in.Slice), "# Title\n\n**bold**"; got != want {
 			t.Fatalf("pasted VS Code Markdown = %q, want %q", got, want)
 		}
@@ -228,7 +228,7 @@ func TestPasteTranslatesHTMLAndMarkdownAndMatchStyleStaysLiteral(t *testing.T) {
 		el := newElement(t)
 		typeText(el, "```py")
 		el.Editor.Do(vocab.Break{}, time.Unix(730, 0))
-		in := el.Editor.pasted(transfer.TextData("# comment\nx = 1"))
+		in := el.Editor.clipOf(transfer.TextData("# comment\nx = 1")).Paste
 		el.Editor.Do(in, time.Unix(731, 0))
 		children := el.Editor.Engine.Snapshot().Root().Slot(0).Children()
 		if len(children) != 1 || children[0].Kind() != profile.Code {

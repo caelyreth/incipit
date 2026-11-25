@@ -5,8 +5,6 @@ import (
 
 	"github.com/caelyreth/neverland/internal/app/clipboard"
 	"github.com/caelyreth/neverland/internal/app/keymap"
-	"github.com/caelyreth/neverland/internal/app/markdown"
-	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/egoist/mygo/transfer"
@@ -116,17 +114,12 @@ func (el *Element) run(in vocab.Intent, services ui.Services, at time.Time) bool
 				return true
 			}
 		}
-		data := services.ReadClipboardData(transfer.Format(clipboard.Format), transfer.HTML, transfer.Text)
-		if ed.Keep != nil && !ours && !hasRichHTML(data) {
-			if raw, err := data.Read(transfer.Text); err == nil {
-				text := string(raw)
-				if pics := markdown.LocalPictures(text, storage.AcceptsMediaFile); len(pics) > 0 {
-					ed.pasteMarkdownPictures(pics, text)
-					return true
-				}
-			}
+		clip := ed.pasted(services)
+		if len(clip.Pictures) > 0 {
+			ed.pasteKept(clip)
+			return true
 		}
-		in = ed.pasted(data)
+		in = clip.Paste
 	case vocab.Cut:
 		ed.writeClipboard(services)
 	}

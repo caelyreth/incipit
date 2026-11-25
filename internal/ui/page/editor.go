@@ -2,13 +2,12 @@ package page
 
 import (
 	"maps"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/app/clipboard"
-	htmlconv "github.com/caelyreth/neverland/internal/app/html"
 	"github.com/caelyreth/neverland/internal/app/markdown"
+	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/engine"
 	"github.com/caelyreth/neverland/internal/editor/policy"
@@ -455,43 +454,26 @@ func (ed *Editor) writeClipboard(services ui.Services) bool {
 	return true
 }
 
-func hasRichHTML(data transfer.Data) bool {
-	raw, err := data.Read(transfer.HTML)
-	if err != nil || len(raw) == 0 {
-		return false
+// pasted reads a paste from the clipboard (clipboard.Read).
+func (ed *Editor) pasted(services ui.Services) clipboard.Clip {
+	formats := make([]transfer.Format, len(clipboard.PasteFormats))
+	for i, f := range clipboard.PasteFormats {
+		formats[i] = transfer.Format(f)
 	}
-	slice, rich := htmlconv.Parse(raw)
-	return rich && !slice.Empty()
+	return ed.clipOf(services.ReadClipboardData(formats...))
 }
 
-// pasted prefers Neverland's structured slice, then rich HTML, then TSV table
-// or formatted Markdown text, falling back to plain text.
-func (ed *Editor) pasted(data transfer.Data) vocab.Paste {
-	if raw, err := data.Read(transfer.Format(clipboard.Format)); err == nil {
-		if slice, err := clipboard.Decode(raw); err == nil {
-			return vocab.Paste{Slice: slice, Text: vocab.PlainText(ed.Engine.Program().Profile().Schema(), slice)}
-		}
+// clipOf reads a paste from data: local pictures its Markdown names are
+// found only where the host keeps pictures.
+func (ed *Editor) clipOf(data transfer.Data) clipboard.Clip {
+	var accept func(string) bool
+	if ed.Keep != nil {
+		accept = storage.AcceptsMediaFile
 	}
-	rawText, _ := data.Read(transfer.Text)
-	text := string(rawText)
-	if rawHTML, err := data.Read(transfer.HTML); err == nil && len(rawHTML) > 0 {
-		if slice, rich := htmlconv.Parse(rawHTML); rich && !slice.Empty() {
-			fallback := text
-			if fallback == "" {
-				fallback = vocab.PlainText(ed.Engine.Program().Profile().Schema(), slice)
-			}
-			return vocab.Paste{Slice: slice, Text: fallback}
-		}
-	}
-	if strings.Contains(text, "\t") {
-		if slice, ok := clipboard.TableText(text); ok {
-			return vocab.Paste{Slice: slice, Text: text}
-		}
-	}
-	if slice, ok := markdown.Parse(text); ok && !slice.Empty() {
-		return vocab.Paste{Slice: slice, Text: text}
-	}
-	return vocab.Paste{Text: text}
+	return clipboard.Read(func(f string) []byte {
+		b, _ := data.Read(transfer.Format(f))
+		return b
+	}, accept)
 }
 
 // now is the time of input the system delivers without one, as the input
