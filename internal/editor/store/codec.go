@@ -55,6 +55,31 @@ func (r *reader) uvarint() uint64 {
 	return v
 }
 
+// count reads how many elements follow. Each takes at least a byte, so a
+// count past what is left is corrupt, and it never sizes an allocation.
+func (r *reader) count() int {
+	n := r.uvarint()
+	if n > uint64(len(r.b)) {
+		r.fail()
+		r.b = nil
+		return 0
+	}
+	return int(n)
+}
+
+// maxSlots bounds a node's slot index, so a corrupt one sizes nothing.
+const maxSlots = 1 << 10
+
+// slot reads a slot index.
+func (r *reader) slot() int {
+	n := r.uvarint()
+	if n >= maxSlots {
+		r.fail()
+		return 0
+	}
+	return int(n)
+}
+
 func (r *reader) varint() int64 {
 	v, n := binary.Varint(r.b)
 	if n <= 0 {
@@ -141,9 +166,9 @@ func decodeAttrs(r *reader, known func(uint16) bool) doc.Attrs {
 		case wireText:
 			v = doc.Text(r.bytes())
 		case wireList:
-			n := r.uvarint()
+			n := r.count()
 			recs := make([]doc.Attrs, 0, n)
-			for i := uint64(0); i < n && r.err == nil; i++ {
+			for i := 0; i < n && r.err == nil; i++ {
 				sub := &reader{b: []byte(r.bytes())}
 				recs = append(recs, decodeAttrs(sub, func(uint16) bool { return true }))
 				if sub.err != nil {
@@ -217,12 +242,12 @@ func encodeSlots(w *writer, text *[]byte, n *doc.Node) {
 // left empty for the caller to fill.
 func decodeSlots(r *reader, text *string, schema *doc.Schema, marks *doc.Interner, kind doc.Kind) map[int][]doc.Item {
 	out := map[int][]doc.Item{}
-	n := r.uvarint()
-	for i := uint64(0); i < n && r.err == nil; i++ {
-		slot := int(r.uvarint())
-		count := r.uvarint()
+	n := r.count()
+	for i := 0; i < n && r.err == nil; i++ {
+		slot := r.slot()
+		count := r.count()
 		var items []doc.Item
-		for j := uint64(0); j < count && r.err == nil; j++ {
+		for j := 0; j < count && r.err == nil; j++ {
 			switch r.uvarint() {
 			case tagNode:
 				id := doc.ID(r.uvarint())
@@ -234,14 +259,14 @@ func decodeSlots(r *reader, text *string, schema *doc.Schema, marks *doc.Interne
 				child := buildNode(id, k, attrs, "", decodeSlots(r, text, schema, marks, k), nil, schema)
 				items = append(items, doc.NodeItem(child))
 			case tagText:
-				l := int(r.uvarint())
-				if l > len(*text) {
+				l := r.uvarint()
+				if l > uint64(len(*text)) {
 					r.fail()
 					return out
 				}
 				s := (*text)[:l]
 				*text = (*text)[l:]
-				nm := int(r.uvarint())
+				nm := r.count()
 				ms := make([]doc.Mark, 0, nm)
 				for m := 0; m < nm && r.err == nil; m++ {
 					mk := doc.MarkKind(r.uvarint())

@@ -188,6 +188,9 @@ func Load(schema *doc.Schema, marks *doc.Interner, root doc.ID, seed uint64, row
 		})
 		blocks := map[int][]*doc.Node{}
 		for _, c := range children {
+			if c.Slot < 0 || c.Slot >= maxSlots {
+				return nil, corrupt(c.ID, "slot")
+			}
 			cn, err := build(c)
 			if err != nil {
 				return nil, err

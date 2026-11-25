@@ -1,6 +1,8 @@
 package store
 
 import (
+	"encoding/binary"
+	"errors"
 	"testing"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
@@ -124,6 +126,23 @@ func TestVerifyRefusesASaveThatLoadsAsAnotherPage(t *testing.T) {
 	for name, bad := range map[string]Diff{"lost": lost, "behind": behind, "other": other} {
 		if err := Verify(prev, next, bad); err == nil {
 			t.Errorf("%s: a save that loads as another page passed", name)
+		}
+	}
+}
+
+func TestACorruptCountIsRefusedNotAllocated(t *testing.T) {
+	s := sample(t)
+	rows := Rows(s)
+	huge := binary.AppendUvarint(nil, 1<<40)
+	for _, runs := range [][]byte{
+		huge,                          // slots
+		append([]byte{1, 0}, huge...), // items
+		append(binary.AppendUvarint([]byte{1}, 1<<40), 0), // slot index
+	} {
+		rs := append([]Row(nil), rows...)
+		rs[1].Runs = runs
+		if _, err := Load(profile.Schema(), doc.NewInterner(), s.Root().ID(), s.Seed(), rs); !errors.Is(err, ErrCorrupt) {
+			t.Fatalf("runs %x: %v", runs, err)
 		}
 	}
 }
