@@ -221,8 +221,8 @@ func TestAutocorrectSkipsNonProseAndIgnoredWords(t *testing.T) {
 	p.want("page(code(teh ))")
 }
 
-// The word being typed waves only once the caret leaves it: past a space,
-// or moved away.
+// The word being typed waves only once the writer is done with it: past a
+// space, or on anything else, even a move to its own start.
 func TestTheWordBeingTypedWavesOnceTheCaretLeavesIt(t *testing.T) {
 	p := checking(t, "wnet", "teh")
 	p.typeText("wnet")
@@ -233,9 +233,25 @@ func TestTheWordBeingTypedWavesOnceTheCaretLeavesIt(t *testing.T) {
 	if got := p.misspelled(); !slices.Equal(got, []string{"wnet"}) {
 		t.Fatalf("past a space, misspelled %q, want wnet alone", got)
 	}
-	p.do(vocab.Move{Unit: vocab.ToSlotEdge, Dir: vocab.Backward})
+	p.do(vocab.Move{Unit: vocab.ByWord, Dir: vocab.Backward})
 	if got := p.misspelled(); !slices.Equal(got, []string{"wnet", "teh"}) {
-		t.Fatalf("with the caret gone, misspelled %q", got)
+		t.Fatalf("moved to the word's start, misspelled %q", got)
+	}
+}
+
+// A word alone on its line waves once the writer moves, though the caret
+// never leaves it; a suggestion arriving does not end it.
+func TestALoneTypedWordWavesOnAMoveButNotOnASuggestion(t *testing.T) {
+	p := checking(t, "teh")
+	p.typeText("teh")
+	v, _ := p.e.View(1)
+	p.do(profile.SetSuggestion{At: v.Selection.Head.Pos, Text: "re"})
+	if got := p.misspelled(); len(got) != 0 {
+		t.Fatalf("with a suggestion, misspelled %q", got)
+	}
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	if got := p.misspelled(); !slices.Equal(got, []string{"teh"}) {
+		t.Fatalf("moved, misspelled %q", got)
 	}
 }
 

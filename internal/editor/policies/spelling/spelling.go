@@ -64,8 +64,9 @@ const correctedDuration = 4 * time.Second
 var Corrected = policy.NewAnnotationKind("spelling.corrected", false)
 
 // TypingWord marks the word the caret is typing, which the analyzer does
-// not mark misspelled until the caret leaves it (its lifetime), as the
-// system's text views wait.
+// not mark misspelled while it is typed, as the system's text views wait:
+// typing past the word ends it, and so does any input that is not typing
+// and changes the page or the selection, wherever the caret goes.
 var TypingWord = policy.NewAnnotationKind("spelling.typing", false)
 
 // issue is a spelling fact's data.
@@ -107,6 +108,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	}
 	if c != nil {
 		p.Observe("typingWord", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observeTypingWord)
+		// A timer or a suggestion arriving is not the writer doing
+		// something else, and changes nothing a record would note.
+		p.Observe("stopTyping", policy.Trigger{Classes: []doc.OriginClass{doc.OriginPaste, doc.OriginCommand, doc.OriginPointer, doc.OriginAgent, doc.OriginHistory}}, stopTyping)
 	}
 	if c != nil && predictOn {
 		p.Observe("predict", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observePredict(predictNext))
@@ -314,6 +318,14 @@ func observeTypingWord(ctx *policy.Ctx, _ []doc.Record) policy.Result {
 			Lifetime: policy.Lifetime{Kind: policy.CaretLeaves},
 		}},
 	}
+}
+
+// stopTyping ends the typed word: the writer did something else.
+func stopTyping(ctx *policy.Ctx, _ []doc.Record) policy.Result {
+	if len(ctx.Annotations().Of(TypingWord)) == 0 {
+		return policy.Swallow
+	}
+	return policy.Result{DropKinds: []policy.AnnotationKind{TypingWord}}
 }
 
 func revertCorrection(ctx *policy.Ctx, in profile.RevertCorrection, _ policy.At[doc.SlotRef]) policy.Result {
