@@ -2859,20 +2859,6 @@ func (msgs Messages) DragToFile() string {
 	return Catalog.Format(msgs.locale, "dragToFile", nil)
 }
 
-// WrittenToday says "Written Today"
-// in the language the app shows.
-//
-// A note: how many words were written today.
-func WrittenToday() string { return In(i18n.Locale()).WrittenToday() }
-
-// WrittenToday says "Written Today"
-// in the language of msgs.
-//
-// A note: how many words were written today.
-func (msgs Messages) WrittenToday() string {
-	return Catalog.Format(msgs.locale, "writtenToday", nil)
-}
-
 // BandPinned says "Pinned"
 // in the language the app shows.
 //

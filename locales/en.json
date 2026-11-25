@@ -759,10 +759,6 @@
   "@dragToFile": {
     "description": "A line of the note on a new notebook."
   },
-  "writtenToday": "Written Today",
-  "@writtenToday": {
-    "description": "A note: how many words were written today."
-  },
   "bandPinned": "Pinned",
   "@bandPinned": {
     "description": "A band of the field: the pinned sheets."

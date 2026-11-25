@@ -90,31 +90,6 @@ func TestANewNotebookSaysHowToBegin(t *testing.T) {
 	}
 }
 
-// The words written today stand in a card while there are any.
-func TestTheWordsWrittenTodayStandInTheField(t *testing.T) {
-	state, library, tester := onField(t, 1260, 850)
-	today := 0
-	state.WrittenToday = func() int { return today }
-	library.rev++
-	settle(tester)
-	if got := ambientShown(state); len(got) != 0 {
-		t.Fatalf("With nothing written today, no card should stand: %v.", got)
-	}
-	today = 1240
-	library.rev++
-	settle(tester)
-	if got := ambientShown(state); !slices.Equal(got, []string{"written-today"}) {
-		t.Fatalf("Today's words should stand: %v.", got)
-	}
-	card := state.field.found.cards[len(state.field.found.cards)-1].kind.(note)
-	if card.lines[0].text != "1,240 words" {
-		t.Fatalf("It should tell the words: %q.", card.lines[0].text)
-	}
-	if _, ok := tester.Find("Written Today"); !ok {
-		t.Fatal("The card should be drawn, titled.")
-	}
-}
-
 // A search that finds nothing says so under the pill, and Clear Search
 // on its card goes home.
 func TestNothingFoundOffersClearSearch(t *testing.T) {

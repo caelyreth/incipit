@@ -2,6 +2,7 @@ package window
 
 import (
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -17,7 +18,7 @@ func TestTheWordsWrittenTodayAreWhatWritingChanged(t *testing.T) {
 		tester.Type(string(r))
 		tester.Frame()
 	}
-	if got := app.Shell.WrittenToday(); got != 3 {
+	if got := app.written.on(time.Now()); got != 3 {
 		t.Fatalf("Three words were written today: %d.", got)
 	}
 	tester.Key(0, ui.KeyBackspace)
@@ -27,7 +28,7 @@ func TestTheWordsWrittenTodayAreWhatWritingChanged(t *testing.T) {
 	tester.Key(0, ui.KeyBackspace)
 	tester.Key(0, ui.KeyBackspace)
 	tester.Frame()
-	if got := app.Shell.WrittenToday(); got != 2 {
+	if got := app.written.on(time.Now()); got != 2 {
 		t.Fatalf("A word taken away is no longer written: %d.", got)
 	}
 	id, _ := app.Workspace.Active()
@@ -42,7 +43,7 @@ func TestTheWordsWrittenTodayAreWhatWritingChanged(t *testing.T) {
 	if session, ok := app.sessionOf(copied); !ok || session.summarized == nil {
 		t.Fatal("The copy should be open and read.")
 	}
-	if got := app.Shell.WrittenToday(); got != 2 {
+	if got := app.written.on(time.Now()); got != 2 {
 		t.Fatalf("A copy writes nothing: %d.", got)
 	}
 	if err := app.Close(); err != nil {
@@ -50,7 +51,7 @@ func TestTheWordsWrittenTodayAreWhatWritingChanged(t *testing.T) {
 	}
 	again := openNotebookApp(t, root)
 	again.selectMounted()
-	if got := again.Shell.WrittenToday(); got != 2 {
+	if got := again.written.on(time.Now()); got != 2 {
 		t.Fatalf("Today's words should come back with the notebook: %d.", got)
 	}
 }

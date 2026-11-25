@@ -212,7 +212,6 @@ func (a *AppState) BindShell() {
 		}
 		return last
 	}
-	a.Shell.WrittenToday = func() int { return a.written.on(time.Now()) }
 	a.Shell.KeyOf = func(id string) (ui.Modifiers, ui.Key, bool) {
 		chord, ok := a.Product.Keymap.ChordFor(keymap.CommandID(id))
 		if !ok {

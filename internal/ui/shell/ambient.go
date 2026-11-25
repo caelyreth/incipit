@@ -8,10 +8,10 @@ import (
 )
 
 // Ambient cards are a few quiet cards the field shows when nothing is
-// asked (field-and-desk.md §4.4.1): how much was written today, a line
-// for the day. They answer only an empty query, stand after everything
-// else, are never more than ambientMost, and each says itself whether it
-// shows, turned off or with nothing to say.
+// asked (field-and-desk.md §4.4.1), as A New Notebook. They answer only
+// an empty query, stand after everything else, are never more than
+// ambientMost, and each says itself whether it shows, turned off or with
+// nothing to say.
 
 // ambient is one kind of ambient card.
 type ambient interface {
@@ -24,7 +24,7 @@ type ambient interface {
 }
 
 // ambients are the ambient cards, in the order they are offered.
-var ambients = []ambient{firstRun{}, writtenToday{}}
+var ambients = []ambient{firstRun{}}
 
 // ambientMost is how many ambient cards stand at once.
 const ambientMost = 2
@@ -153,18 +153,6 @@ func (s *State) commandKeys(id string) []string {
 		}
 	}
 	return nil
-}
-
-// writtenToday tells how many words were written today, while it has
-// any to tell.
-type writtenToday struct{}
-
-func (writtenToday) id() string { return "written-today" }
-
-func (writtenToday) shows(s *State) bool { return s.WrittenToday != nil && s.WrittenToday() > 0 }
-
-func (writtenToday) card(s *State) cardKind {
-	return note{icon: components.IconPen, title: locales.WrittenToday(), lines: []noteLine{{text: words(s.WrittenToday())}}}
 }
 
 // nothingFound answers a search that finds nothing: a quiet card under
