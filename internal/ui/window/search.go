@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -433,8 +435,11 @@ func (a *AppState) linkedSites() []string {
 // offers. Words of fewer than three letters, and the commonest words of
 // English, say too little of a title to be offered.
 func (a *AppState) titleWords() []string {
+	// Walked in the pages' order, so words found as often stand the same
+	// way each time.
 	var titles []string
-	for _, session := range a.sessions {
+	for _, id := range slices.Sorted(maps.Keys(a.sessions)) {
+		session := a.sessions[id]
 		if sheet, ok := a.library.Sheet(library.SheetID(session.key)); ok && sheet.Trashed.IsZero() {
 			titles = append(titles, session.summary.Title)
 		}

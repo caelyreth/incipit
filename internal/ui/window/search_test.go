@@ -156,6 +156,22 @@ func TestCompletionTakesTheNotebooksTagsAndGroups(t *testing.T) {
 	}
 }
 
+// Tags written as often stand A–Z, the same each time they are asked,
+// whatever order the pages are walked in: the ribbons offering them stand
+// still while nothing changes.
+func TestTagsAlikeStandInTheSameOrderEachTime(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	typeIntoActivePage(t, app, "notes #sea #bells")
+	app.NewSheet("", 0)
+	typeIntoActivePage(t, app, "more #coffee #sea")
+	want := []string{"sea", "bells", "coffee"}
+	for range 20 {
+		if got := app.SearchNames("tag"); !slices.Equal(got, want) {
+			t.Fatalf("tags %v, want %v", got, want)
+		}
+	}
+}
+
 func TestASmartFolderListsWhatItsQueryFinds(t *testing.T) {
 	root := t.TempDir()
 	app := openNotebookApp(t, root)

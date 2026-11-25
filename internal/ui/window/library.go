@@ -235,16 +235,18 @@ func tagNames(tags []storage.Tag) []string {
 }
 
 // notebookTags are the tags written on the sheets out of the trash, most
-// written first, each as first written; writer is writing one at its
-// caret, which is not counted, so a tag only being written is no tag yet.
+// written first and alike in A–Z order, each as the earliest page writes
+// it; writer is writing one at its caret, which is not counted, so a tag
+// only being written is no tag yet. The order is the same each time it is
+// asked, so the ribbons offering them stand still while nothing changes.
 func (a *AppState) notebookTags(writer *sheetSession, writing string) []string {
 	type count struct {
-		name  string
-		count int
-		first int
+		key, name string
+		count     int
 	}
 	counts := map[string]*count{}
-	for _, session := range a.sessions {
+	for _, id := range slices.Sorted(maps.Keys(a.sessions)) {
+		session := a.sessions[id]
 		if sheet, ok := a.library.Sheet(library.SheetID(session.key)); !ok || !sheet.Trashed.IsZero() {
 			continue
 		}
@@ -252,7 +254,7 @@ func (a *AppState) notebookTags(writer *sheetSession, writing string) []string {
 			key := profile.TagKey(tag.Name)
 			c, ok := counts[key]
 			if !ok {
-				c = &count{name: tag.Name, first: len(counts)}
+				c = &count{key: key, name: tag.Name}
 				counts[key] = c
 			}
 			c.count += tag.Count
@@ -264,7 +266,7 @@ func (a *AppState) notebookTags(writer *sheetSession, writing string) []string {
 		c.count--
 	}
 	ranked := slices.Collect(maps.Values(counts))
-	slices.SortFunc(ranked, func(a, b *count) int { return cmp.Or(cmp.Compare(b.count, a.count), cmp.Compare(a.first, b.first)) })
+	slices.SortFunc(ranked, func(a, b *count) int { return cmp.Or(cmp.Compare(b.count, a.count), cmp.Compare(a.key, b.key)) })
 	var names []string
 	for _, c := range ranked {
 		if c.count > 0 {
