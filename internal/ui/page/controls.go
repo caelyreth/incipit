@@ -199,20 +199,50 @@ func (el *Element) cursorAt(x, y float32) (ui.Cursor, bool) {
 }
 
 // readyMenu readies the page's menu for a secondary click at a page point:
-// the commands of the topmost control there that offers any, else none.
+// the commands of the topmost control there that offers any; else, on
+// text, as a text view's, what holds where the click is: outside the
+// selection, the caret goes there first, so Look Up looks up the word
+// clicked; inside it, the selection stays.
 func (el *Element) readyMenu(x, y float32, at time.Time) {
 	el.menuOffers, el.menuChosen = false, true
 	if c, ok := el.controlAt(x, y, func(c control) bool { return c.menu != nil }); ok {
 		c.menu(x, y, at)
 		el.menuOffers = true
+		return
 	}
+	ed := el.Editor
+	if ed.layout == nil {
+		return
+	}
+	place, ok := ed.layout.hit(x, y)
+	if !ok || place.Node != 0 {
+		return
+	}
+	if !el.selects(place.Stop) {
+		ed.Do(vocab.Place{Stop: place.Stop, Over: place.Over, Clicks: 1}, at)
+	}
+	el.menuOffers = true
+}
+
+// selects reports whether c is within the text the selection spans.
+func (el *Element) selects(c doc.Caret) bool {
+	sel := el.Editor.Selection()
+	if sel.Kind != doc.SelectText || sel.IsCollapsed() {
+		return false
+	}
+	snap := el.Editor.Engine.Snapshot()
+	from, to := sel.Anchor, sel.Head
+	if doc.Compare(snap, from, to) > 0 {
+		from, to = to, from
+	}
+	return doc.Compare(snap, from, c) <= 0 && doc.Compare(snap, c, to) <= 0
 }
 
 // menuGroups are what the page's menu offers: the commands the rules
 // offer for it (vocab.SurfaceMenu) where the selection now stands, each
-// group apart, each command where it can run; a secondary click on a
-// control having selected what it acts on, and none where the click was
-// on no control.
+// group apart, each command where it can run; a secondary click having
+// readied it (readyMenu), and none where it was on neither a control nor
+// text.
 func (el *Element) menuGroups() [][]vocab.CommandID {
 	if el.menuChosen && !el.menuOffers {
 		return nil
