@@ -335,3 +335,47 @@ func TestAGroupsPlaceCountsTheSmartFoldersBesideIt(t *testing.T) {
 		t.Fatalf("Scene stands first in Arc: %q %d.", parent, at)
 	}
 }
+
+// Brushing the kept box does not expand it immediately: the pointer must rest
+// on it for DwellOpen (350ms), and leaving beforehand resets the timeout.
+func TestKeptBoxWaitsBeforeExpandingOnHover(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.smart = "$tag:work"
+	library.rev++
+	settle(tester)
+
+	resting, ok := tester.Find("Long")
+	if !ok || resting.W > state.laneShown()+1 {
+		t.Fatalf("At rest the bookmark should fit in the lane strip, got %v", resting)
+	}
+
+	// Hover for 300ms (< 350ms): should stay collapsed.
+	tester.Move(4, resting.Y+resting.H/2)
+	tester.Frame()
+	tester.Advance(components.DwellOpen - 50*time.Millisecond)
+	tester.Frame()
+	if cur, _ := tester.Find("Long"); cur.W > state.laneShown()+1 {
+		t.Fatalf("Before 350ms dwell elapses, kept box should stay at rest, got %v", cur)
+	}
+
+	// Leaving resets the dwell timer so re-entering starts a fresh 350ms wait.
+	tester.Move(600, 200)
+	tester.Frame()
+	tester.Advance(200 * time.Millisecond)
+	tester.Frame()
+	tester.Move(4, resting.Y+resting.H/2)
+	tester.Frame()
+	tester.Advance(components.DwellOpen - 50*time.Millisecond)
+	tester.Frame()
+	if cur, _ := tester.Find("Long"); cur.W > state.laneShown()+1 {
+		t.Fatalf("Re-entering after leaving should wait a full 350ms again, got %v", cur)
+	}
+
+	// Finishing the 350ms dwell expands the box.
+	tester.Advance(50 * time.Millisecond)
+	tester.Frame()
+	settle(tester)
+	if out, _ := tester.Find("Long"); out.W < 150 {
+		t.Fatalf("After 350ms dwell elapses, kept box should expand, got %v", out)
+	}
+}

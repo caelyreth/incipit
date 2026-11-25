@@ -227,6 +227,7 @@ func (s *State) keptBox(c *ui.Context, semantic theme.Theme, look stageLook, h, 
 		width: shelfWidth * k, tail: shelfTail * k, top: bottomY, most: most, bottom: true, offset: look.Offset.X,
 		takes: takes{queries: true},
 		out:   slices.ContainsFunc(marks, func(g GroupItem) bool { return g.ID == s.field.renaming }),
+		dwell: components.DwellOpen,
 	}
 	dropped, ok := s.shelfView(c, semantic, sh, &s.field.kept, k, hidden, animate, func(out float32) {
 		if keep {

@@ -1,6 +1,8 @@
 package shell
 
 import (
+	"time"
+
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
@@ -50,9 +52,11 @@ type shelf struct {
 	// listing keeps its list drawn while it holds nothing, for what stands
 	// in it besides, coming and going.
 	listing bool
-	// takes is what it takes dropped on it, and out keeps it drawn out.
+	// takes is what it takes dropped on it, out keeps it drawn out, and
+	// dwell is how long hover waits at rest before drawing it out.
 	takes takes
 	out   bool
+	dwell time.Duration
 	// menu is its own menu, and drag what it is dragged as whole: nil for
 	// none.
 	menu func(*ui.Menu)
@@ -60,13 +64,16 @@ type shelf struct {
 }
 
 // shelfState is what a shelf keeps between frames: how far what it holds
-// is scrolled, and the fades of its edges.
+// is scrolled, the fades of its edges, and the hover dwell state before
+// expanding.
 type shelfState struct {
 	scroll ui.ScrollState
 	edges  components.EdgeFade
 	// top is where it stood last, with its label over it, and height how
 	// tall it stood.
 	top, height float32
+	hoverAt     time.Time
+	open        bool
 }
 
 // shelfView draws sh, keeping its state in st: list draws what it holds,
@@ -112,10 +119,7 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		dropped, ok = fromNear, true
 	}
 	over = over || near
-	out := float32(0)
-	if box.Hovered() || over || sh.out {
-		out = 1
-	}
+	out := shelfOut(c, st, sh, hidden, box.Hovered(), over)
 	lit := map[bool]float32{true: 1}[over]
 	if animate {
 		settle := components.MotionPanel
@@ -188,6 +192,38 @@ func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *she
 		label.Translate(sh.offset, 0)
 	}
 	return dropped, ok
+}
+
+// shelfOut reports whether sh should be drawn out (1) or at rest (0), waiting
+// sh.dwell before a hover at rest draws it out while expanding at once on drag
+// or sh.out and collapsing as soon as the pointer leaves.
+func shelfOut(c *ui.Context, st *shelfState, sh shelf, hidden, hovered, over bool) float32 {
+	if hidden {
+		st.open, st.hoverAt = false, time.Time{}
+		return 0
+	}
+	if over || sh.out {
+		st.open, st.hoverAt = true, time.Time{}
+		return 1
+	}
+	if !hovered {
+		st.open, st.hoverAt = false, time.Time{}
+		return 0
+	}
+	if st.open || sh.dwell <= 0 {
+		st.open, st.hoverAt = true, time.Time{}
+		return 1
+	}
+	now := c.Now()
+	if st.hoverAt.IsZero() {
+		st.hoverAt = now
+	}
+	if left := sh.dwell - now.Sub(st.hoverAt); left > 0 {
+		c.After(left)
+		return 0
+	}
+	st.open, st.hoverAt = true, time.Time{}
+	return 1
 }
 
 // shelfHint is what an empty shelf says it is for, shown as much as out,
