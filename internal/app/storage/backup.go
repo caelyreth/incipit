@@ -94,7 +94,9 @@ func (s *Store) pinBackup() error {
 	if err := os.WriteFile(partial, []byte(s.launched), 0o644); err != nil {
 		return err
 	}
-	return os.Rename(partial, filepath.Join(folder, pinnedName))
+	// Synced before it is named, as a backup is: a crash leaves the pin as
+	// it was or as written, never empty, so pruning keeps what it names.
+	return completePreparedFile(filepath.Join(folder, pinnedName), partial, nil)
 }
 
 // pinned is the name of the backup pinned, "" for none.
