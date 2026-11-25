@@ -609,16 +609,17 @@ type held struct {
 	gen       uint64
 }
 
-// heldSlot is one slot's units, one per analyzing policy in the
-// program's order, their contexts (unitContext) and the facts analyzers
-// read from them, each made when first read. A card's slot holds them
-// while its own text, and that of any card between it and the block, is
-// above.
+// heldSlot is one slot's unit contexts (unitContext), one per analyzing
+// policy in the program's order, and the facts analyzers read from its
+// units, each made when first read. The units themselves are not kept:
+// one is built again for an analyzer whose facts are not yet read. A
+// card's slot holds them while its own text, and that of any card
+// between it and the block, is above.
 type heldSlot struct {
 	ref   doc.SlotRef
 	above []*doc.Inline
-	units []*Unit
 	ctxs  []string
+	known []bool
 	facts []analyzed
 }
 
@@ -730,7 +731,7 @@ func (s *Store) factsAt(p *Program, r doc.Reader, view *View, ref doc.SlotRef, a
 		}
 	}
 	s.mu.Unlock()
-	u, c, ok := s.unit(p, r, view, h, sl, slices.Index(p.analyzing, a.policy))
+	u, c, ok := s.unit(p, r, view, sl, slices.Index(p.analyzing, a.policy))
 	if !ok {
 		return nil
 	}
@@ -741,24 +742,37 @@ func (s *Store) factsAt(p *Program, r doc.Reader, view *View, ref doc.SlotRef, a
 	return all
 }
 
-// unit is the i-th analyzing policy's unit in sl, a slot of h's block's
-// own, and its context, or false if sl is no inline slot.
-func (s *Store) unit(p *Program, r doc.Reader, view *View, h *held, sl *heldSlot, i int) (*Unit, string, bool) {
-	s.mu.Lock()
-	u, c := sl.units[i], sl.ctxs[i]
-	s.mu.Unlock()
-	if u != nil {
-		return u, c, true
-	}
+// unit is the i-th analyzing policy's unit in sl, a slot of a held
+// block's own, built anew, and its context, kept, or false if sl is no
+// inline slot.
+func (s *Store) unit(p *Program, r doc.Reader, view *View, sl *heldSlot, i int) (*Unit, string, bool) {
 	u, ok := buildUnit(p, r, view, sl.ref, p.analyzing[i])
 	if !ok {
 		return nil, "", false
 	}
-	c = unitContext(u)
 	s.mu.Lock()
-	sl.units[i], sl.ctxs[i] = u, c
+	c, known := sl.ctxs[i], sl.known[i]
 	s.mu.Unlock()
+	if !known {
+		c = unitContext(u)
+		s.mu.Lock()
+		sl.ctxs[i], sl.known[i] = c, true
+		s.mu.Unlock()
+	}
 	return u, c, true
+}
+
+// context is the i-th analyzing policy's unit context in sl, or false if
+// sl is no inline slot. The unit it is read from is not kept.
+func (s *Store) context(p *Program, r doc.Reader, view *View, sl *heldSlot, i int) (string, bool) {
+	s.mu.Lock()
+	c, known := sl.ctxs[i], sl.known[i]
+	s.mu.Unlock()
+	if known {
+		return c, true
+	}
+	_, c, ok := s.unit(p, r, view, sl, i)
+	return c, ok
 }
 
 // textAbove is the text of a card's slot at ref and of each card between
@@ -784,7 +798,7 @@ func textAbove(r doc.Reader, ref doc.SlotRef, block doc.ID) ([]*doc.Inline, bool
 func (h *held) slot(ref doc.SlotRef, above []*doc.Inline) *heldSlot {
 	n := len(h.prog.analyzing)
 	fresh := func() *heldSlot {
-		return &heldSlot{ref: ref, above: above, units: make([]*Unit, n), ctxs: make([]string, n)}
+		return &heldSlot{ref: ref, above: above, ctxs: make([]string, n), known: make([]bool, n)}
 	}
 	for i, sl := range h.slots {
 		if sl.ref == ref {

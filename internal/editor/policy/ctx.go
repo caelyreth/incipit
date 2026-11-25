@@ -213,7 +213,7 @@ func (p *Program) FactContext(store *Store, r doc.Reader, view *View, block *doc
 		sl := h.slot(ref, above)
 		store.mu.Unlock()
 		for i := range p.analyzing {
-			if _, c, ok := store.unit(p, r, view, h, sl, i); ok {
+			if c, ok := store.context(p, r, view, sl, i); ok {
 				b.WriteString(c)
 				b.WriteByte('|')
 			}
