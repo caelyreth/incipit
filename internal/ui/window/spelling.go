@@ -30,6 +30,10 @@ func (systemSpelling) Correction(text string, from, to int) string {
 // spelling.
 func spellingGuesses(word string) []string { return mygo.Spelling.Guesses(word, 0, len(word)) }
 
+func spellingPredict(text string, at int, cb func(string)) {
+	mygo.Spelling.Predict(text, at, cb)
+}
+
 // useSystemSpelling has the spelling policy ask the system's checker,
 // where there is one: before any program is compiled.
 func useSystemSpelling() {
@@ -44,6 +48,7 @@ var (
 	checkSpellingKey   = policy.EnabledKey(spelling.ID)
 	checkGrammarKey    = spelling.ID + ".grammar"
 	correctSpellingKey = spelling.ID + ".correct"
+	predictSpellingKey = spelling.ID + ".predict"
 )
 
 // spellingMenu is Edit's Spelling and Grammar, where the system has a
@@ -58,6 +63,7 @@ func (a *AppState) spellingMenu(command func(keymap.CommandID) *mygo.MenuItem) [
 			command(keymap.CheckSpelling),
 			command(keymap.CheckGrammar),
 			command(keymap.CorrectSpelling),
+			command(keymap.PredictSpelling),
 		},
 	}}
 }

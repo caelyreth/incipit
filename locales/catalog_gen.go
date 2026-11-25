@@ -11173,6 +11173,38 @@ func (msgs Messages) SettingsSpellingCorrectDescription() string {
 	return Catalog.Format(msgs.locale, "settingsSpellingCorrectDescription", nil)
 }
 
+// SettingsSpellingPredict says "Show inline predictions"
+// in the language the app shows.
+//
+// An editor setting: show the system's text completions in dimmed text as
+// you type.
+func SettingsSpellingPredict() string { return In(i18n.Locale()).SettingsSpellingPredict() }
+
+// SettingsSpellingPredict says "Show inline predictions"
+// in the language of msgs.
+//
+// An editor setting: show the system's text completions in dimmed text as
+// you type.
+func (msgs Messages) SettingsSpellingPredict() string {
+	return Catalog.Format(msgs.locale, "settingsSpellingPredict", nil)
+}
+
+// SettingsSpellingPredictDescription says "Suggests completions in dimmed text as you type. Press Tab to accept."
+// in the language the app shows.
+//
+// What an editor setting does, under its name in Settings.
+func SettingsSpellingPredictDescription() string {
+	return In(i18n.Locale()).SettingsSpellingPredictDescription()
+}
+
+// SettingsSpellingPredictDescription says "Suggests completions in dimmed text as you type. Press Tab to accept."
+// in the language of msgs.
+//
+// What an editor setting does, under its name in Settings.
+func (msgs Messages) SettingsSpellingPredictDescription() string {
+	return Catalog.Format(msgs.locale, "settingsSpellingPredictDescription", nil)
+}
+
 // CommandsLearnSpelling says "Learn Spelling"
 // in the language the app shows.
 //
@@ -11269,6 +11301,22 @@ func CommandCorrectSpelling() string { return In(i18n.Locale()).CommandCorrectSp
 // misspelled words as you type, as macOS apps do.
 func (msgs Messages) CommandCorrectSpelling() string {
 	return Catalog.Format(msgs.locale, "commandCorrectSpelling", nil)
+}
+
+// CommandPredictSpelling says "Show Inline Predictions"
+// in the language the app shows.
+//
+// A command, in Edit › Spelling and Grammar: shows system inline
+// predictive completions as you type.
+func CommandPredictSpelling() string { return In(i18n.Locale()).CommandPredictSpelling() }
+
+// CommandPredictSpelling says "Show Inline Predictions"
+// in the language of msgs.
+//
+// A command, in Edit › Spelling and Grammar: shows system inline
+// predictive completions as you type.
+func (msgs Messages) CommandPredictSpelling() string {
+	return Catalog.Format(msgs.locale, "commandPredictSpelling", nil)
 }
 
 // MenuSpelling says "Spelling and Grammar"

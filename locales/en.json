@@ -3080,6 +3080,14 @@
   "@settingsSpellingCorrectDescription": {
     "description": "What an editor setting does, under its name in Settings."
   },
+  "settingsSpellingPredict": "Show inline predictions",
+  "@settingsSpellingPredict": {
+    "description": "An editor setting: show the system's text completions in dimmed text as you type."
+  },
+  "settingsSpellingPredictDescription": "Suggests completions in dimmed text as you type. Press Tab to accept.",
+  "@settingsSpellingPredictDescription": {
+    "description": "What an editor setting does, under its name in Settings."
+  },
   "commandsLearnSpelling": "Learn Spelling",
   "@commandsLearnSpelling": {
     "description": "An editing command: adds the misspelled word to the user's dictionary, which every app shares, as macOS's Learn Spelling; in the page's menu, Settings' shortcuts and the commands."
@@ -3103,6 +3111,10 @@
   "commandCorrectSpelling": "Correct Spelling Automatically",
   "@commandCorrectSpelling": {
     "description": "A command, in Edit › Spelling and Grammar: automatically replaces misspelled words as you type, as macOS apps do."
+  },
+  "commandPredictSpelling": "Show Inline Predictions",
+  "@commandPredictSpelling": {
+    "description": "A command, in Edit › Spelling and Grammar: shows system inline predictive completions as you type."
   },
   "menuSpelling": "Spelling and Grammar",
   "@menuSpelling": {

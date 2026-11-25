@@ -68,6 +68,7 @@ func Theme(t theme.Theme) present.Theme {
 			LineColor: pack(t.Families[theme.Life].Emphasis)},
 		profile.GroupCorrected: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[theme.Halo].Foreground)},
+		profile.GroupSuggestion: {Set: present.SetColor, Color: pack(t.Text.Muted)},
 		vocab.GroupPairMatch: {Set: present.SetBackground, Background: pack(t.Families[t.AccentFamily].Surface.Alpha(0.60))},
 		vocab.GroupScope: {Set: present.SetLine | present.SetLineColor, Line: present.LineUnder,
 			LineColor: pack(t.Families[t.AccentFamily].Muted)},

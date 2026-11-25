@@ -148,6 +148,9 @@ func (c *Ctx) Mode(owner string) any { return c.view.Modes.Of(owner) }
 // Composition is the active composition, or nil.
 func (c *Ctx) Composition() *Composition { return c.view.Composition }
 
+// Suggestion is the active inline prediction, or nil.
+func (c *Ctx) Suggestion() *Suggestion { return c.view.Suggestion }
+
 // Annotations is the view's annotation set.
 func (c *Ctx) Annotations() Annotations { return c.view.Annotations }
 

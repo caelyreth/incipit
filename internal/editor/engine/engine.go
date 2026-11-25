@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"runtime/debug"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -364,6 +365,25 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 	default:
 		view.Selection = doc.MapSelection(steps, before, carry)
 	}
+	if view.Suggestion != nil && res.Suggestion == nil && !res.EndSuggestion {
+		switch ti := in.Intent.(type) {
+		case vocab.Timer:
+		case vocab.Type:
+			if before.Kind == doc.SelectText && before.IsCollapsed() && before.Head.Pos == view.Suggestion.At &&
+				ti.Text != "" && strings.HasPrefix(view.Suggestion.Text, ti.Text) {
+				if rem := view.Suggestion.Text[len(ti.Text):]; rem != "" && view.Selection.Kind == doc.SelectText && view.Selection.IsCollapsed() {
+					s := policy.Suggestion{At: view.Selection.Head.Pos, Text: rem}
+					view.Suggestion = &s
+				} else {
+					view.Suggestion = nil
+				}
+			} else {
+				view.Suggestion = nil
+			}
+		default:
+			view.Suggestion = nil
+		}
+	}
 	e.applyView(&view, res, out.Policy, seq)
 	effects = append(effects, res.Effects...)
 	deadlines = append(deadlines, res.Deadlines...)
@@ -433,6 +453,9 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 	changed := len(allSteps) > 0
 	view.Selection = e.settleSelection(viewID, next, &view)
 	view.Pending = view.Pending.Settle(seq, headCaret(next, view.Selection))
+	if view.Suggestion != nil && (view.Composition != nil || view.Selection.Kind != doc.SelectText || !view.Selection.IsCollapsed() || view.Selection.Head.Pos != view.Suggestion.At) {
+		view.Suggestion = nil
+	}
 	if !commit {
 		return processed{preview: Outcome{
 			Available: out.Available() && (changed || view.Selection != before || plan != nil || res.History == nil),
@@ -524,6 +547,7 @@ func (e *Engine) process(viewID uint64, in vocab.Input, commit bool) (result pro
 					v.Composition = nil
 				}
 			}
+			v.Suggestion = nil
 		}
 		v.Annotations = v.Annotations.Settle(policy.Settlement{Tx: seq, Edited: changed, Head: headCaret(next, v.Selection), Now: in.At, Kinds: prog.HasAnnotationKind})
 		v.Pending = v.Pending.Settle(seq, headCaret(next, v.Selection))
@@ -582,6 +606,13 @@ func (e *Engine) applyView(v *policy.View, res policy.Result, owner string, seq 
 	if res.Composition != nil {
 		c := *res.Composition
 		v.Composition = &c
+	}
+	if res.EndSuggestion {
+		v.Suggestion = nil
+	}
+	if res.Suggestion != nil {
+		s := *res.Suggestion
+		v.Suggestion = &s
 	}
 	if len(res.Drop) > 0 {
 		v.Annotations = v.Annotations.Drop(func(a policy.Annotation) bool { return slices.Contains(res.Drop, a.ID) })

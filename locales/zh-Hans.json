@@ -786,11 +786,14 @@
   "settingsSpellingGrammarDescription": "存疑的语法会以比拼写错误更柔和的颜色加上波浪线。",
   "settingsSpellingCorrect": "自动更正拼写",
   "settingsSpellingCorrectDescription": "键入空格或标点符号时，将拼错的词替换为系统建议的更正词。点按加下划线的词可改回原文。",
+  "settingsSpellingPredict": "显示内联预测文本",
+  "settingsSpellingPredictDescription": "键入时以浅色文字显示补全建议，按 Tab 键即可采纳。",
   "commandsLearnSpelling": "学习拼写",
   "commandsIgnoreSpelling": "忽略拼写",
   "offersSpelling": "拼写",
   "commandCheckSpelling": "键入时检查拼写",
   "commandCheckGrammar": "检查拼写时检查语法",
   "commandCorrectSpelling": "自动更正拼写",
+  "commandPredictSpelling": "显示内联预测文本",
   "menuSpelling": "拼写和语法"
 }

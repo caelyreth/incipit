@@ -74,6 +74,9 @@ func (l *Level) String() string {
 	case LevelFact:
 		return fmt.Sprintf("fact:%s[%d,%d]", l.Fact.Kind, l.Fact.Outer.From.At, l.Fact.Outer.To.At)
 	case LevelAnnotation:
+		if l.Annotation == nil {
+			return "suggestion"
+		}
 		return "annotation:" + l.Annotation.Kind.String()
 	case LevelBoundary:
 		return "boundary"
@@ -107,6 +110,8 @@ type stackKey struct {
 	gap     int
 	ann     AnnotationID
 	nann    int
+	sugg    bool
+	suggAt  doc.Pos
 	// stop places the caret among glyphs, which are levels while
 	// the caret is inside them.
 	stop int
@@ -126,6 +131,9 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 	key := stackKey{root: r.Root(), slot: ref, gap: -1, stop: caret.Stop}
 	if view != nil {
 		key.ann, key.nann = view.Annotations.next, view.Annotations.Len()
+		if view.Suggestion != nil {
+			key.sugg, key.suggAt = true, view.Suggestion.At
+		}
 	}
 	inline := ref.Slot < owner.NumSlots() && owner.Slot(ref.Slot).IsInline()
 	var facts []Fact
@@ -185,6 +193,14 @@ func (p *Program) stackAt(store *Store, r doc.Reader, view *View, caret doc.Care
 				Class: LevelAnnotation, Node: owner, Slot: ref, Annotation: &a,
 				Start: a.Anchor.From, End: a.Anchor.To,
 				keys: []Scope{annotationScope(a.Kind)}, prog: p,
+			})
+		}
+		if view.Suggestion != nil && view.Suggestion.At == pos {
+			s.Levels = append(s.Levels, &Level{
+				Class: LevelAnnotation, Node: owner, Slot: ref,
+				Start: doc.Caret{Pos: pos, Stop: doc.StopFirst},
+				End:   doc.Caret{Pos: pos, Stop: doc.StopLast},
+				keys:  []Scope{suggestionScope}, prog: p,
 			})
 		}
 	}

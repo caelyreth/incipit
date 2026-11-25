@@ -17,6 +17,13 @@ type Composition struct {
 	Selected [2]int
 }
 
+// Suggestion is an active inline prediction: ghost text shown ahead of
+// the caret, which is view state, not document content.
+type Suggestion struct {
+	At   doc.Pos
+	Text string
+}
+
 // Pending is the marks text typed at a caret takes instead of the marks
 // around it: a format toggled there, a run just closed, the marks a stop
 // among signs decides. It lives while the selection head stays at At.
@@ -99,6 +106,7 @@ type View struct {
 	ID          uint64
 	Selection   doc.Selection
 	Composition *Composition
+	Suggestion  *Suggestion
 	// Pending is the marks typing at the caret takes, or nil.
 	Pending     *Pending
 	Annotations Annotations
@@ -139,6 +147,9 @@ const (
 	// EffectLearnWord asks the host to add a word to the user's
 	// dictionary: Data says which, as the profile has it.
 	EffectLearnWord
+	// EffectPredict asks the host for an inline text prediction at a
+	// caret position: Data says where and what precedes it.
+	EffectPredict
 )
 
 // Effect is a view effect.
@@ -175,6 +186,9 @@ type Result struct {
 	// Composition sets the composition; EndComposition clears it.
 	Composition    *Composition
 	EndComposition bool
+	// Suggestion sets the inline prediction; EndSuggestion clears it.
+	Suggestion    *Suggestion
+	EndSuggestion bool
 	// Pending sets the marks text typed at the resulting caret takes;
 	// DropPending clears them.
 	Pending     *doc.MarkSet
@@ -204,6 +218,7 @@ type Result struct {
 // Empty reports whether the result does nothing.
 func (r Result) Empty() bool {
 	return len(r.Edits) == 0 && r.Selection == nil && r.Then == nil && r.Composition == nil && !r.EndComposition &&
+		r.Suggestion == nil && !r.EndSuggestion &&
 		r.Pending == nil && !r.DropPending && r.Mode == nil && !r.DropMode &&
 		len(r.Annotate) == 0 && len(r.Drop) == 0 && len(r.DropKinds) == 0 && len(r.Deadlines) == 0 &&
 		len(r.Effects) == 0 && r.History == nil && r.GoalX == nil

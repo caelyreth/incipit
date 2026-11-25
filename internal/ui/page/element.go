@@ -8,6 +8,8 @@ import (
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/policy"
 	"github.com/caelyreth/neverland/internal/editor/present"
+	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/motion"
 	"github.com/caelyreth/neverland/internal/ui/theme"
@@ -85,6 +87,7 @@ type Element struct {
 	springs      springs
 	memos        map[memoKey]any
 	focusPending bool
+	wasFocused   bool
 	// held is until when a scroll by hand holds the page; typewriter and
 	// viewH are the mode and the height last followed.
 	held       time.Time
@@ -272,7 +275,9 @@ func (el *Element) View(c *ui.Context) {
 	if ed == nil {
 		return
 	}
-	ed.Wake = c.Services().Invalidate
+	services := c.Services()
+	ed.setWake(services.Invalidate)
+	ed.clock = services.Now
 	ed.Due(c.Now())
 	pl := el.relayout()
 	el.follow(pl, c.Now())
@@ -314,6 +319,14 @@ func (el *Element) View(c *ui.Context) {
 		// only while it was built nowhere since and still has its view; it
 		// never lays the page out again for its own size.
 		focused := box.Focused()
+		if !focused && el.wasFocused {
+			ed.cancelPredict()
+			if ed.deco.Suggestion != nil {
+				ed.Glance(vocab.Input{Intent: profile.SetSuggestion{}, At: services.Now()})
+				pl = el.relayout()
+			}
+		}
+		el.wasFocused = focused
 		box.HandleInput(func(ev ui.InputEvent) bool { return el.handle(ev, services) }).
 			TextCaret(el.caretInElement()).
 			Children(func() {

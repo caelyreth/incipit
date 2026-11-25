@@ -41,6 +41,10 @@ type Editor struct {
 	// best first, which the page's menu offers over a misspelled one; nil
 	// offers none.
 	Guesses func(word string) []string
+	// Predict requests inline text prediction candidates asynchronously at
+	// byte offset at of text, calling cb with the predicted suffix or "".
+	Predict      func(text string, at int, cb func(string))
+	predictDelay time.Duration
 
 	theme   present.Theme
 	themeOf any
@@ -74,9 +78,12 @@ type Editor struct {
 	// page fading out, draws nothing more.
 	closed bool
 
-	mu     sync.Mutex
-	timer  *time.Timer
-	timeAt time.Time
+	mu           sync.Mutex
+	timer        *time.Timer
+	timeAt       time.Time
+	predictSeq   uint64
+	predictTimer *time.Timer
+	pendingSugg  *pendingSuggestion
 }
 
 // builtFrom is what a layout is built from besides the asks.
@@ -94,6 +101,7 @@ func NewEditor(e *engine.Engine, view uint64) *Editor {
 
 // Close stops the editor's timer and closes its view.
 func (ed *Editor) Close() {
+	ed.cancelPredict()
 	ed.mu.Lock()
 	if ed.timer != nil {
 		ed.timer.Stop()
@@ -165,6 +173,11 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 	if in.At.IsZero() {
 		in.At = time.Now()
 	}
+	switch in.Intent.(type) {
+	case vocab.Timer, profile.SetSuggestion:
+	default:
+		ed.cancelPredict()
+	}
 	ed.active = in.At
 	pub, err := ed.Engine.Do(ed.View, in)
 	if err != nil {
@@ -188,6 +201,10 @@ func (ed *Editor) DoInput(in vocab.Input) bool {
 		}
 		if ask, ok := fx.Data.(profile.LookUpAsk); ok && fx.Kind == policy.EffectLookUp {
 			ed.lookUp = &ask
+			continue
+		}
+		if ask, ok := fx.Data.(profile.PredictAsk); ok && fx.Kind == policy.EffectPredict {
+			ed.schedulePredict(ask, ed.Engine.Version())
 			continue
 		}
 		if ed.Effect != nil {
@@ -249,8 +266,9 @@ func (ed *Editor) schedule(deadlines []time.Time) {
 	ed.timer = time.AfterFunc(max(0, first.Sub(ed.now())), wake)
 }
 
-// Due answers a deadline that has passed with a Timer intent.
+// Due answers pending async predictions and deadlines that have passed.
 func (ed *Editor) Due(now time.Time) {
+	ed.flushSuggestion(now)
 	ed.mu.Lock()
 	at := ed.timeAt
 	ed.mu.Unlock()

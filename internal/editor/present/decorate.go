@@ -57,6 +57,7 @@ type CoverSpan struct {
 type Decorations struct {
 	Selection   doc.Selection
 	Composition *policy.Composition
+	Suggestion  *policy.Suggestion
 	// Paints are what the view shows over the page, the selection's first.
 	Paints []Paint
 	// Guides are the key hints previews found available.
@@ -80,7 +81,7 @@ type Guide struct {
 // in page order, with the view's stop model; the engine adds the guides,
 // which need its previews.
 func Decorate(prog *policy.Program, store *policy.Store, r doc.Reader, view *policy.View, stops policy.StopsFunc, pres []*Presentation) Decorations {
-	d := Decorations{Selection: view.Selection, Composition: view.Composition}
+	d := Decorations{Selection: view.Selection, Composition: view.Composition, Suggestion: view.Suggestion}
 	if pt, ok := SelectionPaint(r, pres, view.Selection); ok {
 		d.Paints = append(d.Paints, pt)
 	}

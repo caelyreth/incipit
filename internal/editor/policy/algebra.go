@@ -86,6 +86,8 @@ const (
 	ScopeAnnotation
 	// ScopeCrossing is whatever a caret crosses toward its next stop.
 	ScopeCrossing
+	// ScopeSuggestion is an active inline prediction at the caret.
+	ScopeSuggestion
 )
 
 // Scope is a scope key: what a stack level answers to. Key is set for a
@@ -102,8 +104,9 @@ func roleScope(r vocab.RoleID) Scope         { return Scope{Class: ScopeRole, ID
 func annotationScope(a AnnotationKind) Scope { return Scope{Class: ScopeAnnotation, ID: a.id} }
 
 var (
-	slotScope  = Scope{Class: ScopeSlot}
-	crossScope = Scope{Class: ScopeCrossing}
+	slotScope       = Scope{Class: ScopeSlot}
+	crossScope      = Scope{Class: ScopeCrossing}
+	suggestionScope = Scope{Class: ScopeSuggestion}
 )
 
 func (s Scope) String() string {
@@ -123,6 +126,8 @@ func (s Scope) String() string {
 		return "annotation:" + handleName(handleAnnotation, s.ID)
 	case ScopeCrossing:
 		return "crossing"
+	case ScopeSuggestion:
+		return "suggestion"
 	}
 	return "scope?"
 }
@@ -236,6 +241,9 @@ func (s Subject[T]) Facts() Subject[T] { s.class = LevelFact; return s }
 
 // Slot is the caret's slot.
 var Slot = Subject[doc.SlotRef]{scope: slotScope, bind: func(_ *Ctx, l *Level) (doc.SlotRef, bool) { return l.Slot, true }}
+
+// Suggested is an active inline prediction standing at the caret.
+var Suggested = Subject[doc.Pos]{scope: suggestionScope, bind: func(_ *Ctx, l *Level) (doc.Pos, bool) { return l.Start.Pos, l.Start.Pos.Node != 0 }}
 
 // Node is a node of kind k.
 func Node(k doc.Kind) Subject[*doc.Node] {

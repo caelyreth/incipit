@@ -30,6 +30,8 @@ func keyMetrics(p *present.Presentation, m Metrics) Metrics {
 // build lays the presentations out. Units whose presentation, metrics and
 // composition are unchanged keep their shaped text.
 func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, ins map[doc.ID]objectIn) *pageLayout {
+	lc.sugg = deco.Suggestion
+	defer func() { lc.sugg = nil }()
 	pl := &pageLayout{slots: map[doc.SlotRef]*unitLayout{}, gaps: map[doc.Caret]place{}}
 	keep := map[doc.ID]bool{}
 	y := float32(0)
@@ -44,6 +46,9 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		}
 		if c := deco.Composition; c != nil && holdsSlot(p, c.At.Ref()) {
 			key.comp = fmt.Sprintf("%v|%s|%v", c.At, c.Text, c.Selected)
+		}
+		if s := deco.Suggestion; s != nil && deco.Composition == nil && holdsSlot(p, s.At.Ref()) {
+			key.sugg = fmt.Sprintf("%v|%s", s.At, s.Text)
 		}
 		size := float32(0)
 		if !p.Object && len(p.Surfaces) > 0 {
@@ -345,7 +350,24 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		sl.compSel = start + utf16Len(comp.Text[:min(max(comp.Selected[1], 0), len(comp.Text))])
 		compAt = -1
 	}
-	// A segment per item, and one more where the composition cuts one.
+	suggAt := -1
+	var suggText string
+	if lc.sugg != nil && comp == nil && lc.sugg.At.Ref() == s.Flow.Slot && lc.sugg.Text != "" {
+		suggAt = lc.sugg.At.Offset
+		suggText = lc.sugg.Text
+	}
+	addSugg := func(groups []vocab.Group) {
+		if suggAt < 0 {
+			return
+		}
+		suggGroups := append(slices.Clone(groups), profile.GroupSuggestion)
+		ss := th.Resolve(suggGroups)
+		add(seg{kind: segSuggestion, from: suggAt, to: suggAt}, span(suggText, ss, m), ss, suggGroups)
+		sl.suggEnd = u
+		sl.hasSugg = true
+		suggAt = -1
+	}
+	// A segment per item, and one more where the composition or suggestion cuts one.
 	sl.segs = make([]seg, 0, len(s.Flow.Items)+1)
 	for _, it := range s.Flow.Items {
 		style := th.Resolve(it.Groups)
@@ -360,10 +382,22 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 				add(seg{kind: segText, from: it.From + cut, to: it.To, text: it.Text[cut:]}, span(it.Text[cut:], style, m), style, it.Groups)
 				continue
 			}
+			if suggAt >= it.From && suggAt < it.To {
+				cut := suggAt - it.From
+				if cut > 0 {
+					add(seg{kind: segText, from: it.From, to: suggAt, text: it.Text[:cut]}, span(it.Text[:cut], style, m), style, it.Groups)
+				}
+				addSugg(it.Groups)
+				add(seg{kind: segText, from: it.From + cut, to: it.To, text: it.Text[cut:]}, span(it.Text[cut:], style, m), style, it.Groups)
+				continue
+			}
 			add(seg{kind: segText, from: it.From, to: it.To, text: it.Text}, span(it.Text, style, m), style, it.Groups)
 		case present.BreakItem:
 			if compAt == it.From {
 				addComp(it.Groups)
+			}
+			if suggAt == it.From {
+				addSugg(it.Groups)
 			}
 			add(seg{kind: segBreak, from: it.From, to: it.To, text: "\n"}, span("\n", style, m), style, it.Groups)
 		case present.GhostItem:
@@ -380,6 +414,9 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		case present.BoxItem:
 			if compAt == it.From {
 				addComp(it.Groups)
+			}
+			if suggAt == it.From {
+				addSugg(it.Groups)
 			}
 			if k, ok := inlineKinds[it.Node.Kind()]; ok {
 				sg, sp := k.lay(lc, seg{kind: segBox, from: it.From, to: it.To, node: it.Node, card: it.Surface, open: cardOpen(p, it.Surface), inline: k}, style, m)
@@ -398,6 +435,7 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		}
 	}
 	addComp([]vocab.Group{s.Group})
+	addSugg([]vocab.Group{s.Group})
 	sl.text = text.String()
 	font := ui.Font{Family: family(base.Font, m), Size: m.Body * base.Size, Weight: base.Weight, Italic: base.Italic, LineHeight: m.Spacing}
 	if len(spans) == 0 {

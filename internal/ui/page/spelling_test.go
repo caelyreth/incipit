@@ -161,3 +161,63 @@ func TestClickingAutocorrectedWordRestoresOriginal(t *testing.T) {
 		t.Fatalf("after click revert = %q, want %q", got, "Low tdie ")
 	}
 }
+
+func TestInlinePredictionGhostTextAndTabAccept(t *testing.T) {
+	spelling.Use(autocorrects{"uncomp": ""})
+	t.Cleanup(func() { spelling.Use(nil) })
+	prog, err := manifest.Compile(policy.Values{spelling.ID + ".predict": true}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := profile.EmptyPage(1, 7, doc.NewInterner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ed := NewEditor(engine.New(snap, prog, engine.Options{}), 1)
+	ed.predictDelay = 5 * time.Millisecond
+	ed.Predict = func(text string, at int, cb func(string)) {
+		go func() {
+			if strings.HasSuffix(text[:at], "uncomp") {
+				cb("romising")
+			} else {
+				cb("")
+			}
+		}()
+	}
+	el := NewElement(ed)
+	tester := ui.NewTester(func(c *ui.Context) { el.View(c) }, 900, 600)
+	el.Focus()
+	tester.Frame()
+
+	for _, r := range "it is uncomp" {
+		ed.Do(vocab.Type{Text: string(r)}, tester.Now())
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for ed.deco.Suggestion == nil && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+		tester.Advance(10 * time.Millisecond)
+	}
+	if ed.deco.Suggestion == nil || ed.deco.Suggestion.Text != "romising" {
+		t.Fatalf("expected suggestion \"romising\", got %+v", ed.deco.Suggestion)
+	}
+	if got := ed.Selection().Head.Pos.Offset; got != len("it is uncomp") {
+		t.Fatalf("caret offset moved to %d, want %d before ghost text", got, len("it is uncomp"))
+	}
+	if len(ed.layout.units) == 0 || len(ed.layout.units[0].surfaces) == 0 || !ed.layout.units[0].surfaces[0].hasSugg {
+		t.Fatalf("expected surface layout to record active suggestion segment")
+	}
+
+	// Tab key accepts the inline prediction.
+	if !el.handle(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyTab, Time: tester.Now()}, ui.Services{}) {
+		t.Fatal("expected Tab to accept inline prediction")
+	}
+	tester.Frame()
+	if ed.deco.Suggestion != nil {
+		t.Fatalf("expected Suggestion cleared after Tab accept, got %+v", ed.deco.Suggestion)
+	}
+	ref, _ := vocab.FirstTextSlot(ed.Engine.Snapshot().Root())
+	n, _ := ed.Engine.Snapshot().Node(ref.Node)
+	if got := n.Slot(ref.Slot).Content().Flat(); got != "it is uncompromising" {
+		t.Fatalf("document text after Tab = %q, want %q", got, "it is uncompromising")
+	}
+}

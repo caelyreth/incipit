@@ -786,11 +786,14 @@
   "settingsSpellingGrammarDescription": "有疑慮的文法會以比拼字錯誤更柔和的顏色加上波浪線。",
   "settingsSpellingCorrect": "自動更正拼字",
   "settingsSpellingCorrectDescription": "輸入空白或標點符號時，將拼錯的單字替換為系統建議的更正字詞。點一下加底線的單字可還原。",
+  "settingsSpellingPredict": "顯示行內預測字詞",
+  "settingsSpellingPredictDescription": "輸入時以淡色文字顯示自動補全建議，按 Tab 鍵即可接受。",
   "commandsLearnSpelling": "學習拼字",
   "commandsIgnoreSpelling": "忽略拼字",
   "offersSpelling": "拼字",
   "commandCheckSpelling": "輸入時檢查拼字",
   "commandCheckGrammar": "檢查拼字時檢查文法",
   "commandCorrectSpelling": "自動更正拼字",
+  "commandPredictSpelling": "顯示行內預測字詞",
   "menuSpelling": "拼字與文法"
 }

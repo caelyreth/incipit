@@ -22,7 +22,7 @@ func (sl *surfaceLayout) u16Of(off, stop int) int {
 	}
 	for _, sg := range sl.segs {
 		switch sg.kind {
-		case segGhost, segComposition:
+		case segGhost, segComposition, segSuggestion:
 			continue
 		default:
 			if off < sg.from || off > sg.to {

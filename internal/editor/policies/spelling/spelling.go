@@ -50,6 +50,9 @@ var Grammar = policy.Bool("grammar", false, policy.Label("settings.spelling.gram
 // Correct replaces misspelled words automatically when typing finishes a word.
 var Correct = policy.Bool("correct", false, policy.Label("settings.spelling.correct"), policy.Description("settings.spelling.correct.description"))
 
+// Predict shows system inline text completions as dimmed ghost text ahead of the caret.
+var Predict = policy.Bool("predict", false, policy.Label("settings.spelling.predict"), policy.Description("settings.spelling.predict.description"))
+
 const correctedDuration = 4 * time.Second
 
 // Corrected marks a word just replaced automatically so a click can restore
@@ -73,6 +76,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	questioned := policy.Facts[issue](p, "grammar", policy.Styles(profile.GroupGrammar))
 	grammar := policy.Get(p, Grammar)
 	correctOn := policy.Get(p, Correct)
+	predictOn := policy.Get(p, Predict)
 	c := checker
 	if c == nil {
 		p.Unlisted()
@@ -99,6 +103,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	if c != nil {
 		p.Observe("typingWord", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted, doc.RecordTextDeleted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observeTypingWord)
 	}
+	if c != nil && predictOn {
+		p.Observe("predict", policy.Trigger{Kinds: []doc.RecordKind{doc.RecordTextInserted}, Classes: []doc.OriginClass{doc.OriginTyping}}, observePredict)
+	}
 
 	p.Command(profile.LearnSpellingCommand, "commands.learnSpelling", profile.LearnSpelling{}, policy.Offer(profile.SpellingOffers, 0, ""))
 	p.Command(profile.IgnoreSpellingCommand, "commands.ignoreSpelling", profile.IgnoreSpelling{}, policy.Offer(profile.SpellingOffers, 1, ""))
@@ -113,6 +120,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	}).Caret()
 	policy.On(p, "correct", policy.Intent[profile.CorrectSpelling](), misspelled.Inside(), correct).Caret()
 	policy.On(p, "revert-correction", policy.Intent[profile.RevertCorrection](), policy.Slot.Inside(), revertCorrection).Any()
+	policy.On(p, "set-suggestion", policy.Intent[profile.SetSuggestion](), policy.Slot.Inside(), setSuggestion).Any()
+	policy.On(p, "accept-suggestion", policy.Intent[vocab.Leave](), policy.Suggested.Inside(), acceptSuggestion).Caret()
+	policy.On(p, "dismiss-suggestion", policy.Intent[vocab.Dismiss](), policy.Suggested.Inside(), dismissSuggestion).Caret()
 }, policy.Label("policies.spelling"), policy.Description("policies.spelling.description"))
 
 // ignored are the words a view no longer marks, the policy's mode: sorted,
@@ -325,6 +335,119 @@ func revertCorrection(ctx *policy.Ctx, in profile.RevertCorrection, _ policy.At[
 	res.Drop = []policy.AnnotationID{a.ID}
 	res.Then = func(doc.Reader) doc.Selection { return doc.Collapsed(doc.CaretAt(doc.At(sp.Slot, end))) }
 	return res
+}
+
+const maxPredictPrefix = 512
+
+func isProseForPrediction(ctx *policy.Ctx, pos doc.Pos) bool {
+	spec, ok := vocab.SlotSpec(ctx.Doc(), pos.Ref())
+	if !ok || spec.Literal || spec.Marks == nil {
+		return false
+	}
+	in, ok := ctx.Inline(pos.Ref())
+	if !ok || pos.Offset <= 0 || pos.Offset > in.Len() {
+		return false
+	}
+	if pend := ctx.Pending(); pend != nil && pend.Marks.Has(profile.CodeMark) {
+		return false
+	}
+	if it, _, ok := in.ItemAt(pos.Offset - 1); ok && it.Marks.Has(profile.CodeMark) {
+		return false
+	}
+	flat := in.Flat()
+	lineFrom, lineTo := vocab.LineAround(flat, pos.Offset, pos.Offset)
+	if pos.Offset <= lineFrom {
+		return false
+	}
+	if pos.Offset < lineTo {
+		nextRune, _ := utf8.DecodeRuneInString(flat[pos.Offset:lineTo])
+		if vocab.ClassOf(nextRune)&(vocab.ClassWord|vocab.ClassCJK) != 0 {
+			return false
+		}
+	}
+	tags := profile.TagsIn(in, lineFrom, lineTo)
+	if slices.ContainsFunc(tags, func(t profile.Tag) bool { return t.From <= pos.Offset && pos.Offset <= t.To }) {
+		return false
+	}
+	if strings.HasSuffix(flat[lineFrom:pos.Offset], "#") {
+		return false
+	}
+	return true
+}
+
+func observePredict(ctx *policy.Ctx, _ []doc.Record) policy.Result {
+	if ctx.Composition() != nil {
+		return policy.Swallow
+	}
+	sel := ctx.Selection()
+	if sel.Kind != doc.SelectText || !sel.IsCollapsed() {
+		return policy.Swallow
+	}
+	pos := sel.Head.Pos
+	if !isProseForPrediction(ctx, pos) {
+		return policy.Swallow
+	}
+	in, ok := ctx.Inline(pos.Ref())
+	if !ok {
+		return policy.Swallow
+	}
+	flat := in.Flat()
+	lineFrom, _ := vocab.LineAround(flat, pos.Offset, pos.Offset)
+	start := max(lineFrom, pos.Offset-maxPredictPrefix)
+	for start < pos.Offset && !utf8.RuneStart(flat[start]) {
+		start++
+	}
+	prefix := strings.ReplaceAll(flat[start:pos.Offset], string(doc.NodeByte), " ")
+	if strings.TrimSpace(prefix) == "" {
+		return policy.Swallow
+	}
+	return policy.Result{
+		Effects: []policy.Effect{{Kind: policy.EffectPredict, Data: profile.PredictAsk{At: pos, Text: prefix}}},
+	}
+}
+
+func setSuggestion(ctx *policy.Ctx, in profile.SetSuggestion, _ policy.At[doc.SlotRef]) policy.Result {
+	if in.Text == "" || strings.ContainsAny(in.Text, "\r\n"+string(doc.NodeByte)) || ctx.Composition() != nil {
+		return policy.Result{EndSuggestion: true}
+	}
+	sel := ctx.Selection()
+	if sel.Kind != doc.SelectText || !sel.IsCollapsed() || sel.Head.Pos != in.At || !isProseForPrediction(ctx, in.At) {
+		return policy.Result{EndSuggestion: true}
+	}
+	return policy.Result{Suggestion: &policy.Suggestion{At: in.At, Text: in.Text}}
+}
+
+func acceptSuggestion(ctx *policy.Ctx, _ vocab.Leave, _ policy.At[doc.Pos]) policy.Result {
+	s := ctx.Suggestion()
+	if s == nil || s.Text == "" || ctx.Composition() != nil || ctx.Head().Pos != s.At {
+		return policy.Pass
+	}
+	inSlot, ok := ctx.Inline(s.At.Ref())
+	if !ok || s.At.Offset < 0 || s.At.Offset > inSlot.Len() {
+		return policy.Pass
+	}
+	var marks *doc.MarkSet
+	if pend := ctx.Pending(); pend != nil {
+		marks = pend.Marks
+	} else if s.At.Offset > 0 {
+		if it, _, ok := inSlot.ItemAt(s.At.Offset - 1); ok {
+			marks = it.Marks
+		}
+	} else if it, _, ok := inSlot.ItemAt(0); ok {
+		marks = it.Marks
+	}
+	end := s.At.Offset + len(s.Text)
+	res := policy.Do(vocab.Ops(doc.EditText{At: s.At.Ref(), From: s.At.Offset, To: s.At.Offset, Items: []doc.Item{doc.TextItem(s.Text, marks)}}))
+	res.EndSuggestion = true
+	res.Then = func(doc.Reader) doc.Selection { return doc.Collapsed(doc.CaretAt(doc.At(s.At.Ref(), end))) }
+	return res
+}
+
+func dismissSuggestion(ctx *policy.Ctx, _ vocab.Dismiss, _ policy.At[doc.Pos]) policy.Result {
+	if ctx.Suggestion() == nil {
+		return policy.Pass
+	}
+	return policy.Result{EndSuggestion: true}
 }
 
 // wordOf is the text of the misspelled word at.

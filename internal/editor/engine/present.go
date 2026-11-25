@@ -68,7 +68,7 @@ func (e *Engine) DecorationsOf(view uint64, pres []*present.Presentation) presen
 // command that would turn one into the other offers nothing to show
 // where it acts. The caller holds mu.
 func (e *Engine) guides(viewID uint64, v *policy.View, pres []*present.Presentation) []present.Guide {
-	if v.Composition != nil {
+	if v.Composition != nil || v.Suggestion != nil {
 		return nil
 	}
 	point := v.Selection.IsCollapsed()

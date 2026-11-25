@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/editor/policy"
 	"github.com/caelyreth/neverland/internal/editor/present"
 	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
@@ -44,6 +45,7 @@ const (
 	segGhost
 	segBox
 	segComposition
+	segSuggestion
 )
 
 // seg maps a piece of a surface's slot to its laid-out text: slot offsets
@@ -192,6 +194,8 @@ type surfaceLayout struct {
 	marked    ui.TextInputRange
 	hasMarked bool
 	compSel   int
+	suggEnd   int
+	hasSugg   bool
 }
 
 // unitLayout is one laid-out unit.
@@ -263,6 +267,7 @@ type layoutKey struct {
 	metrics Metrics
 	theme   uintptr
 	comp    string
+	sugg    string
 	// in is what the page asks of an object's layout besides its
 	// presentation.
 	in objectIn
@@ -342,6 +347,7 @@ type layoutCache struct {
 	resized map[doc.ID]resize
 	// good is each formula's last source that set soundly.
 	good    map[lastGood]string
+	sugg    *policy.Suggestion
 	themeID uintptr
 }
 

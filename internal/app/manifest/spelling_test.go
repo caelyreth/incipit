@@ -240,3 +240,119 @@ func TestTypingWordTracksCurrentWordUntilDelimiterOrCaretLeaves(t *testing.T) {
 		t.Fatalf("expected GroupTypingWord cleared when caret leaves word, got %d", p.painted(profile.GroupTypingWord))
 	}
 }
+
+func TestInlinePredictionDefaultsOffAndSkipsNonProse(t *testing.T) {
+	p := checking(t, "uncomp")
+	p.now = p.now.Add(100 * time.Millisecond)
+	pub, err := p.e.Do(1, vocab.Input{Intent: vocab.Type{Text: "uncomp"}, At: p.now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fx := range pub.Effects {
+		if fx.Kind == policy.EffectPredict {
+			t.Fatalf("did not expect EffectPredict when spelling.predict defaults off")
+		}
+	}
+
+	spelling.Use(knows{"uncomp"})
+	t.Cleanup(func() { spelling.Use(nil) })
+	p = openWith(t, policy.Values{spelling.ID + ".predict": true})
+
+	hasPredict := func(s string) bool {
+		var saw bool
+		for _, r := range s {
+			p.now = p.now.Add(100 * time.Millisecond)
+			pub, err := p.e.Do(1, vocab.Input{Intent: vocab.Type{Text: string(r)}, At: p.now})
+			if err != nil {
+				p.t.Fatal(err)
+			}
+			for _, fx := range pub.Effects {
+				if fx.Kind == policy.EffectPredict {
+					saw = true
+				}
+			}
+		}
+		return saw
+	}
+
+	if !hasPredict("it is uncomp") {
+		t.Fatalf("expected EffectPredict in prose when spelling.predict is enabled")
+	}
+	// Tags must not ask for predictions.
+	p.typeFast(" ")
+	if hasPredict("#tag") {
+		t.Fatalf("did not expect EffectPredict while typing a tag")
+	}
+	// Formulas must not ask for predictions.
+	p = openWith(t, policy.Values{spelling.ID + ".predict": true})
+	if hasPredict("$x") {
+		t.Fatalf("did not expect EffectPredict inside a formula")
+	}
+	// Inline code (CodeMark) and code blocks must not ask for predictions.
+	p = openWith(t, policy.Values{spelling.ID + ".predict": true})
+	p.typeFast("`ab`")
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	if hasPredict("x") {
+		t.Fatalf("did not expect EffectPredict inside inline code")
+	}
+	p = openWith(t, policy.Values{spelling.ID + ".predict": true})
+	p.typeFast("```")
+	p.do(vocab.Break{})
+	if hasPredict("uncomp") {
+		t.Fatalf("did not expect EffectPredict inside a code block")
+	}
+}
+
+func TestInlinePredictionLifecyclePrefixTrimTabAcceptAndDismiss(t *testing.T) {
+	spelling.Use(knows{"uncomp"})
+	t.Cleanup(func() { spelling.Use(nil) })
+	p := openWith(t, policy.Values{spelling.ID + ".predict": true})
+	p.typeFast("[it is uncomp")
+	v, _ := p.e.View(1)
+	caret := v.Selection.Head.Pos
+
+	// Setting a suggestion populates Decorations.Suggestion and hides competing guides.
+	p.do(profile.SetSuggestion{At: caret, Text: "romising"})
+	deco := p.e.Decorations(1)
+	if deco.Suggestion == nil || deco.Suggestion.Text != "romising" || deco.Suggestion.At != caret {
+		t.Fatalf("Decorations.Suggestion = %+v, want %q at %+v", deco.Suggestion, "romising", caret)
+	}
+	if len(deco.Guides) != 0 {
+		t.Fatalf("expected Guides hidden while Suggestion is shown, got %+v", deco.Guides)
+	}
+
+	// Typing matching prefix trims the suggestion in place.
+	p.typeFast("r")
+	deco = p.e.Decorations(1)
+	if deco.Suggestion == nil || deco.Suggestion.Text != "omising" {
+		t.Fatalf("after typing 'r', Suggestion = %+v, want \"omising\"", deco.Suggestion)
+	}
+
+	// Dismiss (Escape) clears Suggestion without leaving/selecting the enclosing pair.
+	p.do(vocab.Dismiss{})
+	if p.e.Decorations(1).Suggestion != nil {
+		t.Fatalf("expected Suggestion cleared on Dismiss")
+	}
+	v, _ = p.e.View(1)
+	if !v.Selection.IsCollapsed() {
+		t.Fatalf("expected collapsed caret after dismissing Suggestion, got %+v", v.Selection)
+	}
+
+	// Re-arm Suggestion inside a pair: Tab (Leave) accepts it as the innermost rule in one undo step.
+	p.do(profile.SetSuggestion{At: v.Selection.Head.Pos, Text: "omising"})
+	p.do(vocab.Leave{})
+	if p.e.Decorations(1).Suggestion != nil {
+		t.Fatalf("expected Suggestion cleared after Tab accept")
+	}
+	p.want("page(paragraph([it is uncompromising]))")
+	p.do(vocab.Undo{})
+	p.want("page(paragraph([it is uncompr]))")
+
+	// Non-matching type or Move clears Suggestion.
+	v, _ = p.e.View(1)
+	p.do(profile.SetSuggestion{At: v.Selection.Head.Pos, Text: "omising"})
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	if p.e.Decorations(1).Suggestion != nil {
+		t.Fatalf("expected Suggestion cleared on Move")
+	}
+}

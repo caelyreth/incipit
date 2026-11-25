@@ -3,8 +3,11 @@ package page
 import (
 	"time"
 
+	"github.com/caelyreth/neverland/internal/app/keymap"
 	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/motion"
+	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -123,7 +126,37 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	if el.paintDrop(p, ox, oy, m, now, animate) {
 		p.AnimationFrame()
 	}
+	el.paintSuggestionHint(p, r, ox, oy, focused)
 	el.paintGuides(p, r, ox, oy)
+}
+
+func (el *Element) paintSuggestionHint(p *ui.Painter, view ui.Rect, ox, oy float32, focused bool) {
+	ed := el.Editor
+	if !focused || ed == nil || ed.deco.Suggestion == nil || ed.layout == nil {
+		return
+	}
+	scale := el.UIFontSize
+	if scale <= 0 {
+		scale = theme.DefaultUIFontSize
+	}
+	style := components.KeycapStyle(el.Theme, scale, true)
+	style.Ink = el.Theme.Text.Muted
+	keys := keymap.Keycaps(keymap.NewChord("tab", 0), keymap.PlatformCurrent)
+	_, width := style.Widths(keys)
+	for _, u := range ed.layout.units {
+		for _, s := range u.surfaces {
+			if !s.shown || !s.hasSugg {
+				continue
+			}
+			caret := s.caretRect(s.suggEnd)
+			left := ox + u.x + s.x + caret.X + 4
+			top := oy + u.y + s.y + caret.Y + (caret.H-style.Height)/2
+			left = max(min(left, view.X+view.W-width-2), view.X)
+			top = max(min(top, view.Y+view.H-style.Height-2), view.Y)
+			style.Paint(p, keys, left, top, 1)
+			return
+		}
+	}
 }
 
 func (el *Element) paintCaretInView(p *ui.Painter, r ui.Rect, focused bool) {
