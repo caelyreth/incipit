@@ -210,3 +210,46 @@ func TestRibbonsLeaveThePillAtTheMiddle(t *testing.T) {
 		t.Fatalf("The pill should stand where it does without ribbons: %v, not %v.", bare, ribboned)
 	}
 }
+
+// Toggled fast, a key turns the field's change late in its run: what it
+// moves goes on toward its new place at the pace of a change, never
+// covering the whole way in the run's last few frames.
+func TestAKeyToggledFastNeverLeaps(t *testing.T) {
+	const frame = 16 * time.Millisecond
+	state, _, tester := onField(t, 1260, 850)
+	state.Search()
+	settle(tester)
+	// stepMost runs n frames, every so often pressing Tag, and returns the
+	// most Inbox moved in one.
+	stepMost := func(n int, every int) float32 {
+		was, _ := tester.Find("Inbox")
+		most := float32(0)
+		for i := range n {
+			if every > 0 && i%every == 0 {
+				if err := tester.Click("Tag"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			tester.Advance(frame)
+			tester.Frame()
+			now, _ := tester.Find("Inbox")
+			most = max(most, abs(now.X-was.X)+abs(now.Y-was.Y))
+			was = now
+		}
+		return most
+	}
+	// One press, let run to its end, is the pace of a change.
+	pace := stepMost(60, 60)
+	stepMost(60, 0)
+	pace = max(pace, stepMost(60, 60))
+	stepMost(60, 0)
+	if pace == 0 {
+		t.Fatal("Opening Tag should move Inbox.")
+	}
+	for _, every := range []int{12, 15, 18, 21, 24, 27} {
+		if most := stepMost(every*8, every); most > 1.5*pace {
+			t.Fatalf("Pressed every %d frames, Inbox moved %v in a frame; a change moves it at most %v.", every, most, pace)
+		}
+		stepMost(60, 0)
+	}
+}

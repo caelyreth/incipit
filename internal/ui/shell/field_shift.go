@@ -49,9 +49,20 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 	switch {
 	case retarget:
 		s.field.rest = frames
-		// A swap's cards rise each on its own part of the clock, from
-		// where the swap began.
-		if s.field.now.depth != stageSwap {
+		switch {
+		case s.field.now.depth == stageSwap:
+			// A swap's cards rise each on its own part of the clock, from
+			// where the swap began.
+		case animate && s.field.changeT > lateTurn:
+			// Turned late, what is left of the clock is too short to carry
+			// them to where they now stand without a leap: the change
+			// begins again from where they are drawn, and what goes along
+			// with it from where it stands.
+			s.field.from, s.field.changeFrom = s.field.drawn, 0
+			s.field.starts = map[string]alongStart{}
+			field.Jump("shift", 0)
+			s.field.hold = true
+		default:
 			s.field.from, s.field.changeFrom = s.field.drawn, max(0, s.field.changeT)
 		}
 	case moved:
@@ -165,8 +176,17 @@ func (s *State) shift(field ui.Element, frames []stageFrame, f found, shapes []s
 // words away, then the last condition, and with none left goes back to
 // the desk.
 // alongStart is where what goes along with a change stood, from, as the
-// change had gone t of its way, going to to.
-type alongStart struct{ from, to, t float32 }
+// change had gone t of its way, going to to; own where it was turned
+// late, and goes on a spring of its own.
+type alongStart struct {
+	from, to, t float32
+	own         bool
+}
+
+// lateTurn is how far a change has gone past which what it moves, turned
+// toward a new place, is no longer squeezed into what is left of its
+// clock: that would cover the whole new way in its last few frames.
+const lateTurn = 0.5
 
 // rest is how far along what is left of a clock, from t0 on, t is.
 func rest(t, t0 float32) float32 {
@@ -181,7 +201,8 @@ func rest(t, t0 float32) float32 {
 // clock, from where it stood as the change began, so it arrives with the
 // cards and nothing is left to catch up; its target turned while the
 // change is under way, or first asked for part way, it goes on from where
-// it stands over what is left of the clock, never leaping toward it.
+// it stands over what is left of the clock, never leaping toward it, or,
+// with little of it left (lateTurn), on a spring of its own.
 // Between changes, it goes on a spring of its own, as what is written
 // grows the room about the pill. The pill's place, its pin to a list's
 // foot, the room its ribbons take and the field's scroll home all go so.
@@ -194,8 +215,11 @@ func (s *State) along(el ui.Element, key string, now, target float32) float32 {
 		}
 		st, ok := s.field.starts[key]
 		if !ok || abs32(st.to-target) > 1e-3 {
-			st = alongStart{from: now, to: target, t: t}
+			st = alongStart{from: now, to: target, t: t, own: t > lateTurn}
 			s.field.starts[key] = st
+		}
+		if st.own {
+			return el.AnimateTo(key, target, components.Glide(components.MotionScene))
 		}
 		return el.Jump(key, st.from+(target-st.from)*rest(t, st.t))
 	}
