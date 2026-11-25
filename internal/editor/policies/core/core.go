@@ -550,6 +550,12 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 			at = doc.Pos{Node: n.Slot(at.Slot).Child(at.Offset).ID()}
 		}
 		end = &doc.Pos{}
+		if spec, ok := vocab.SlotSpec(tx, at.Ref()); ok && spec.Literal && in.Text != "" {
+			// Literal slots (code, math, formula) keep the clipboard's raw characters
+			// untouched rather than parsed structure.
+			slice = TextSlice(tx.Schema(), in.Text)
+			text = true
+		}
 		if block, ok := vocab.Block(tx, at); ok && text {
 			// Lines of text pasted into an item are items of its list.
 			slice.Nodes = vocab.AsEntries(tx.Schema(), block, slice.Nodes)
@@ -581,9 +587,9 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 }
 
 // TextSlice is plain text as a slice: one line inline, several lines as
-// paragraphs with open edges.
+// paragraphs with open edges, sanitized for the document model.
 func TextSlice(s *doc.Schema, text string) vocab.Slice {
-	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = sanitizePlainText(text)
 	if text == "" {
 		return vocab.Slice{}
 	}
@@ -599,6 +605,14 @@ func TextSlice(s *doc.Schema, text string) vocab.Slice {
 		}
 	}
 	return vocab.Slice{Nodes: nodes, OpenStart: 1, OpenEnd: 1}
+}
+
+func sanitizePlainText(text string) string {
+	text = strings.ToValidUTF8(text, "\uFFFD")
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	text = strings.ReplaceAll(text, "\x00", "")
+	return strings.ReplaceAll(text, string(doc.NodeByte), "")
 }
 
 // cut deletes the selection; the host copied it before sending Cut.

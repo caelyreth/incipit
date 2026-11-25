@@ -21,14 +21,19 @@ var (
 	CodeSpellings     = []Spelling{"`"}
 	StrikeSpellings   = []Spelling{"~"}
 
-	QuoteSpelling    Spelling = ">"
-	BulletSpellings           = []Spelling{"-", "*", "+"}
-	TaskOpenSpelling Spelling = "[ ]"
-	TaskDoneSpelling Spelling = "[x]"
-	FenceSpelling    Spelling = "```"
-	FormulaSpelling  Spelling = "$"
-	MathSpelling     Spelling = "$$"
-	DividerSpelling  Spelling = "---"
+	QuoteSpelling          Spelling = ">"
+	BulletSpellings                 = []Spelling{"-", "*", "+"}
+	OrderedDelimiters               = []byte{'.', ')'}
+	HeadingMarker          Spelling = "#"
+	TaskOpenSpelling       Spelling = "[ ]"
+	TaskDoneSpelling       Spelling = "[x]"
+	TaskDoneAltSpelling    Spelling = "[X]"
+	FenceSpelling          Spelling = "```"
+	FormulaSpelling        Spelling = "$"
+	MathSpelling           Spelling = "$$"
+	DividerSpelling        Spelling = "---"
+	RuleChars                       = "-*_"
+	StrikeMarkdownSpelling Spelling = "~~"
 )
 
 // MarkSpellings returns the spellings of a mark kind.

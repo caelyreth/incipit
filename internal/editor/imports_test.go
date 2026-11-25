@@ -29,14 +29,21 @@ var allowed = map[string][]string{
 }
 
 // profiled are the policies whose behaviour is about the profile's kinds.
-var profiled = map[string]bool{"blocks": true, "find": true, "figures": true, "formats": true, "formulas": true, "lists": true, "markdown": true, "notation": true, "tables": true, "tags": true}
+var profiled = map[string]bool{
+	"blocks": true, "find": true, "figures": true, "formats": true, "formulas": true,
+	"lists": true, "markdown": true, "notation": true, "spelling": true, "tables": true, "tags": true, "words": true,
+}
 
 func TestImportsFollowTheModuleTable(t *testing.T) {
 	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
-		pkg := "editor/" + filepath.ToSlash(filepath.Dir(path))
+		dir := filepath.ToSlash(filepath.Dir(path))
+		if dir == "." {
+			return nil
+		}
+		pkg := "internal/editor/" + dir
 		rule := pkg
 		if name, ok := strings.CutPrefix(pkg, "internal/editor/policies/"); ok {
 			rule = "policies"
@@ -45,9 +52,6 @@ func TestImportsFollowTheModuleTable(t *testing.T) {
 			}
 		}
 		ok, known := allowed[rule]
-		if !known {
-			return nil
-		}
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
 		if err != nil {
 			return err
@@ -58,6 +62,12 @@ func TestImportsFollowTheModuleTable(t *testing.T) {
 				continue
 			}
 			dep := strings.TrimPrefix(p, module)
+			if strings.HasPrefix(dep, "internal/app/") || strings.HasPrefix(dep, "internal/ui/") {
+				t.Errorf("%s imports %s: nothing under internal/editor may import internal/app or internal/ui", path, dep)
+			}
+			if !known {
+				continue
+			}
 			allowedDep := false
 			for _, a := range ok {
 				allowedDep = allowedDep || dep == a

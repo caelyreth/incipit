@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
@@ -26,16 +25,16 @@ type Line struct {
 // PictureText reads text that names pictures in Markdown, when it does:
 // its lines, each a line of text or a picture whose source is a file on
 // this computer, a path from the root or the home folder or a file URL,
-// that the notebook can keep. A picture on the web stays text: pasting
-// asks no server for anything.
-func PictureText(text string) ([]Line, bool) {
+// that accept allows. A picture on the web stays text: pasting asks no
+// server for anything.
+func PictureText(text string, accept func(path string) bool) ([]Line, bool) {
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	out := make([]Line, len(lines))
 	found := false
 	for i, l := range lines {
 		out[i].Text = l
 		if alt, source, ok := markdownPicture(strings.TrimSpace(l)); ok {
-			if path, ok := localFile(source); ok && storage.AcceptsMediaFile(path) {
+			if path, ok := localFile(source); ok && accept != nil && accept(path) {
 				out[i].Path, out[i].Alt, found = path, alt, true
 			}
 		}

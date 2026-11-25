@@ -79,10 +79,10 @@ func (w writer) formatNode(n *doc.Node, openStart int) string {
 			return text
 		}
 		level := min(max(profile.HeadingLevel(n), 1), 6)
-		return strings.Repeat("#", level) + " " + text
+		return strings.Repeat(string(profile.HeadingMarker), level) + " " + text
 	case profile.Quote:
 		inner := w.joinBlocks(n.Slot(0).Children(), childOpen, "\n\n")
-		return prefixLines(inner, "> ", ">")
+		return prefixLines(inner, string(profile.QuoteSpelling)+" ", string(profile.QuoteSpelling))
 	case profile.List:
 		return w.formatList(n, openStart)
 	case profile.Code:
@@ -104,14 +104,15 @@ func (w writer) formatNode(n *doc.Node, openStart int) string {
 	case profile.Math:
 		body := n.Text()
 		var b strings.Builder
-		b.WriteString("$$\n")
+		b.WriteString(string(profile.MathSpelling))
+		b.WriteByte('\n')
 		if body != "" {
 			b.WriteString(body)
 			if !strings.HasSuffix(body, "\n") {
 				b.WriteByte('\n')
 			}
 		}
-		b.WriteString("$$")
+		b.WriteString(string(profile.MathSpelling))
 		return b.String()
 	case profile.Divider:
 		return string(profile.DividerSpelling)
@@ -164,16 +165,16 @@ func (w writer) formatList(n *doc.Node, openStart int) string {
 }
 
 func (w writer) formatItem(item *doc.Node, style profile.ListStyle, ordinal, openStart int) string {
-	marker := "- "
+	marker := string(profile.BulletSpellings[0]) + " "
 	if style == profile.Ordered {
 		marker = strconv.Itoa(ordinal) + ". "
 	}
 	indent := strings.Repeat(" ", len(marker))
 	switch profile.TaskOf(item) {
 	case profile.TaskOpen:
-		marker += "[ ] "
+		marker += string(profile.TaskOpenSpelling) + " "
 	case profile.TaskDone:
-		marker += "[x] "
+		marker += string(profile.TaskDoneSpelling) + " "
 	}
 	var b strings.Builder
 	b.WriteString(marker)
@@ -280,11 +281,11 @@ var (
 func markOpenClose(k doc.MarkKind) string {
 	switch k {
 	case profile.Strong:
-		return "**"
+		return string(profile.StrongSpellings[0])
 	case profile.Emphasis:
-		return "*"
+		return string(profile.EmphasisSpellings[0])
 	case profile.Strike:
-		return "~~"
+		return string(profile.StrikeMarkdownSpelling)
 	default:
 		return ""
 	}
@@ -355,9 +356,9 @@ func formatInlineLine(b *strings.Builder, items []doc.Item) {
 		if p.node != nil {
 			closeTo(0)
 			if p.node.Kind() == profile.Formula {
-				b.WriteByte('$')
+				b.WriteString(string(profile.FormulaSpelling))
 				b.WriteString(p.node.Text())
-				b.WriteByte('$')
+				b.WriteString(string(profile.FormulaSpelling))
 			} else {
 				b.WriteString(p.node.Text())
 			}

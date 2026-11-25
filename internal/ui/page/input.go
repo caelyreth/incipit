@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/internal/app/clipboard"
 	"github.com/caelyreth/neverland/internal/app/keymap"
+	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/egoist/mygo/transfer"
@@ -113,7 +114,7 @@ func (el *Element) run(in vocab.Intent, services ui.Services, at time.Time) bool
 		}
 		paste := ed.pasted(services.ReadClipboardData(transfer.Format(clipboard.Format), transfer.Text))
 		if ed.Keep != nil && paste.Slice.Empty() {
-			if lines, ok := clipboard.PictureText(paste.Text); ok {
+			if lines, ok := clipboard.PictureText(paste.Text, storage.AcceptsMediaFile); ok {
 				ed.pastePictureText(lines, paste.Text)
 				return true
 			}

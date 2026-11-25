@@ -248,15 +248,17 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 			case strings.HasPrefix(t, string(profile.TaskOpenSpelling)):
 				e.Fact(mk.Span(0, len(profile.TaskOpenSpelling), marker{Kind: markTaskOpen, Task: profile.TaskOpen}))
 			case strings.HasPrefix(t, string(profile.TaskDoneSpelling)),
-				strings.HasPrefix(t, "[X]"):
+				strings.HasPrefix(t, string(profile.TaskDoneAltSpelling)):
 				e.Fact(mk.Span(0, len(profile.TaskDoneSpelling), marker{Kind: markTaskDone, Task: profile.TaskDone}))
 			}
 			return
 		}
+		headingChar := profile.HeadingMarker[0]
+		quoteChar := profile.QuoteSpelling[0]
 		switch {
-		case cfg.Headings && t[0] == '#':
+		case cfg.Headings && t[0] == headingChar:
 			n := 0
-			for n < len(t) && t[n] == '#' {
+			for n < len(t) && t[n] == headingChar {
 				n++
 			}
 			// A heading's hashes end at a space or the text's end; one
@@ -264,16 +266,16 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 			if n <= 6 && (n == len(t) || t[n] == ' ') {
 				e.Fact(mk.Span(0, n, marker{Kind: markHeading, Level: n}))
 			}
-		case cfg.Quotes && t[0] == '>':
+		case cfg.Quotes && t[0] == quoteChar:
 			e.Fact(mk.Span(0, 1, marker{Kind: markQuote}))
-		case cfg.Lists && (t[0] == '-' || t[0] == '*' || t[0] == '+'):
+		case cfg.Lists && (t[0] == profile.BulletSpellings[0][0] || t[0] == profile.BulletSpellings[1][0] || t[0] == profile.BulletSpellings[2][0]):
 			e.Fact(mk.Span(0, 1, marker{Kind: markBullet, Char: t[0]}))
 		case cfg.Lists && t[0] >= '0' && t[0] <= '9':
 			n := 0
 			for n < len(t) && n < 9 && t[n] >= '0' && t[n] <= '9' {
 				n++
 			}
-			if n < len(t) && (t[n] == '.' || t[n] == ')') {
+			if n < len(t) && (t[n] == profile.OrderedDelimiters[0] || t[n] == profile.OrderedDelimiters[1]) {
 				start, _ := profile.ParseOrdered(t[:n] + ".")
 				e.Fact(mk.Span(0, n+1, marker{Kind: markOrdered, Level: start, Char: t[n]}))
 			}
@@ -296,5 +298,5 @@ func analyzeBlocks(cfg blockConfig, mk *policy.FactKind[marker], fk *policy.Fact
 
 // ruleLineOf reports a line of one rule character.
 func ruleLineOf(t string) bool {
-	return strings.Count(t, t[:1]) == len(t) && (t[0] == '-' || t[0] == '*' || t[0] == '_')
+	return strings.Count(t, t[:1]) == len(t) && strings.ContainsRune(profile.RuleChars, rune(t[0]))
 }
