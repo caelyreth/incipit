@@ -17,6 +17,9 @@ type Tx struct {
 	index  *trie
 	seed   uint64
 	shape  *Shape
+	// serial tells the chunks of large slots this transaction made, which
+	// it may change in place.
+	serial uint64
 
 	fresh   map[*Node]bool
 	touched map[ID]bool
@@ -35,7 +38,7 @@ func (s *Snapshot) Begin(origin Origin) *Tx {
 	return &Tx{
 		base: s, schema: s.schema, marks: s.marks, root: s.root, index: s.index, seed: s.seed, shape: s.shape,
 		fresh: map[*Node]bool{}, touched: map[ID]bool{}, slots: map[SlotRef]bool{},
-		origin: origin,
+		origin: origin, serial: txSerial.Add(1),
 	}
 }
 
@@ -266,20 +269,12 @@ func (tx *Tx) mutable(id ID) *Node {
 			s.content = s.Content().withNode(id, c)
 		} else {
 			i, _ := s.IndexOf(n)
-			tx.ownChildren(s)
-			s.children[i] = c
+			s.set(tx.serial, i, c)
 		}
 	}
 	e.node = c
 	tx.index = tx.index.set(id, e)
 	return c
-}
-
-func (tx *Tx) ownChildren(s *Slot) {
-	if !s.owned {
-		s.children = slices.Clone(s.children)
-		s.owned = true
-	}
 }
 
 // setContent replaces an inline slot's content.
@@ -302,9 +297,10 @@ func (tx *Tx) register(n *Node, parent ID, slot int) {
 			})
 			continue
 		}
-		for _, child := range s.children {
+		s.each(func(_ int, child *Node) bool {
 			tx.register(child, n.id, i)
-		}
+			return true
+		})
 	}
 }
 
@@ -358,23 +354,24 @@ func (tx *Tx) prepare(n *Node) (*Node, error) {
 			tx.slots[SlotRef{Node: n.id, Slot: i}] = true
 			continue
 		}
-		tx.ownChildren(s)
+		children := slices.Clone(s.Children())
 		ordered := true
-		for j, child := range s.children {
+		for j, child := range children {
 			prepared, err := tx.prepare(child)
 			if err != nil {
 				return nil, err
 			}
-			s.children[j] = prepared
-			if prepared.ord == "" || (j > 0 && s.children[j-1].ord >= prepared.ord) {
+			children[j] = prepared
+			if prepared.ord == "" || (j > 0 && children[j-1].ord >= prepared.ord) {
 				ordered = false
 			}
 		}
 		if !ordered {
-			for j, key := range ordSpread(len(s.children)) {
-				s.children[j] = tx.withOrd(s.children[j], key)
+			for j, key := range ordSpread(len(children)) {
+				children[j] = tx.withOrd(children[j], key)
 			}
 		}
+		s.setAll(tx.serial, children)
 	}
 	return n, nil
 }
@@ -408,14 +405,15 @@ func (tx *Tx) withOrd(child *Node, key string) *Node {
 // rekey spreads a slot's order keys again once one grew past its limit.
 func (tx *Tx) rekey(parent *Node, slot int) {
 	s := &parent.slots[slot]
-	tx.ownChildren(s)
-	for j, key := range ordSpread(len(s.children)) {
-		child := tx.withOrd(s.children[j], key)
-		s.children[j] = child
+	children := slices.Clone(s.Children())
+	for j, key := range ordSpread(len(children)) {
+		child := tx.withOrd(children[j], key)
+		children[j] = child
 		e, _ := tx.index.get(child.id)
 		e.node = child
 		tx.index = tx.index.set(child.id, e)
 	}
+	s.setAll(tx.serial, children)
 }
 
 // place inserts prepared nodes into a block slot at index, giving them
@@ -424,11 +422,11 @@ func (tx *Tx) place(parent *Node, slot, index int, nodes []*Node) []*Node {
 	s := &parent.slots[slot]
 	low := ""
 	if index > 0 {
-		low = s.children[index-1].ord
+		low = s.Child(index - 1).ord
 	}
 	high := ""
-	if index < len(s.children) {
-		high = s.children[index].ord
+	if index < s.Len() {
+		high = s.Child(index).ord
 	}
 	placed := make([]*Node, len(nodes))
 	long := false
@@ -442,10 +440,12 @@ func (tx *Tx) place(parent *Node, slot, index int, nodes []*Node) []*Node {
 		low = key
 		long = long || len(key) > ordLimit
 	}
-	s.splice(index, 0, placed...)
+	s.splice(tx.serial, index, 0, placed...)
 	if long {
 		tx.rekey(parent, slot)
-		copy(placed, s.children[index:index+len(placed)])
+		for i := range placed {
+			placed[i] = s.Child(index + i)
+		}
 	}
 	return placed
 }

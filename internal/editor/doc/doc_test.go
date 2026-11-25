@@ -3,6 +3,7 @@ package doc
 import (
 	"errors"
 	"math/rand"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -108,7 +109,7 @@ func equalTrees(a, b *Node) bool {
 	}
 	for i := range a.slots {
 		sa, sb := a.slots[i], b.slots[i]
-		if sa.inline != sb.inline || len(sa.children) != len(sb.children) {
+		if sa.inline != sb.inline || sa.Len() != sb.Len() {
 			return false
 		}
 		if sa.inline {
@@ -125,8 +126,8 @@ func equalTrees(a, b *Node) bool {
 			}
 			continue
 		}
-		for j := range sa.children {
-			if !equalTrees(sa.children[j], sb.children[j]) {
+		for j := range sa.Children() {
+			if !equalTrees(sa.Child(j), sb.Child(j)) {
 				return false
 			}
 		}
@@ -707,5 +708,106 @@ func TestMultiStepUndoRefusesWhatItsOwnStepsCutInto(t *testing.T) {
 	}
 	if err := plan.Apply(s.Begin(Origin{Class: OriginHistory})); !errors.Is(err, ErrRebase) {
 		t.Fatalf("undo over a cut = %v, want ErrRebase", err)
+	}
+}
+
+// A page of many paragraphs keeps them chunked: edits, inserts, removals
+// and moves read back in order, an earlier version stays as it was, and
+// one paragraph typed into copies its chunk, not the page's children.
+func TestAPageOfManyParagraphsIsChunked(t *testing.T) {
+	paras := make([]string, 600)
+	for i := range paras {
+		paras[i] = strings.Repeat("x", i%7) + string(rune('a'+i%26))
+	}
+	s := newPage(t, paras...)
+	if s.Root().Slot(0).big == nil {
+		t.Fatal("600 paragraphs are one slice")
+	}
+	order := func(s Reader) []string {
+		sl := s.Root().Slot(0)
+		out := make([]string, sl.Len())
+		for i := range out {
+			out[i] = sl.Child(i).Text()
+		}
+		flat := sl.Children()
+		for i, n := range flat {
+			if n != sl.Child(i) {
+				t.Fatalf("Children()[%d] is not Child(%d)", i, i)
+			}
+			if j, ok := sl.IndexOf(n); !ok || j != i {
+				t.Fatalf("IndexOf child %d = %d %v", i, j, ok)
+			}
+		}
+		return out
+	}
+	want := order(s)
+	rng := rand.New(rand.NewSource(3))
+	type version struct {
+		s    *Snapshot
+		text []string
+	}
+	var versions []version
+	for step := range 400 {
+		versions = append(versions, version{s, slices.Clone(want)})
+		sl := s.Root().Slot(0)
+		i := rng.Intn(sl.Len())
+		id := sl.Child(i).ID()
+		switch step % 4 {
+		case 0:
+			s, _ = commit(t, s, EditText{At: SlotRef{Node: id}, From: 0, To: 0, Items: []Item{TextItem("y", nil)}})
+			want[i] = "y" + want[i]
+		case 1:
+			n := 1 + rng.Intn(80)
+			nodes := make([]*Node, n)
+			ins := make([]string, n)
+			for k := range nodes {
+				ins[k] = "new" + strings.Repeat("!", k%5)
+				nodes[k] = NewNode(kPara, Attrs{}, InlineSlot(TextItem(ins[k], nil)))
+			}
+			s, _ = commit(t, s, Insert{Parent: 1, Index: i, Nodes: nodes})
+			want = slices.Concat(want[:i:i], ins, want[i:])
+		case 2:
+			n := min(1+rng.Intn(90), sl.Len()-i)
+			ids := make([]ID, n)
+			for k := range ids {
+				ids[k] = sl.Child(i + k).ID()
+			}
+			s, _ = commit(t, s, Remove{IDs: ids})
+			want = slices.Delete(want, i, i+n)
+		case 3:
+			to := rng.Intn(sl.Len() + 1)
+			s, _ = commit(t, s, Move{ID: id, Parent: 1, Index: to})
+			moved := want[i]
+			want = slices.Delete(want, i, i+1)
+			if to > i {
+				to--
+			}
+			want = slices.Insert(want, to, moved)
+		}
+		if got := order(s); !slices.Equal(got, want) {
+			t.Fatalf("step %d: the page reads %d paragraphs, want %d", step, len(got), len(want))
+		}
+	}
+	for k, v := range versions {
+		if got := order(v.s); !slices.Equal(got, v.text) {
+			t.Fatalf("version %d changed after later edits", k)
+		}
+	}
+	// One paragraph typed into shares every chunk but its own.
+	before := s.Root().Slot(0).big
+	id := s.Root().Slot(0).Child(300).ID()
+	after, _ := commit(t, s, EditText{At: SlotRef{Node: id}, From: 0, To: 0, Items: []Item{TextItem("z", nil)}})
+	big := after.Root().Slot(0).big
+	if big == nil || len(big.chunks) != len(before.chunks) {
+		t.Fatal("typing changed the chunks")
+	}
+	copied := 0
+	for k := range big.chunks {
+		if big.chunks[k] != before.chunks[k] {
+			copied++
+		}
+	}
+	if copied != 1 {
+		t.Fatalf("typing into one paragraph copied %d chunks", copied)
 	}
 }

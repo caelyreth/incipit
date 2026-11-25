@@ -295,13 +295,13 @@ func edgeOf(s *doc.Schema, n *doc.Node, last bool) (doc.Pos, bool) {
 			}
 			return p, true
 		}
-		children := sl.Children()
-		for j := range children {
+		count := sl.Len()
+		for j := range count {
 			c := j
 			if last {
-				c = len(children) - 1 - j
+				c = count - 1 - j
 			}
-			if child := children[c]; s.IsObject(child.Kind()) {
+			if child := sl.Child(c); s.IsObject(child.Kind()) {
 				p := doc.Pos{Node: n.ID(), Slot: i, Offset: c}
 				if last {
 					p.Offset++

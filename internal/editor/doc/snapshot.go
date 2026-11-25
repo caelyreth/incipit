@@ -85,12 +85,18 @@ func NewSnapshot(schema *Schema, marks *Interner, root *Node, seed uint64) (*Sna
 				})
 				continue
 			}
-			for j, child := range sl.children {
-				if child.ord == "" || (j > 0 && sl.children[j-1].ord >= child.ord) {
+			prev := ""
+			sl.each(func(j int, child *Node) bool {
+				if child.ord == "" || (j > 0 && prev >= child.ord) {
 					err = fmt.Errorf("%w: the children of %s are out of order", ErrInvalid, n.id)
-					return
+					return false
 				}
+				prev = child.ord
 				visit(child, n.id, i, false)
+				return err == nil
+			})
+			if err != nil {
+				return
 			}
 		}
 	}

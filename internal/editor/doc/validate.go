@@ -28,11 +28,16 @@ func validateNode(schema *Schema, marks *Interner, n *Node) error {
 			return fail("slot %s has the wrong type", slot.Name)
 		}
 		if slot.Blocks {
-			for _, child := range s.children {
+			var err error
+			s.each(func(_ int, child *Node) bool {
 				cspec, ok := schema.Kind(child.kind)
 				if !ok || cspec.Placement != PlaceBlock || slot.Accepts == nil || !slot.Accepts(child.kind) {
-					return fail("slot %s does not accept a %s", slot.Name, schema.KindName(child.kind))
+					err = fail("slot %s does not accept a %s", slot.Name, schema.KindName(child.kind))
 				}
+				return err == nil
+			})
+			if err != nil {
+				return err
 			}
 			continue
 		}
@@ -120,10 +125,13 @@ func (s *Snapshot) Validate() error {
 				}
 				continue
 			}
-			for _, c := range sl.children {
-				if err := walk(c); err != nil {
-					return err
-				}
+			var err error
+			sl.each(func(_ int, c *Node) bool {
+				err = walk(c)
+				return err == nil
+			})
+			if err != nil {
+				return err
 			}
 		}
 		return nil
