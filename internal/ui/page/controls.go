@@ -372,9 +372,11 @@ func (el *Element) step() {
 		u *unitLayout
 		y float32
 	}
-	was := make(map[doc.ID]stood, len(pl.units))
+	was := map[doc.ID]stood{}
 	for _, u := range pl.units {
-		was[u.pres.Unit] = stood{u, u.y}
+		if !u.sketch {
+			was[u.pres.Unit] = stood{u, u.y}
+		}
 	}
 	ed.asks = asks
 	pl = el.relayout()

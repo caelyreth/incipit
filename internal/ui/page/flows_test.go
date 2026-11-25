@@ -23,12 +23,12 @@ func TestAFlowEntersLeavesAndGlides(t *testing.T) {
 		}
 		return out
 	}
-	f.tell(in(1, 2, 3), now, true)
+	f.tell(in(1, 2, 3), nil, now, true)
 	for _, id := range []doc.ID{1, 2, 3} {
 		f.saw(id, float32(id-1)*10)
 	}
 	now = now.Add(16 * time.Millisecond)
-	f.tell(in(4, 3, 1), now, true)
+	f.tell(in(4, 3, 1), nil, now, true)
 	if e, a, _ := f.drawn(4, 10); e != 0 || a != 0 {
 		t.Errorf("the newcomer stands at %v, %v; want it coming in from nothing", e, a)
 	}

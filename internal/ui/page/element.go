@@ -73,6 +73,8 @@ type Element struct {
 	// whether assistive technology reads the page, which then lays out
 	// every unit to describe it (accessUnits).
 	revealing, assistive bool
+	// flowIns is the room the rooms' flow is told in, kept between frames.
+	flowIns []flowIn
 
 	// ranged is the scroll range the last paint found, and astray whether
 	// it shrank past the page, which then glides back in (stepViewport).

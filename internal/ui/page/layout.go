@@ -221,8 +221,13 @@ type unitLayout struct {
 	// it held open then, -1 where it never was laid out (window.go).
 	sketch bool
 	shape  int
-	// gen is the build that last kept the layout (layoutCache.gen).
-	gen uint64
+	// gen is the build that last kept the layout (layoutCache.gen), and
+	// placedAt, for a sketch, what it was placed at.
+	gen      uint64
+	placedAt sketchedAt
+	// gapFrom are the presentations the gap above it was resolved
+	// between: the one above and its own.
+	gapFrom [2]*present.Presentation
 	// far is whether its text's shaping was let go, far out of view, and
 	// held whether it was read there since, so it stays shaped
 	// (release.go).
@@ -305,6 +310,9 @@ type pageLayout struct {
 	// unit finds its own stops (unitLayout.place).
 	slots map[doc.SlotRef]*unitLayout
 	gaps  map[doc.Caret]place
+	// unsketched are the units laid out that the layout before had as
+	// sketches: they come into the page's flow quietly (settleRooms).
+	unsketched map[doc.ID]bool
 	// first and last are the page's first and last stops.
 	first, last *stopAt
 	// moving are the units a paint steps (Element.step): those of an

@@ -74,9 +74,11 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 	if el.roomsOf != pl {
 		// A new layout: the rooms of units it no longer has go.
 		el.roomsOf = pl
-		seen := make(map[doc.ID]bool, len(pl.units))
+		seen := make(map[doc.ID]bool, len(el.rooms))
 		for _, u := range pl.units {
-			seen[u.pres.Unit] = true
+			if !u.sketch {
+				seen[u.pres.Unit] = true
+			}
 		}
 		for id := range el.rooms {
 			if !seen[id] {
@@ -89,9 +91,15 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 	if frame {
 		// What the layout holds, each where it stands after what is drawn
 		// before it as it is drawn now; objects come and go with motion.
-		in := make([]flowIn, len(pl.units))
+		// A sketch, far from the view, holds nothing that moves: the flow
+		// holds what is laid out, and one laid out as the view came near
+		// comes in quietly, as one put by goes.
+		in := el.flowIns[:0]
 		shift := float32(0)
-		for i, u := range pl.units {
+		for _, u := range pl.units {
+			if u.sketch {
+				continue
+			}
 			id := u.pres.Unit
 			shape := shapeOf(u)
 			extent, _, _ := f.drawn(id, u.h)
@@ -107,10 +115,12 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 			case r.shape != shape:
 				r.from, r.prev, r.shape = extent, r.last, shape
 			}
-			in[i] = flowIn{id: id, place: u.top + shift, extent: u.h, shape: shape, moves: u.kind != nil, kept: u}
+			in = append(in, flowIn{id: id, place: u.top + shift, extent: u.h, shape: shape, moves: u.kind != nil, kept: u, quiet: pl.unsketched[id]})
 			shift += extent - u.h
 		}
-		f.tell(in, now, animate)
+		el.flowIns = in
+		sketches := el.Editor.cache.sketches
+		f.tell(in, func(id doc.ID) bool { return sketches[id] != nil }, now, animate)
 		moving = f.step(now, animate)
 	}
 	gap := el.Editor.metrics.Gap
@@ -130,6 +140,10 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 	}
 	leave(0, -gap)
 	for _, u := range pl.units {
+		if u.sketch {
+			u.y = u.top + shift
+			continue
+		}
 		id := u.pres.Unit
 		extent, alpha, offset := f.drawn(id, u.h)
 		u.y = u.top + shift + offset

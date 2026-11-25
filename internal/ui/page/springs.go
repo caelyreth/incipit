@@ -235,9 +235,11 @@ func (el *Element) forget(pl *pageLayout) {
 		return
 	}
 	el.forgotOf = pl
-	live := make(map[doc.ID]bool, len(pl.units))
+	live := make(map[doc.ID]bool, len(el.memos))
 	for _, u := range pl.units {
-		live[u.pres.Unit] = true
+		if !u.sketch {
+			live[u.pres.Unit] = true
+		}
 	}
 	for k := range el.memos {
 		if k.unit != 0 && !live[k.unit] {

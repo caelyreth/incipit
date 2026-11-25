@@ -26,7 +26,7 @@ func BenchmarkAKeystrokeOnALongPage(b *testing.B) {
 		name string
 		n    int
 		one  bool
-	}{{"paragraphs=2000", 2000, false}, {"oneParagraph=16KiB", 16 << 10 / len(longParagraph), true}, {"oneParagraph=64KiB", 64 << 10 / len(longParagraph), true}} {
+	}{{"paragraphs=2000", 2000, false}, {"paragraphs=20000", 20000, false}, {"oneParagraph=16KiB", 16 << 10 / len(longParagraph), true}, {"oneParagraph=64KiB", 64 << 10 / len(longParagraph), true}} {
 		b.Run(c.name, func(b *testing.B) {
 			el := newBenchElement(b, longPage(c.n, c.one))
 			el.viewport.W, el.viewport.H = 900, 600

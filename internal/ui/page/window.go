@@ -2,6 +2,7 @@ package page
 
 import (
 	"math"
+	"slices"
 	"unicode"
 	"unicode/utf8"
 
@@ -123,8 +124,10 @@ func estimate(p *present.Presentation, th present.Theme, m Metrics) float32 {
 // lays out all; else those whose place, as the last layout and the
 // sketches' heights have them, falls within the window's band, and those
 // around the selection's ends within it.
-func (ed *Editor) nearUnits(units []present.UnitRef, sketches []*present.Presentation, th present.Theme, m Metrics) []bool {
-	near := make([]bool, len(units))
+func (ed *Editor) nearUnits(units []present.UnitRef, sketches []*present.Presentation, hint []*unitLayout, th present.Theme, m Metrics) []bool {
+	near := slices.Grow(ed.nearBuf[:0], len(units))[:len(units)]
+	clear(near)
+	ed.nearBuf = near
 	w := ed.window
 	if w.whole() {
 		for i := range near {
@@ -153,32 +156,44 @@ func (ed *Editor) nearUnits(units []present.UnitRef, sketches []*present.Present
 			}
 		}
 	}
-	for id := range ed.asks {
+	if len(ed.asks) > 0 {
 		for i, u := range units {
-			if u.ID == id {
+			if _, ok := ed.asks[u.ID]; ok {
 				near[i] = true
 			}
 		}
 	}
 	y := float32(0)
-	ys := make([]float32, len(units))
-	hs := make([]float32, len(units))
+	ys := slices.Grow(ed.ysBuf[:0], 2*len(units))[:2*len(units)]
+	ed.ysBuf = ys
+	ys, hs := ys[:len(units)], ys[len(units):]
 	var prev *present.Presentation
 	for i, p := range sketches {
 		if p == nil {
 			continue
 		}
+		var was *unitLayout
+		if i < len(hint) && hint[i].pres.Unit == p.Unit {
+			was = hint[i]
+		}
 		if prev != nil {
-			y += m.Gap * ed.cache.gapBetween(prev, p, th)
+			if was != nil && was.gapFrom == [2]*present.Presentation{prev, p} {
+				y += m.Gap * was.gap
+			} else {
+				y += m.Gap * ed.cache.gapBetween(prev, p, th)
+			}
 		}
 		prev = p
 		var h float32
-		if u, ok := ed.cache.units[p.Unit]; ok {
-			h = u.h
-		} else if u, ok := ed.cache.sketches[p.Unit]; ok && u.pres == p {
-			h = u.h
-		} else {
-			h, _ = ed.cache.heightOf(p, th, m)
+		switch {
+		case was != nil && (!was.sketch || was.pres == p):
+			h = was.h
+		default:
+			if u, ok := ed.cache.units[p.Unit]; ok {
+				h = u.h
+			} else {
+				h, _ = ed.cache.heightOf(p, th, m)
+			}
 		}
 		ys[i], hs[i] = y, h
 		if y+h >= from && y <= to {

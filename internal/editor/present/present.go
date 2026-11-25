@@ -234,6 +234,9 @@ type Presenter struct {
 	sketches map[doc.ID]*Presentation
 	gen      uint64
 	used     map[doc.ID]uint64
+	// sketched are the stand-ins in the order of sketchedOf's units.
+	sketchedOf *unitList
+	sketched   []*Presentation
 }
 
 // keptCalls is how many calls to Present a presentation not asked for
@@ -249,6 +252,24 @@ type unitList struct {
 	shape *doc.Shape
 	list  []UnitRef
 	index map[doc.ID]int
+	// paths are where each unit stands from the root, as slot and child
+	// index pairs, path[i] in steps[at[i]:at[i+1]]: the same in every
+	// snapshot of the structure, so a unit's node is read down the tree.
+	steps []int32
+	at    []int32
+}
+
+// node is unit i's node in r, a snapshot of the list's structure.
+func (ul *unitList) node(r doc.Reader, i int) (*doc.Node, bool) {
+	n := r.Root()
+	for k := ul.at[i]; k < ul.at[i+1]; k += 2 {
+		s := n.Slot(int(ul.steps[k]))
+		n = s.Child(int(ul.steps[k+1]))
+	}
+	if n.ID() != ul.list[i].ID {
+		return r.Node(ul.list[i].ID)
+	}
+	return n, true
 }
 
 // NewPresenter returns a presenter of a profile's documents.
@@ -294,6 +315,8 @@ func (pr *Presenter) unitsOf(r doc.Reader) *unitList {
 		return pr.units
 	}
 	var out []UnitRef
+	var path, steps []int32
+	at := []int32{0}
 	var walk func(n *doc.Node, ctx Context)
 	walk = func(n *doc.Node, ctx Context) {
 		for si, s := range n.Slots() {
@@ -301,8 +324,11 @@ func (pr *Presenter) unitsOf(r doc.Reader) *unitList {
 				continue
 			}
 			for i, c := range s.Children() {
+				path = append(path, int32(si), int32(i))
 				in := pr.look.Contain(r, c, ctx)
 				if in.Unit {
+					steps = append(steps, path...)
+					at = append(at, int32(len(steps)))
 					ref := UnitRef{ID: c.ID(), Context: in.Own}
 					if r.Schema().IsObject(c.Kind()) {
 						ref.Gap = &doc.Pos{Node: n.ID(), Slot: si, Offset: i}
@@ -314,6 +340,7 @@ func (pr *Presenter) unitsOf(r doc.Reader) *unitList {
 				if in.Open {
 					walk(c, in.Inner)
 				}
+				path = path[:len(path)-2]
 			}
 		}
 	}
@@ -322,7 +349,7 @@ func (pr *Presenter) unitsOf(r doc.Reader) *unitList {
 	for i, u := range out {
 		index[u.ID] = i
 	}
-	pr.units = &unitList{shape: r.Shape(), list: out, index: index}
+	pr.units = &unitList{shape: r.Shape(), list: out, index: index, steps: steps, at: at}
 	return pr.units
 }
 
@@ -426,33 +453,42 @@ func (pr *Presenter) sweep(gen uint64) {
 	}
 }
 
-// Sketch returns stand-ins for units presented without their text: a
-// unit as a renderer places it far from its view, with its kind, look,
-// context and gaps, and no surfaces or stops. A unit's stand-in is the
-// same pointer while what it is drawn from is unchanged.
-func (pr *Presenter) Sketch(r doc.Reader, ids []doc.ID) []*Presentation {
+// Sketch returns stand-ins for every unit, in the order of Units, as a
+// renderer places a unit far from its view without its text: its kind,
+// look, context and gaps, and no surfaces or stops. A unit's stand-in is
+// the same pointer while what it is drawn from is unchanged.
+func (pr *Presenter) Sketch(r doc.Reader) []*Presentation {
 	ul := pr.unitsOf(r)
-	out := make([]*Presentation, len(ids))
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
-	for i, id := range ids {
-		at, ok := ul.index[id]
+	if pr.sketchedOf != ul {
+		// Another structure: the stand-ins kept by unit go over to it.
+		kept := make([]*Presentation, len(ul.list))
+		for i, u := range ul.list {
+			kept[i] = pr.sketches[u.ID]
+		}
+		clear(pr.sketches)
+		for i, u := range ul.list {
+			if kept[i] != nil {
+				pr.sketches[u.ID] = kept[i]
+			}
+		}
+		pr.sketchedOf, pr.sketched = ul, kept
+	}
+	out := make([]*Presentation, len(ul.list))
+	for i, u := range ul.list {
+		n, ok := ul.node(r, i)
 		if !ok {
 			continue
 		}
-		u := ul.list[at]
-		n, ok := r.Node(id)
-		if !ok {
-			continue
-		}
-		if p, ok := pr.sketches[id]; ok && p.Node == n && p.Context == u.Context && samePos(p.Gap, u.Gap) && p.Gaps == u.Gaps {
+		if p := pr.sketched[i]; p != nil && p.Node == n && p.Context == u.Context && samePos(p.Gap, u.Gap) && p.Gaps == u.Gaps {
 			out[i] = p
 			continue
 		}
 		style := pr.look.Style(r, n, u.Context)
-		p := &Presentation{Unit: id, Kind: n.Kind(), Node: n, Context: u.Context, Group: style.Group,
+		p := &Presentation{Unit: u.ID, Kind: n.Kind(), Node: n, Context: u.Context, Group: style.Group,
 			Role: style.Role, Level: style.Level, Gap: u.Gap, Gaps: u.Gaps, Object: r.Schema().IsObject(n.Kind()), Sketch: true}
-		pr.sketches[id] = p
+		pr.sketched[i], pr.sketches[u.ID] = p, p
 		out[i] = p
 	}
 	return out

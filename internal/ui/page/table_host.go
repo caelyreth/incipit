@@ -333,7 +333,7 @@ func (a *tableFlowAdapter) Tell(in []table.FlowIn, now time.Time, animate bool) 
 			from:   it.From,
 		}
 	}
-	return a.f.tell(fin, now, animate)
+	return a.f.tell(fin, nil, now, animate)
 }
 func (a *tableFlowAdapter) Step(now time.Time, animate bool) bool {
 	return a.f.step(now, animate)

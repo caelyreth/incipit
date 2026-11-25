@@ -29,7 +29,10 @@ func keyMetrics(p *present.Presentation, m Metrics) Metrics {
 
 // build lays the presentations out. Units whose presentation, metrics and
 // composition are unchanged keep their shaped text.
-func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorations, th present.Theme, m Metrics, ins map[doc.ID]objectIn) *pageLayout {
+//
+// hint, when given, is the layout before, unit for unit: a sketch standing
+// where it stood there is taken from it rather than looked up.
+func (lc *layoutCache) build(pres []*present.Presentation, hint []*unitLayout, deco present.Decorations, th present.Theme, m Metrics, ins map[doc.ID]objectIn) *pageLayout {
 	lc.sugg = deco.Suggestion
 	defer func() { lc.sugg = nil }()
 	pl := &pageLayout{slots: map[doc.SlotRef]*unitLayout{}, gaps: map[doc.Caret]place{}}
@@ -43,8 +46,25 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 	}
 	y := float32(0)
 	var prev *present.Presentation
-	for _, p := range pres {
+	pl.units = make([]*unitLayout, 0, len(pres))
+	for i, p := range pres {
 		if p == nil {
+			continue
+		}
+		if p.Sketch && i < len(hint) && hint[i].sketch && hint[i].pres == p && lc.sketchedAt == hint[i].placedAt {
+			// A sketch as it was: only its place is new.
+			u := hint[i]
+			u.gen = lc.gen
+			if prev != nil {
+				if u.gapFrom[0] != prev {
+					u.gap, u.gapFrom = lc.gapBetween(prev, p, th), [2]*present.Presentation{prev, p}
+				}
+				y += m.Gap * u.gap
+			}
+			prev = p
+			u.y, u.top = y, y
+			y += u.h
+			pl.units = append(pl.units, u)
 			continue
 		}
 		key := layoutKey{pres: p, metrics: keyMetrics(p, m), theme: lc.themeID, in: objectIn{span: -1}}
@@ -81,10 +101,16 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 			lc.units[p.Unit] = u
 			lc.measured[p.Unit] = measured{node: p.Node, metrics: key.metrics, theme: lc.themeID, h: u.h, shape: shapeOf(u)}
 			delete(lc.estimates, p.Unit)
-			delete(lc.sketches, p.Unit)
+			if _, was := lc.sketches[p.Unit]; was {
+				if pl.unsketched == nil {
+					pl.unsketched = map[doc.ID]bool{}
+				}
+				pl.unsketched[p.Unit] = true
+				delete(lc.sketches, p.Unit)
+			}
 		}
 		u.gen = lc.gen
-		u.gap = 0
+		u.gap, u.gapFrom = 0, [2]*present.Presentation{prev, p}
 		if prev != nil {
 			u.gap = lc.gapBetween(prev, p, th)
 			gap := u.gap
@@ -184,7 +210,7 @@ func (lc *layoutCache) sketchOf(p *present.Presentation, th present.Theme, m Met
 	if ms, ok := lc.measured[p.Unit]; ok && ms.node == p.Node {
 		shape = ms.shape
 	}
-	u := &unitLayout{pres: p, sketch: true, shape: shape, x: indentOf(p.Context, m), h: h, shown: h, fade: 1}
+	u := &unitLayout{pres: p, sketch: true, shape: shape, x: indentOf(p.Context, m), h: h, shown: h, fade: 1, placedAt: lc.sketchedAt}
 	lc.sketches[p.Unit] = u
 	return u
 }

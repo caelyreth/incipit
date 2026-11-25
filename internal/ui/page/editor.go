@@ -80,6 +80,10 @@ type Editor struct {
 	// the element takes into its scroll (TakeShift).
 	window, laid window
 	shift        float32
+	// nearBuf and ysBuf are the room the window's reckoning is done in,
+	// kept between layouts.
+	nearBuf []bool
+	ysBuf   []float32
 	// closed is an editor whose view is closed: what still shows it, as a
 	// page fading out, draws nothing more.
 	closed bool
@@ -143,16 +147,18 @@ func (ed *Editor) Relayout() *pageLayout {
 	ed.built, ed.builtAsks, ed.laid = in, ed.asks, ed.window
 	ed.relayouts++
 	units := ed.Engine.Units(ed.View)
-	ids := make([]doc.ID, len(units))
-	for i, u := range units {
-		ids[i] = u.ID
+	all := ed.Engine.Sketch(ed.View)
+	// The layout before, unit for unit, while the page holds the same
+	// units: what each was placed at is read from it, not looked up.
+	var hint []*unitLayout
+	if ed.layout != nil && len(ed.layout.units) == len(all) {
+		hint = ed.layout.units
 	}
-	all := ed.Engine.Sketch(ed.View, ids)
-	near := ed.nearUnits(units, all, ed.theme, ed.metrics)
+	near := ed.nearUnits(units, all, hint, ed.theme, ed.metrics)
 	var nearIDs []doc.ID
 	for i, ok := range near {
 		if ok {
-			nearIDs = append(nearIDs, ids[i])
+			nearIDs = append(nearIDs, units[i].ID)
 		}
 	}
 	pres := ed.Engine.Present(ed.View, nearIDs)
@@ -164,7 +170,7 @@ func (ed *Editor) Relayout() *pageLayout {
 		}
 	}
 	before := above(ed.layout, ed.window)
-	ed.layout = ed.cache.build(all, ed.deco, ed.theme, ed.metrics, ed.asks)
+	ed.layout = ed.cache.build(all, hint, ed.deco, ed.theme, ed.metrics, ed.asks)
 	ed.shift += grewAbove(before, ed.layout)
 	return ed.layout
 }

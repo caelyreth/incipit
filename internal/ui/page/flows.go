@@ -43,6 +43,9 @@ type flowIn struct {
 	moves         bool
 	kept          any
 	from          float32
+	// quiet is set for what comes into the flow without entering where it
+	// is: a unit of a long page laid out as the view came near it.
+	quiet bool
 }
 
 // flowItem is how one thing in a flow is drawn on its way: its extent,
@@ -77,8 +80,10 @@ type flow struct {
 }
 
 // tell has the flow hold in, at now: what changed since it was last told
-// starts on its way. It reports whether the flow changed at all.
-func (f *flow) tell(in []flowIn, now time.Time, animate bool) bool {
+// starts on its way. What quiet, when given, reports goes from the flow
+// without leaving where it is, as a unit put by far from the view. It
+// reports whether the flow changed at all.
+func (f *flow) tell(in []flowIn, quiet func(doc.ID) bool, now time.Time, animate bool) bool {
 	if f.items == nil {
 		f.items = map[doc.ID]*flowItem{}
 	}
@@ -121,6 +126,9 @@ func (f *flow) tell(in []flowIn, now time.Time, animate bool) bool {
 		}
 		it := f.items[id]
 		delete(f.items, id)
+		if quiet != nil && quiet(id) {
+			continue
+		}
 		g := gapOf(after)
 		g.after = after
 		g.moves = g.moves || it.moves
@@ -129,6 +137,11 @@ func (f *flow) tell(in []flowIn, now time.Time, animate bool) bool {
 	after = 0
 	for i, it := range in {
 		if _, ok := f.items[it.id]; ok {
+			after = it.id
+			continue
+		}
+		if it.quiet {
+			f.items[it.id] = standing(it, now)
 			after = it.id
 			continue
 		}

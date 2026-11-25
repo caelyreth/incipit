@@ -244,11 +244,11 @@ func TestASketchStandsInWithoutTextAndPresentationsNotAskedForGo(t *testing.T) {
 	}
 	units := e.Units(1)
 	ids := []doc.ID{units[0].ID, units[len(units)-1].ID}
-	sk := e.Sketch(1, ids)
-	if sk[0] == nil || !sk[0].Sketch || len(sk[0].Surfaces) != 0 || len(sk[0].Stops) != 0 || sk[0].Unit != ids[0] {
+	sk := e.Sketch(1)
+	if len(sk) != len(units) || sk[0] == nil || !sk[0].Sketch || len(sk[0].Surfaces) != 0 || len(sk[0].Stops) != 0 || sk[0].Unit != ids[0] {
 		t.Fatalf("sketch %+v", sk[0])
 	}
-	if again := e.Sketch(1, ids); again[0] != sk[0] || again[1] != sk[1] {
+	if again := e.Sketch(1); again[0] != sk[0] || again[len(again)-1] != sk[len(sk)-1] {
 		t.Fatal("an unchanged unit's sketch is a new pointer")
 	}
 	first := e.Present(1, ids[:1])[0]
