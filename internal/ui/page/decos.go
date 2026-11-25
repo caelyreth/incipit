@@ -361,26 +361,32 @@ func (el *Element) paintLine(p *ui.Painter, sd *shownDeco, ox, oy float32, now t
 }
 
 // paintWave draws a wavy line from x to x+w along y, as a spell checker
-// marks a word: a whole wave per waveLength, starting on the line.
+// marks a word: a smooth wave, its period stretched a little so a word
+// holds whole half waves and the line ends where it starts, on y.
 func paintWave(p *ui.Painter, x, y, w float32, ink ui.Color) {
 	if w <= 0 {
 		return
 	}
-	steps := max(2, int(w/waveLength*4))
+	halves := max(1, int(math.Round(float64(2*w/waveLength))))
+	period := 2 * w / float32(halves)
+	steps := halves * waveSamples / 2
 	pts := make([][2]float32, steps+1)
 	for i := range pts {
-		t := float32(i) / float32(steps) * w
-		pts[i] = [2]float32{x + t, y + waveHeight*float32(math.Sin(float64(t/waveLength)*2*math.Pi))}
+		t := w * float32(i) / float32(steps)
+		pts[i] = [2]float32{x + t, y + waveHeight*float32(math.Sin(2*math.Pi*float64(t/period)))}
 	}
 	p.StrokePolyline(pts, waveWidth, ink)
 }
 
 const (
 	// waveLength and waveHeight are a spelling wave's period and
-	// amplitude; waveWidth its stroke.
-	waveLength = 4
-	waveHeight = 1
-	waveWidth  = 1.2
+	// amplitude, waveSamples the points a period is drawn through, and
+	// waveWidth its stroke: long and shallow, so it reads as a line that
+	// wavers rather than a zigzag.
+	waveLength  = 7
+	waveHeight  = 1.25
+	waveSamples = 14
+	waveWidth   = 1
 )
 
 const (
