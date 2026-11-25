@@ -38,6 +38,15 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 	if el.stepViewport(now, animate) {
 		p.AnimationFrame()
 	}
+	// The page laid out near the view, scrolled toward a sketch's band, is
+	// laid out again around where it now stands (window.go).
+	if el.leftBand() {
+		pl = el.relayout()
+		el.settleRooms(pl, now, true, animate)
+	}
+	if !el.glide.Moving() {
+		el.revealing = false
+	}
 	t := el.Theme
 	ox, oy := r.X+el.column, r.Y+el.Top-el.offset()
 	top, bottom := r.Y, r.Y+r.H

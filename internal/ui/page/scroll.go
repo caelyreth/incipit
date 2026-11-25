@@ -134,6 +134,7 @@ func (el *Element) revealCaret(pl *pageLayout, now time.Time) {
 		return
 	}
 	el.glide.To(el.scroll, target, now)
+	el.revealing = true
 }
 
 // stepViewport brings the glide and the pull past an edge to now, and

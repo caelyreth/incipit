@@ -74,6 +74,12 @@ type Editor struct {
 	built     builtFrom
 	builtAsks map[doc.ID]objectIn
 	relayouts int
+	// window is the band of the page its element shows, and laid what the
+	// layout was last laid out around (window.go); shift is how far the
+	// page above the window grew as sketches there were laid out, which
+	// the element takes into its scroll (TakeShift).
+	window, laid window
+	shift        float32
 	// closed is an editor whose view is closed: what still shows it, as a
 	// page fading out, draws nothing more.
 	closed bool
@@ -122,32 +128,54 @@ func (ed *Editor) SetStyle(key any, th present.Theme, m Metrics) {
 	ed.metrics = m
 }
 
-// Relayout lays out what the engine presents now.
-//
-// TODO(perf): a relayout pulls every unit, kept presentations and layouts
-// included, and every unit's shaped text stays. Present and lay out the
-// viewport, with a height index, estimates for unmeasured units and scroll
-// anchoring (§14.2).
+// Relayout lays out what the engine presents now: the units near the
+// window, each other unit sketched (window.go).
 //
 // The layout is a projection of the engine's state, the theme, the
-// measures and what the page asks of its objects: while none of them
-// changed it is the one last built.
+// measures, what the page asks of its objects and the band of the page
+// the window lays out: while none of them changed, and the window is
+// still within that band, it is the one last built.
 func (ed *Editor) Relayout() *pageLayout {
 	in := builtFrom{version: ed.Engine.Version(), theme: ed.cache.themeID, metrics: ed.metrics}
-	if ed.layout != nil && ed.built == in && maps.Equal(ed.builtAsks, ed.asks) {
+	if ed.layout != nil && ed.built == in && maps.Equal(ed.builtAsks, ed.asks) && ed.window.covers(ed.laid, ed.layout.rest) {
 		return ed.layout
 	}
-	ed.built, ed.builtAsks = in, ed.asks
+	ed.built, ed.builtAsks, ed.laid = in, ed.asks, ed.window
 	ed.relayouts++
 	units := ed.Engine.Units(ed.View)
 	ids := make([]doc.ID, len(units))
 	for i, u := range units {
 		ids[i] = u.ID
 	}
-	pres := ed.Engine.Present(ed.View, ids)
+	all := ed.Engine.Sketch(ed.View, ids)
+	near := ed.nearUnits(units, all, ed.theme, ed.metrics)
+	var nearIDs []doc.ID
+	for i, ok := range near {
+		if ok {
+			nearIDs = append(nearIDs, ids[i])
+		}
+	}
+	pres := ed.Engine.Present(ed.View, nearIDs)
 	ed.deco = ed.Engine.DecorationsOf(ed.View, pres)
-	ed.layout = ed.cache.build(pres, ed.deco, ed.theme, ed.metrics, ed.asks)
+	for i, j := 0, 0; i < len(all); i++ {
+		if near[i] {
+			all[i] = pres[j]
+			j++
+		}
+	}
+	before := above(ed.layout, ed.window)
+	ed.layout = ed.cache.build(all, ed.deco, ed.theme, ed.metrics, ed.asks)
+	ed.shift += grewAbove(before, ed.layout)
 	return ed.layout
+}
+
+// TakeShift is how far the page above the window grew since it was last
+// taken, as sketches there were laid out at heights other than their
+// estimates: the element scrolls by as much, so what it shows stays.
+func (ed *Editor) TakeShift() float32 {
+	d := ed.shift
+	ed.shift = 0
+	return d
 }
 
 // Selection is the view's selection.

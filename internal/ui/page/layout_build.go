@@ -33,7 +33,14 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 	lc.sugg = deco.Suggestion
 	defer func() { lc.sugg = nil }()
 	pl := &pageLayout{slots: map[doc.SlotRef]*unitLayout{}, gaps: map[doc.Caret]place{}}
-	keep := map[doc.ID]bool{}
+	lc.gen++
+	if from := (sketchedAt{m, lc.themeID}); lc.sketchedAt != from {
+		// Sketches are placed again at the measures and theme they are
+		// drawn at now, and the gaps between units resolved again.
+		lc.sketchedAt = from
+		clear(lc.sketches)
+		clear(lc.gapOf)
+	}
 	y := float32(0)
 	var prev *present.Presentation
 	for _, p := range pres {
@@ -55,7 +62,10 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 			size = th.Resolve([]vocab.Group{p.Surfaces[0].Group}).Size
 		}
 		u, ok := lc.units[p.Unit]
-		if !ok || u.key != key {
+		switch {
+		case p.Sketch:
+			u = lc.sketchOf(p, th, m)
+		case !ok || u.key != key:
 			if ok && size != 0 && u.size != 0 && size != u.size {
 				lc.resizedFrom(p.Unit, u)
 			}
@@ -69,11 +79,14 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 			}
 			u.key, u.size = key, size
 			lc.units[p.Unit] = u
+			lc.measured[p.Unit] = measured{node: p.Node, metrics: key.metrics, theme: lc.themeID, h: u.h, shape: shapeOf(u)}
+			delete(lc.estimates, p.Unit)
+			delete(lc.sketches, p.Unit)
 		}
-		keep[p.Unit] = true
+		u.gen = lc.gen
 		u.gap = 0
 		if prev != nil {
-			u.gap = gapBetween(prev, p, th)
+			u.gap = lc.gapBetween(prev, p, th)
 			gap := u.gap
 			if key.in.size != 0 {
 				gap = key.in.gap
@@ -113,12 +126,67 @@ func (lc *layoutCache) build(pres []*present.Presentation, deco present.Decorati
 		}
 	}
 	pl.height, pl.rest = y, y
-	for id := range lc.units {
-		if !keep[id] {
+	for id, u := range lc.units {
+		if u.gen != lc.gen {
 			delete(lc.units, id)
 		}
 	}
+	for id, u := range lc.sketches {
+		if u.gen != lc.gen {
+			delete(lc.sketches, id)
+		}
+	}
+	if len(lc.measured) > len(lc.units)+len(lc.sketches) {
+		for id := range lc.measured {
+			if lc.units[id] == nil && lc.sketches[id] == nil {
+				delete(lc.measured, id)
+				delete(lc.estimates, id)
+			}
+		}
+	}
 	return pl
+}
+
+// sketchedAt is what sketches were placed at: the measures and theme.
+type sketchedAt struct {
+	m     Metrics
+	theme uintptr
+}
+
+// gapKey is what the gap between two units is resolved from.
+type gapKey struct {
+	above, below vocab.Group
+	marked       bool
+}
+
+// gapBetween is gapBetween as the cache resolved it last for the same
+// looks, at the theme sketches were placed at.
+func (lc *layoutCache) gapBetween(above, p *present.Presentation, th present.Theme) float32 {
+	k := gapKey{above.Group, p.Group, p.Context.Marker != nil}
+	if g, ok := lc.gapOf[k]; ok {
+		return g
+	}
+	g := gapBetween(above, p, th)
+	lc.gapOf[k] = g
+	return g
+}
+
+// sketchOf is the layout of a unit sketched far from the window: only its
+// place, at its height as last laid out or an estimate (window.go). It is
+// the one last made while its stand-in is the same and the unit was not
+// laid out since, at the same measures and theme.
+func (lc *layoutCache) sketchOf(p *present.Presentation, th present.Theme, m Metrics) *unitLayout {
+	if u, ok := lc.sketches[p.Unit]; ok && u.pres == p {
+		return u
+	}
+	h, _ := lc.heightOf(p, th, m)
+	shape := -1
+	if ms, ok := lc.measured[p.Unit]; ok && ms.node == p.Node {
+		shape = ms.shape
+	}
+	u := &unitLayout{pres: p, sketch: true, shape: shape, x: indentOf(p.Context, m), h: h, shown: h, fade: 1}
+	lc.sketches[p.Unit] = u
+	return u
 }
 
 type surfStop struct {

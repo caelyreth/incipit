@@ -216,6 +216,13 @@ type unitLayout struct {
 	// page as drawn, top its top with every room above settled, and h its
 	// height.
 	x, y, top, h float32
+	// sketch is set for a unit placed far from the window without its
+	// text, at its height as last laid out or an estimate, and shape what
+	// it held open then, -1 where it never was laid out (window.go).
+	sketch bool
+	shape  int
+	// gen is the build that last kept the layout (layoutCache.gen).
+	gen uint64
 	// far is whether its text's shaping was let go, far out of view, and
 	// held whether it was read there since, so it stays shaped
 	// (release.go).
@@ -342,6 +349,18 @@ type place struct {
 // layoutCache keeps units' layouts between frames, by unit.
 type layoutCache struct {
 	units map[doc.ID]*unitLayout
+	// sketches are the layouts of units sketched far from the window;
+	// measured is how each unit was last laid out, and estimates the
+	// heights of those never laid out as they are (window.go).
+	sketches  map[doc.ID]*unitLayout
+	measured  map[doc.ID]measured
+	estimates map[doc.ID]estimated
+	// gen counts the builds, which stamp the layouts they keep;
+	// sketchedAt is what the sketches were placed at, and gapOf the gaps
+	// between looks resolved there.
+	gen        uint64
+	sketchedAt sketchedAt
+	gapOf      map[gapKey]float32
 	// resized is where each unit whose text changed size was drawn as it
 	// changed, until a paint takes it up (sizes.go).
 	resized map[doc.ID]resize
@@ -352,7 +371,8 @@ type layoutCache struct {
 }
 
 func newLayoutCache() *layoutCache {
-	return &layoutCache{units: map[doc.ID]*unitLayout{}, good: map[lastGood]string{}}
+	return &layoutCache{units: map[doc.ID]*unitLayout{}, good: map[lastGood]string{},
+		sketches: map[doc.ID]*unitLayout{}, measured: map[doc.ID]measured{}, estimates: map[doc.ID]estimated{}, gapOf: map[gapKey]float32{}}
 }
 
 // keyMetrics is what of m p's layout is keyed on: the margins only for

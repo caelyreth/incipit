@@ -67,6 +67,13 @@ type Element struct {
 	restoreScroll *float32
 	glide         motion.Glide
 	overscroll    motion.Elastic
+
+	// revealing is whether the glide under way reveals the caret, which a
+	// layout of the page near the view places again (relayout); assistive
+	// whether assistive technology reads the page, which then lays out
+	// every unit to describe it (accessUnits).
+	revealing, assistive bool
+
 	// ranged is the scroll range the last paint found, and astray whether
 	// it shrank past the page, which then glides back in (stepViewport).
 	ranged   [2]float32
@@ -227,7 +234,20 @@ func (el *Element) relayout() *pageLayout {
 	if el.LayoutWidth > 0 {
 		el.column = el.Inset
 	}
+	el.setWindow()
+	was := ed.layout
 	pl := ed.Relayout()
+	if d := ed.TakeShift(); d != 0 {
+		// The page above the view grew as what was sketched there was laid
+		// out: the view keeps what it shows.
+		el.scroll += d
+		el.glide.Shift(d)
+	}
+	if pl != was && el.revealing && el.glide.Moving() {
+		// A caret revealed past sketches is placed again as they are laid
+		// out: the glide goes on to where it now stands.
+		el.revealCaret(pl, ed.now())
+	}
 	el.settleRooms(pl, el.paintNow, false, el.animate)
 	el.settle(pl, false)
 	el.applyRestoredScroll(pl)
@@ -286,6 +306,7 @@ func (el *Element) View(c *ui.Context) {
 	services := c.Services()
 	ed.setWake(services.Invalidate)
 	ed.clock = services.Now
+	el.assistive = c.AssistiveTechnology()
 	ed.Due(c.Now())
 	pl := el.relayout()
 	el.follow(pl, c.Now())

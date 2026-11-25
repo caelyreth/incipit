@@ -39,6 +39,9 @@ type left struct {
 // shapeOf is what a unit holds open: its surfaces, and what its object
 // holds open besides.
 func shapeOf(u *unitLayout) int {
+	if u.sketch {
+		return u.shape
+	}
 	n := 0
 	for _, s := range u.surfaces {
 		// A grid's cells are its lines', which come in by themselves.
@@ -97,6 +100,10 @@ func (el *Element) settleRooms(pl *pageLayout, now time.Time, frame, animate boo
 			case r == nil:
 				r = &room{shape: shape, from: u.h}
 				el.rooms[id] = r
+			case r.shape < 0 || shape < 0:
+				// A sketch laid out, or one put by: the unit is as it was,
+				// only now known, or not, so nothing opened or closed.
+				r.shape, r.from, r.prev = shape, u.h, nil
 			case r.shape != shape:
 				r.from, r.prev, r.shape = extent, r.last, shape
 			}
