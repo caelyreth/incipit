@@ -14,8 +14,8 @@ import (
 
 const (
 	defaultPredictDelay = 350 * time.Millisecond
-	suggEnterDuration   = 240 * time.Millisecond
-	suggExitDuration    = 180 * time.Millisecond
+	suggEnterDuration   = 140 * time.Millisecond
+	suggExitDuration    = 105 * time.Millisecond
 	suggSlideY          = float32(4)
 	suggExitSlideY      = float32(3)
 )
