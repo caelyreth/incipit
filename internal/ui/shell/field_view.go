@@ -461,7 +461,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 // pillBackdrop is what the stuck pill stands on, reaching from the
 // window's top, or its foot, as far as edge.
 func (s *State) pillBackdrop(c *ui.Context, semantic theme.Theme, w, edge, ribbonFade float32, foot bool) {
-	mask := ui.LinearGradient{From: ui.RGB(0, 0, 0), To: ui.Transparent, Angle: 180}
+	mask := ui.LinearGradient{From: ui.RGB(0, 0, 0), To: ui.Transparent, Start: 0.15, End: 1.0, Angle: 180}
 	if foot {
 		mask.Angle = 0
 	}
