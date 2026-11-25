@@ -21,6 +21,8 @@ type Element struct {
 	Editor *Editor
 	// tags is the picker a tag being written opens (tags.go).
 	tags tagPicker
+	// guessed holds the menu's corrections for the word it was opened on.
+	guessed guessed
 	// tools are the selection's (selection_tools.go).
 	tools toolsState
 	// Theme and Prose are the colors and text measures the page shows in.

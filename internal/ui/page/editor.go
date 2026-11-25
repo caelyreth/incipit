@@ -37,6 +37,10 @@ type Editor struct {
 	// first, but for one count of writing, the tag the caret is writing;
 	// nil offers only the tag being written.
 	Tags func(writing string) []string
+	// Guesses are the corrections the system's checker has for a word,
+	// best first, which the page's menu offers over a misspelled one; nil
+	// offers none.
+	Guesses func(word string) []string
 
 	theme   present.Theme
 	themeOf any

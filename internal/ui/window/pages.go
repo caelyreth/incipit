@@ -120,6 +120,7 @@ func (a *AppState) openEditor(session *sheetSession, col workspace.ColumnID) *pa
 	}
 	ed.Keep = a.keep
 	ed.Tags = func(writing string) []string { return a.notebookTags(session, writing) }
+	ed.Guesses = spellingGuesses
 	el := page.NewElement(ed)
 	el.Pictures = a.pictures()
 	if place, ok := a.Workspace.Place(col); ok {

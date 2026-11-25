@@ -8,6 +8,7 @@ import (
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/present"
 	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
@@ -71,9 +72,19 @@ func (tp *tagPicker) open() bool { return tp.at != nil && len(tp.rows) > 0 }
 // tagAt is the tag holding the caret at c, from the start of its name to
 // its end, as the page presents it.
 func (pl *pageLayout) tagAt(c doc.Caret) (tagHere, bool) {
+	slot, from, text, ok := pl.runAt(c, profile.GroupTag)
+	if !ok {
+		return tagHere{}, false
+	}
+	return tagHere{key: tagKey{slot: slot, from: from}, name: strings.TrimPrefix(text, string(profile.TagSpelling))}, true
+}
+
+// runAt is the text the page presents in group g holding the caret at c,
+// past its start: its slot, where it starts and what it reads.
+func (pl *pageLayout) runAt(c doc.Caret, g vocab.Group) (doc.SlotRef, int, string, bool) {
 	pc, ok := pl.lookup(c)
 	if !ok || pc.surface == nil || pc.surface.index >= len(pc.unit.pres.Surfaces) {
-		return tagHere{}, false
+		return doc.SlotRef{}, 0, "", false
 	}
 	off := c.Pos.Offset
 	type run struct {
@@ -82,7 +93,7 @@ func (pl *pageLayout) tagAt(c doc.Caret) (tagHere, bool) {
 	}
 	var runs []run
 	for _, it := range pc.unit.pres.Surfaces[pc.surface.index].Flow.Items {
-		if it.Kind != present.TextRun || !slices.Contains(it.Groups, profile.GroupTag) {
+		if it.Kind != present.TextRun || !slices.Contains(it.Groups, g) {
 			continue
 		}
 		if n := len(runs); n > 0 && runs[n-1].to == it.From {
@@ -93,11 +104,10 @@ func (pl *pageLayout) tagAt(c doc.Caret) (tagHere, bool) {
 	}
 	for _, r := range runs {
 		if r.from < off && off <= r.to {
-			name := strings.TrimPrefix(r.text, string(profile.TagSpelling))
-			return tagHere{key: tagKey{slot: pc.surface.slot, from: r.from}, name: name}, true
+			return pc.surface.slot, r.from, r.text, true
 		}
 	}
-	return tagHere{}, false
+	return doc.SlotRef{}, 0, "", false
 }
 
 // tagRows are what the picker offers for the name being written, from the

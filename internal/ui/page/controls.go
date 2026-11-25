@@ -268,6 +268,9 @@ func (el *Element) menuGroups() [][]vocab.CommandID {
 // field's menus are; then the text's editing items.
 func (el *Element) contextMenu(m *ui.Menu, services ui.Services) {
 	labels := el.commandLabels()
+	if el.guessItems(m, services) {
+		m.Separator()
+	}
 	for _, group := range el.menuGroups() {
 		for _, id := range group {
 			if id == profile.LookUpCommand && !services.CanShowDefinition() {

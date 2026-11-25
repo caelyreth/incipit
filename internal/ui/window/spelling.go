@@ -22,6 +22,10 @@ func (systemSpelling) Check(text string, grammar bool) []spelling.Issue {
 	return out
 }
 
+// spellingGuesses are the system's corrections for word, where it checks
+// spelling.
+func spellingGuesses(word string) []string { return mygo.Spelling.Guesses(word, 0, len(word)) }
+
 // useSystemSpelling has the spelling policy ask the system's checker,
 // where there is one: before any program is compiled.
 func useSystemSpelling() {

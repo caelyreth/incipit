@@ -13,6 +13,7 @@ import (
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/policy"
 	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/neverland/internal/editor/vocab"
 )
 
 // ID is the policy's id.
@@ -70,6 +71,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.On(p, "ignore", policy.Intent[profile.IgnoreSpelling](), misspelled.Inside(), func(c *policy.Ctx, _ profile.IgnoreSpelling, at policy.At[issue]) policy.Result {
 		return ignore(c, wordOf(c, at))
 	}).Caret()
+	policy.On(p, "correct", policy.Intent[profile.CorrectSpelling](), misspelled.Inside(), correct).Caret()
 }, policy.Label("policies.spelling"), policy.Description("policies.spelling.description"))
 
 // ignored are the words a view no longer marks, the policy's mode: sorted,
@@ -98,6 +100,24 @@ func ignore(c *policy.Ctx, word string) policy.Result {
 	}
 	words, _ := c.Mode(ID).(ignored)
 	return policy.Result{Mode: words.with(word)}
+}
+
+// correct writes the guess over the misspelled word, in the marks its
+// first letter wears, the caret after it.
+func correct(c *policy.Ctx, in profile.CorrectSpelling, at policy.At[issue]) policy.Result {
+	content, ok := c.Inline(at.Slot)
+	if !ok || in.Word == "" || strings.ContainsAny(in.Word, "\n"+string(doc.NodeByte)) {
+		return policy.Pass
+	}
+	from, to := at.Fact.Outer.From.At, at.Fact.Outer.To.At
+	var marks *doc.MarkSet
+	if it, _, ok := content.ItemAt(from); ok {
+		marks = it.Marks
+	}
+	ref, end := at.Slot, from+len(in.Word)
+	res := policy.Do(vocab.Ops(doc.EditText{At: ref, From: from, To: to, Items: []doc.Item{doc.TextItem(in.Word, marks)}}))
+	res.Then = func(doc.Reader) doc.Selection { return doc.Collapsed(doc.CaretAt(doc.At(ref, end))) }
+	return res
 }
 
 // wordOf is the text of the misspelled word at.
