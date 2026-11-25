@@ -14,6 +14,7 @@ import (
 	"github.com/caelyreth/neverland/internal/ui/motion"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
+	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -563,8 +564,16 @@ func (el *Element) handle(ev ui.InputEvent, services ui.Services) bool {
 
 // command answers an edit-menu command.
 func (el *Element) command(name string, services ui.Services, at time.Time) bool {
-	if name == "copy" {
+	switch name {
+	case "copy":
 		return el.Editor.writeClipboard(services)
+	case "pasteAndMatchStyle":
+		data := services.ReadClipboardData(transfer.Text)
+		raw, err := data.Read(transfer.Text)
+		if err != nil || len(raw) == 0 {
+			return false
+		}
+		return el.run(vocab.Paste{Text: string(raw)}, services, at)
 	}
 	in, ok := menuIntents[name]
 	return ok && el.run(in, services, at)

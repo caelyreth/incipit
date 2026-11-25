@@ -2,10 +2,12 @@ package page
 
 import (
 	"maps"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/app/clipboard"
+	htmlconv "github.com/caelyreth/neverland/internal/app/html"
 	"github.com/caelyreth/neverland/internal/app/markdown"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/engine"
@@ -453,19 +455,43 @@ func (ed *Editor) writeClipboard(services ui.Services) bool {
 	return true
 }
 
-// pasted prefers the structured representation and falls back to plain
-// text from another application.
+func hasRichHTML(data transfer.Data) bool {
+	raw, err := data.Read(transfer.HTML)
+	if err != nil || len(raw) == 0 {
+		return false
+	}
+	slice, rich := htmlconv.Parse(raw)
+	return rich && !slice.Empty()
+}
+
+// pasted prefers Neverland's structured slice, then rich HTML, then TSV table
+// or formatted Markdown text, falling back to plain text.
 func (ed *Editor) pasted(data transfer.Data) vocab.Paste {
 	if raw, err := data.Read(transfer.Format(clipboard.Format)); err == nil {
 		if slice, err := clipboard.Decode(raw); err == nil {
 			return vocab.Paste{Slice: slice, Text: vocab.PlainText(ed.Engine.Program().Profile().Schema(), slice)}
 		}
 	}
-	text, _ := data.Read(transfer.Text)
-	if slice, ok := clipboard.TableText(string(text)); ok {
-		return vocab.Paste{Slice: slice, Text: string(text)}
+	rawText, _ := data.Read(transfer.Text)
+	text := string(rawText)
+	if rawHTML, err := data.Read(transfer.HTML); err == nil && len(rawHTML) > 0 {
+		if slice, rich := htmlconv.Parse(rawHTML); rich && !slice.Empty() {
+			fallback := text
+			if fallback == "" {
+				fallback = vocab.PlainText(ed.Engine.Program().Profile().Schema(), slice)
+			}
+			return vocab.Paste{Slice: slice, Text: fallback}
+		}
 	}
-	return vocab.Paste{Text: string(text)}
+	if strings.Contains(text, "\t") {
+		if slice, ok := clipboard.TableText(text); ok {
+			return vocab.Paste{Slice: slice, Text: text}
+		}
+	}
+	if slice, ok := markdown.Parse(text); ok && !slice.Empty() {
+		return vocab.Paste{Slice: slice, Text: text}
+	}
+	return vocab.Paste{Text: text}
 }
 
 // now is the time of input the system delivers without one, as the input

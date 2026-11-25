@@ -2,10 +2,12 @@ package page
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/app/clipboard"
+	"github.com/caelyreth/neverland/internal/app/markdown"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
@@ -150,4 +152,90 @@ func TestPastedMarkdownPicturesBecomeCaptionedFigures(t *testing.T) {
 	if named != "The bay at dawn" {
 		t.Fatalf("the picture is named %q, want its caption", named)
 	}
+}
+
+func TestPasteTranslatesHTMLAndMarkdownAndMatchStyleStaysLiteral(t *testing.T) {
+	t.Run("prefers rich HTML over plain text", func(t *testing.T) {
+		el := newElement(t)
+		data := transfer.New(transfer.NewItem(
+			transfer.Bytes(transfer.HTML, []byte(`<h2>From Web</h2><p>Hello <b>world</b></p>`)),
+			transfer.Bytes(transfer.Text, []byte("From Web\n\nHello world")),
+		))
+		in := el.Editor.pasted(data)
+		if got, want := markdown.Slice(in.Slice), "## From Web\n\nHello **world**"; got != want {
+			t.Fatalf("pasted HTML slice = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("VS Code wrapper HTML falls through to Markdown text", func(t *testing.T) {
+		el := newElement(t)
+		data := transfer.New(transfer.NewItem(
+			transfer.Bytes(transfer.HTML, []byte(`<div style="font-family:monospace"><div><span># Title</span></div><br><div><span>**bold**</span></div></div>`)),
+			transfer.Bytes(transfer.Text, []byte("# Title\n\n**bold**")),
+		))
+		in := el.Editor.pasted(data)
+		if got, want := markdown.Slice(in.Slice), "# Title\n\n**bold**"; got != want {
+			t.Fatalf("pasted VS Code Markdown = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("plain text Markdown pastes as structure", func(t *testing.T) {
+		el := newElement(t)
+		var services ui.Services
+		tester := ui.NewTester(func(c *ui.Context) {
+			services = c.Services()
+			el.View(c)
+		}, 900, 600)
+		tester.Frame()
+		tester.SetClipboard("## Notes\n\nWith *em*, ~~strike~~, and $E = mc^2$")
+		if !el.command("paste", services, time.Unix(710, 0)) {
+			t.Fatal("paste was refused")
+		}
+		children := el.Editor.Engine.Snapshot().Root().Slot(0).Children()
+		if len(children) != 2 || children[0].Kind() != profile.Heading || profile.HeadingLevel(children[0]) != 2 {
+			t.Fatalf("unexpected children: %+v", children)
+		}
+		if got := markdown.Document(el.Editor.Engine.Snapshot().Root(), nil); got != "## Notes\n\nWith *em*, ~~strike~~, and $E = mc^2$\n" {
+			t.Fatalf("document =\n%s", got)
+		}
+	})
+
+	t.Run("Paste and Match Style pastes literal characters", func(t *testing.T) {
+		el := newElement(t)
+		var services ui.Services
+		tester := ui.NewTester(func(c *ui.Context) {
+			services = c.Services()
+			el.View(c)
+		}, 900, 600)
+		tester.Frame()
+		tester.SetClipboardData(transfer.New(transfer.NewItem(
+			transfer.Bytes(transfer.HTML, []byte(`<p><b>**not bold**</b></p>`)),
+			transfer.Bytes(transfer.Text, []byte("# literal **text**")),
+		)))
+		if !el.command("pasteAndMatchStyle", services, time.Unix(720, 0)) {
+			t.Fatal("pasteAndMatchStyle was refused")
+		}
+		children := el.Editor.Engine.Snapshot().Root().Slot(0).Children()
+		if len(children) != 1 || children[0].Kind() != profile.Paragraph {
+			t.Fatalf("expected plain paragraph, got %d nodes", len(children))
+		}
+		if got := children[0].Slot(0).Content().Text(); got != "# literal **text**" {
+			t.Fatalf("literal text = %q", got)
+		}
+	})
+
+	t.Run("literal code block keeps Markdown syntax literal", func(t *testing.T) {
+		el := newElement(t)
+		typeText(el, "```py")
+		el.Editor.Do(vocab.Break{}, time.Unix(730, 0))
+		in := el.Editor.pasted(transfer.TextData("# comment\nx = 1"))
+		el.Editor.Do(in, time.Unix(731, 0))
+		children := el.Editor.Engine.Snapshot().Root().Slot(0).Children()
+		if len(children) != 1 || children[0].Kind() != profile.Code {
+			t.Fatalf("expected Code node, got %+v", children)
+		}
+		if got := children[0].Text(); !strings.Contains(got, "# comment\nx = 1") {
+			t.Fatalf("code text = %q, want literal # comment", got)
+		}
+	})
 }

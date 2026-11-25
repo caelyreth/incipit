@@ -5,6 +5,7 @@ import (
 
 	"github.com/caelyreth/neverland/internal/app/clipboard"
 	"github.com/caelyreth/neverland/internal/app/keymap"
+	"github.com/caelyreth/neverland/internal/app/markdown"
 	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
@@ -104,6 +105,9 @@ func (el *Element) run(in vocab.Intent, services ui.Services, at time.Time) bool
 		}
 		in = resolved
 	case vocab.Paste:
+		if v.Text != "" || !v.Slice.Empty() {
+			break
+		}
 		formats := services.ClipboardFormats()
 		ours := holds(formats, transfer.Format(clipboard.Format))
 		if ed.Keep != nil && !ours {
@@ -112,14 +116,17 @@ func (el *Element) run(in vocab.Intent, services ui.Services, at time.Time) bool
 				return true
 			}
 		}
-		paste := ed.pasted(services.ReadClipboardData(transfer.Format(clipboard.Format), transfer.Text))
-		if ed.Keep != nil && paste.Slice.Empty() {
-			if lines, ok := clipboard.PictureText(paste.Text, storage.AcceptsMediaFile); ok {
-				ed.pastePictureText(lines, paste.Text)
-				return true
+		data := services.ReadClipboardData(transfer.Format(clipboard.Format), transfer.HTML, transfer.Text)
+		if ed.Keep != nil && !ours && !hasRichHTML(data) {
+			if raw, err := data.Read(transfer.Text); err == nil {
+				text := string(raw)
+				if pics := markdown.LocalPictures(text, storage.AcceptsMediaFile); len(pics) > 0 {
+					ed.pasteMarkdownPictures(pics, text)
+					return true
+				}
 			}
 		}
-		in = paste
+		in = ed.pasted(data)
 	case vocab.Cut:
 		ed.writeClipboard(services)
 	}
