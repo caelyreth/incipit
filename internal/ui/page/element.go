@@ -88,6 +88,7 @@ type Element struct {
 	memos        map[memoKey]any
 	focusPending bool
 	wasFocused   bool
+	sugg         suggMotion
 	// held is until when a scroll by hand holds the page; typewriter and
 	// viewH are the mode and the height last followed.
 	held       time.Time

@@ -362,7 +362,10 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 		}
 		suggGroups := append(slices.Clone(groups), profile.GroupSuggestion)
 		ss := th.Resolve(suggGroups)
-		add(seg{kind: segSuggestion, from: suggAt, to: suggAt}, span(suggText, ss, m), ss, suggGroups)
+		sp := span(suggText, ss, m)
+		face := sp
+		lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Weight: face.Weight, Italic: face.Italic}, ui.TextShape{})
+		add(seg{kind: segSuggestion, from: suggAt, to: suggAt, text: suggText, segFace: &segFace{face: face, shaped: lay}}, sp, ss, suggGroups)
 		sl.suggEnd = u
 		sl.hasSugg = true
 		suggAt = -1

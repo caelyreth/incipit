@@ -82,6 +82,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 		shown = append(shown, su)
 	}
 	el.shownUnits = shown
+	if el.stepSuggestion(pl, focused, now, animate) {
+		p.AnimationFrame()
+	}
 	el.paintDecos(p, pl, paints, ox, oy, top, bottom, now, animate)
 	// The selection's text glides beneath the text; a drag places it
 	// directly, so it follows the pointer and glides on from there. What
@@ -132,7 +135,7 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 
 func (el *Element) paintSuggestionHint(p *ui.Painter, view ui.Rect, ox, oy float32, focused bool) {
 	ed := el.Editor
-	if !focused || ed == nil || ed.deco.Suggestion == nil || ed.layout == nil {
+	if ed == nil || ed.layout == nil {
 		return
 	}
 	scale := el.UIFontSize
@@ -143,17 +146,41 @@ func (el *Element) paintSuggestionHint(p *ui.Painter, view ui.Rect, ox, oy float
 	style.Ink = el.Theme.Text.Muted
 	keys := keymap.Keycaps(keymap.NewChord("tab", 0), keymap.PlatformCurrent)
 	_, width := style.Widths(keys)
+	paintCap := func(left, top, alpha float32) {
+		if alpha <= 0.001 {
+			return
+		}
+		left = max(min(left, view.X+view.W-width-2), view.X)
+		top = max(min(top, view.Y+view.H-style.Height-2), view.Y)
+		style.Paint(p, keys, left, top, alpha)
+	}
+	if lv := el.sugg.leaving; lv != nil && lv.alpha > 0.004 {
+		ink := styleColor(ed.theme.Resolve(lv.groups))
+		if ink == (ui.Color{}) {
+			ink = el.Theme.Text.Muted
+		}
+		p.Clip(ui.Rect{X: ox + lv.textX, Y: oy + lv.lineY - 4, W: lv.clipW, H: lv.lineH + 8}, 0, func() {
+			paintText(p, lv.shaped, ox+lv.textX+lv.dx, oy+lv.textY, ink.Alpha(lv.alpha))
+		})
+		paintCap(ox+lv.tabX+lv.dx, oy+lv.tabMidY-style.Height/2, lv.alpha)
+	}
+	if !focused || ed.deco.Suggestion == nil || el.sugg.alpha <= 0.004 {
+		return
+	}
 	for _, u := range ed.layout.units {
 		for _, s := range u.surfaces {
 			if !s.shown || !s.hasSugg {
 				continue
 			}
+			dx := el.sugg.dx
+			for _, sg := range s.segs {
+				if sg.kind == segSuggestion && suggestionWrapped(s, sg) {
+					dx = 0
+					break
+				}
+			}
 			caret := s.caretRect(s.suggEnd)
-			left := ox + u.x + s.x + caret.X + 4
-			top := oy + u.y + s.y + caret.Y + (caret.H-style.Height)/2
-			left = max(min(left, view.X+view.W-width-2), view.X)
-			top = max(min(top, view.Y+view.H-style.Height-2), view.Y)
-			style.Paint(p, keys, left, top, 1)
+			paintCap(ox+u.x+s.x+caret.X+4+dx, oy+u.y+s.y+caret.Y+(caret.H-style.Height)/2, el.sugg.alpha)
 			return
 		}
 	}
@@ -193,14 +220,26 @@ func (el *Element) paintSurface(p *ui.Painter, s *surfaceLayout, ux, uy float32,
 	}
 	el.spanColors = el.spanColors[:0]
 	for _, sg := range s.segs {
-		if sg.kind == segGhost {
+		if sg.kind == segGhost || (sg.kind == segSuggestion && !suggestionWrapped(s, sg)) {
 			el.spanColors = append(el.spanColors, invisible)
 			continue
 		}
-		el.spanColors = append(el.spanColors, styleColor(el.Editor.theme.Resolve(sg.groups)))
+		c := styleColor(el.Editor.theme.Resolve(sg.groups))
+		if sg.kind == segSuggestion {
+			if el.sugg.alpha <= 0.004 {
+				el.spanColors = append(el.spanColors, invisible)
+				continue
+			}
+			if c == (ui.Color{}) {
+				c = el.Theme.Text.Muted
+			}
+			c = c.Alpha(el.sugg.alpha)
+		}
+		el.spanColors = append(el.spanColors, c)
 	}
 	paintTextColors(p, s.layout, sx, sy, el.Theme.Prose.Text, el.spanColors)
 	el.paintGhosts(p, s, sx, sy)
+	el.paintSuggestion(p, s, sx, sy)
 	el.paintBoxes(p, s, sx, sy)
 	if panel && s.card && s.shown && s.cardFormula != 0 {
 		rect := el.dialectPillRect(area, s.cardDialect, false)
@@ -357,6 +396,41 @@ func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy float32) 
 			ink = el.Theme.Prose.Text
 		}
 		paintText(p, sg.shaped, sx+r.X, sy+line.Baseline-gb, ink)
+	}
+}
+
+func suggestionWrapped(s *surfaceLayout, sg seg) bool {
+	if sg.segFace == nil || sg.shaped == nil || sg.u1 <= sg.u0 {
+		return true
+	}
+	_, l0, n := s.lineOf(sg.u0)
+	_, l1, _ := s.lineOf(sg.u1 - 1)
+	return n == 0 || l0 != l1
+}
+
+// paintSuggestion draws a single-line active suggestion in its reserved room,
+// fading and gliding in from the caret without overflowing behind it.
+func (el *Element) paintSuggestion(p *ui.Painter, s *surfaceLayout, sx, sy float32) {
+	if !s.hasSugg || !el.focused || el.sugg.alpha <= 0.004 {
+		return
+	}
+	for _, sg := range s.segs {
+		if sg.kind != segSuggestion || suggestionWrapped(s, sg) {
+			continue
+		}
+		line, _, _ := s.lineOf(sg.u0)
+		r := s.caretRect(sg.u0)
+		gb := float32(0)
+		if gl := sg.shaped.Lines(); len(gl) > 0 {
+			gb = gl[0].Baseline
+		}
+		ink := styleColor(el.Editor.theme.Resolve(sg.groups))
+		if ink == (ui.Color{}) {
+			ink = el.Theme.Text.Muted
+		}
+		p.Clip(ui.Rect{X: sx + r.X, Y: sy + line.Rect.Y - 4, W: max(s.w-r.X, 0) + 24, H: line.Rect.H + 8}, 0, func() {
+			paintText(p, sg.shaped, sx+r.X+el.sugg.dx, sy+line.Baseline-gb, ink.Alpha(el.sugg.alpha))
+		})
 	}
 }
 

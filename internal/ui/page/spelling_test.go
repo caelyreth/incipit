@@ -221,3 +221,83 @@ func TestInlinePredictionGhostTextAndTabAccept(t *testing.T) {
 		t.Fatalf("document text after Tab = %q, want %q", got, "it is uncompromising")
 	}
 }
+
+func TestInlinePredictionAnimatesInChangeAndOut(t *testing.T) {
+	spelling.Use(autocorrects{"uncomp": ""})
+	t.Cleanup(func() { spelling.Use(nil) })
+	prog, err := manifest.Compile(policy.Values{spelling.ID + ".predict": true}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, err := profile.EmptyPage(1, 7, doc.NewInterner())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ed := NewEditor(engine.New(snap, prog, engine.Options{}), 1)
+	el := NewElement(ed)
+	tester := ui.NewTester(func(c *ui.Context) { el.View(c) }, 900, 600)
+	el.Focus()
+	tester.Frame()
+
+	for _, r := range "it is uncomp" {
+		ed.Do(vocab.Type{Text: string(r)}, tester.Now())
+	}
+	pos := ed.Selection().Head.Pos
+
+	// Fade + slide in from alpha=0, dx=-suggSlideX over suggEnterDuration.
+	ed.Do(profile.SetSuggestion{At: pos, Text: "romising"}, tester.Now())
+	tester.Frame()
+	if el.sugg.alpha != 0 || el.sugg.dx != -suggSlideX {
+		t.Fatalf("expected initial entrance (alpha=0, dx=%v), got alpha=%v dx=%v", -suggSlideX, el.sugg.alpha, el.sugg.dx)
+	}
+	tester.Advance(suggEnterDuration / 2)
+	if el.sugg.alpha <= 0 || el.sugg.alpha >= 1 || el.sugg.dx <= -suggSlideX || el.sugg.dx >= 0 {
+		t.Fatalf("expected mid entrance alpha in (0, 1) and dx in (%v, 0), got alpha=%v dx=%v", -suggSlideX, el.sugg.alpha, el.sugg.dx)
+	}
+	tester.Advance(suggEnterDuration)
+	if el.sugg.alpha != 1 || el.sugg.dx != 0 {
+		t.Fatalf("expected settled entrance (alpha=1, dx=0), got alpha=%v dx=%v", el.sugg.alpha, el.sugg.dx)
+	}
+
+	// Prefix trim keeps full opacity and rest offset with no leaving ghost.
+	ed.Do(vocab.Type{Text: "r"}, tester.Now())
+	tester.Frame()
+	if el.sugg.alpha != 1 || el.sugg.dx != 0 || el.sugg.leaving != nil {
+		t.Fatalf("expected prefix trim to keep alpha=1, dx=0 and leaving=nil, got alpha=%v dx=%v leaving=%+v", el.sugg.alpha, el.sugg.dx, el.sugg.leaving)
+	}
+
+	// Changing to a different suggestion cross-fades the old one out and fades/slides the new one in.
+	ed.Do(profile.SetSuggestion{At: ed.Selection().Head.Pos, Text: "essed"}, tester.Now())
+	tester.Frame()
+	if el.sugg.leaving == nil || el.sugg.alpha != 0 || el.sugg.dx != -suggSlideX {
+		t.Fatalf("expected cross-fade on change (leaving=%+v, alpha=%v, dx=%v)", el.sugg.leaving, el.sugg.alpha, el.sugg.dx)
+	}
+	tester.Advance(suggEnterDuration + 20*time.Millisecond)
+	if el.sugg.leaving != nil || el.sugg.alpha != 1 || el.sugg.dx != 0 {
+		t.Fatalf("expected settled cross-fade (leaving=%+v, alpha=%v, dx=%v)", el.sugg.leaving, el.sugg.alpha, el.sugg.dx)
+	}
+
+	// Dismissing fades and glides out cleanly without leaving the scope.
+	el.handle(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyEscape, Time: tester.Now()}, ui.Services{})
+	tester.Frame()
+	if el.sugg.leaving == nil || el.sugg.leaving.alpha <= 0 {
+		t.Fatalf("expected fade-out leaving ghost on dismiss, got %+v", el.sugg.leaving)
+	}
+	tester.Advance(suggExitDuration / 2)
+	if el.sugg.leaving == nil || el.sugg.leaving.dx >= 0 {
+		t.Fatalf("expected mid-exit receding leaving ghost (dx<0), got %+v", el.sugg.leaving)
+	}
+	tester.Advance(suggExitDuration + 20*time.Millisecond)
+	if el.sugg.leaving != nil {
+		t.Fatalf("expected leaving ghost gone after suggExitDuration, still %+v", el.sugg.leaving)
+	}
+
+	// Accepting via Tab commits the text directly with no leaving ghost.
+	ed.Do(profile.SetSuggestion{At: ed.Selection().Head.Pos, Text: "omising"}, tester.Now())
+	tester.Advance(suggEnterDuration)
+	el.handle(ui.InputEvent{Kind: ui.InputKeyDown, Key: ui.KeyTab, Time: tester.Now()}, ui.Services{})
+	tester.Frame()
+	if el.sugg.leaving != nil {
+		t.Fatalf("did not expect leaving ghost after Tab accept, got %+v", el.sugg.leaving)
+	}
+}
