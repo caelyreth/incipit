@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
@@ -394,9 +395,42 @@ func (t Token) End() int {
 	return t.At
 }
 
+// textToken is the most bytes of text a token holds: a scanner's checkpoint
+// spacing (checkpointEvery).
+const textToken = checkpointEvery
+
+// textCut is where a token of text from from, before to, ends: at a line's
+// end, at the first of cuts past from, or before textToken bytes, between
+// runes.
+func textCut(text string, from, to, base int, cuts func(after int) int) int {
+	end := to
+	if i := strings.IndexByte(text[from:to], '\n'); i >= 0 {
+		end = from + i + 1
+	}
+	limit := min(end, from+textToken)
+	if cuts != nil {
+		if c := cuts(base+from) - base; c > from && c < limit {
+			return c
+		}
+	}
+	if limit < end {
+		for limit > from+1 && !utf8.RuneStart(text[limit]) {
+			limit--
+		}
+	}
+	return limit
+}
+
 // Tokens streams the unit's tokens in order. Mark closes come before
-// opens at one offset.
-func (u *Unit) Tokens(fn func(Token) bool) {
+// opens at one offset. A text token is at most a line, and at most
+// textToken bytes: a longer run of text comes in pieces cut between runes,
+// so a scanner keeps what spans pieces in its state, and a scan can resume
+// within a long paragraph (Store.scan).
+func (u *Unit) Tokens(fn func(Token) bool) { u.tokens(nil, fn) }
+
+// tokens streams the unit's tokens as Tokens does, a text token ending
+// also at each offset cuts gives, when given: the first after an offset.
+func (u *Unit) tokens(cuts func(after int) int, fn func(Token) bool) {
 	var open []doc.Mark
 	stop := false
 	u.Content.Each(func(at int, it doc.Item) bool {
@@ -434,11 +468,8 @@ func (u *Unit) Tokens(fn func(Token) bool) {
 		text := it.Text[from-at : to-at]
 		// Lines are tokens of their own, so a line break is a boundary.
 		for text != "" {
-			i := strings.IndexByte(text, '\n')
-			piece := text
-			if i >= 0 {
-				piece = text[:i+1]
-			}
+			cut := textCut(it.Text, from-at, to-at, at, cuts)
+			piece := it.Text[from-at : cut]
 			if !fn(Token{Kind: TokenText, At: from, Text: piece}) {
 				stop = true
 				return false
@@ -521,9 +552,11 @@ func (p *P) Analyze(g Granularity, fn func(u *Unit, e *Emit), kinds []FactID, op
 	p.addAnalyzer(a, kinds, opts)
 }
 
-// Scanner is a scanning analyzer. Its state is checkpointed at chunk
-// boundaries: after an edit, scanning restarts at the nearest checkpoint
-// and stops once the state equals the cached one.
+// Scanner is a scanning analyzer. Its state is checkpointed between tokens,
+// at line starts and every checkpointEvery bytes: after an edit, scanning
+// restarts at the nearest checkpoint and stops once the state equals the
+// cached one. A text token may be a piece of a run (Tokens), so what spans
+// tokens is the state's.
 type Scanner[S comparable] interface {
 	Start(u *Unit) S
 	Step(s S, t Token, emit func(Fact)) S

@@ -2,6 +2,7 @@ package policy
 
 import (
 	"errors"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"testing"
@@ -43,6 +44,7 @@ var testRef doc.SlotRef
 
 func (s parenScanner) Start(*Unit) string { return "" }
 func (s parenScanner) Step(st string, t Token, emit func(Fact)) string {
+	parenSteps++
 	if t.Kind != TokenText {
 		return st
 	}
@@ -63,6 +65,9 @@ func (s parenScanner) Step(st string, t Token, emit func(Fact)) string {
 	}
 	return st
 }
+
+// parenSteps counts the tokens parenScanner steps over.
+var parenSteps int
 
 var testPairs = Define("pairs", func(p *P) {
 	kind := Facts[paren](p, "paren", Provides(func(at At[paren]) paren { return at.Data }, vocab.RolePair, vocab.RoleLeavable))
@@ -272,6 +277,49 @@ func TestScannerResumesAndReuses(t *testing.T) {
 	}
 	if len(fresh) != len(before)+1 {
 		t.Fatalf("expected one more pair: %d -> %d", len(before), len(fresh))
+	}
+}
+
+// In one long line, a scan resumes and stops about the edit, and gives the
+// facts a scan from scratch gives.
+func TestALongLineIsScannedAboutTheEdit(t *testing.T) {
+	prog, err := Compile(Manifest{Enabled: []*Policy{testCore, testPairs}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Under 0xD800 bytes: parenScanner keeps offsets as runes.
+	text := strings.Repeat("some (words) and more words after them. ", 1200)
+	snap, ref := testPage(t, text)
+	store := NewStore()
+	kind := prog.scopeKinds[0]
+	view := &View{}
+	prog.facts(store, snap, view, ref, kind)
+	rng := rand.New(rand.NewPCG(1, 2))
+	for step := range 40 {
+		n, _ := snap.Node(ref.Node)
+		in := n.Slot(ref.Slot).Content()
+		at := rng.IntN(in.Len())
+		edit := doc.EditText{At: ref, From: at, To: at, Items: []doc.Item{doc.TextItem([]string{"x", "(", ")", "yz "}[step%4], nil)}}
+		if step%5 == 4 {
+			edit = doc.EditText{At: ref, From: at, To: min(in.Len(), at+1+rng.IntN(30))}
+		}
+		tx := snap.Begin(doc.Origin{Class: doc.OriginTyping})
+		if err := tx.Apply(edit); err != nil {
+			t.Fatal(err)
+		}
+		if snap, err = tx.Commit(); err != nil {
+			t.Fatal(err)
+		}
+		parenSteps = 0
+		inc := prog.facts(store, snap, view, ref, kind)
+		steps := parenSteps
+		fresh := prog.facts(NewStore(), snap, view, ref, kind)
+		if !slices.EqualFunc(inc, fresh, func(a, b Fact) bool { return a.Outer == b.Outer && a.Inner == b.Inner }) {
+			t.Fatalf("step %d: incremental %d facts, fresh %d", step, len(inc), len(fresh))
+		}
+		if all := parenSteps - steps; step%4 == 0 && steps > all/5 {
+			t.Fatalf("step %d: a letter typed stepped %d of %d tokens", step, steps, all)
+		}
 	}
 }
 

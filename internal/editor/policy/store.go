@@ -432,27 +432,53 @@ func (s *Store) scan(a *analyzer, u *Unit, ctx string) []Fact {
 	}
 	emit := func(f Fact) { emitted = append(emitted, f) }
 	reused := false
-	u.Tokens(func(t Token) bool {
+	// Tokens are cut where the checkpoints stood, before the change and
+	// past it, moved with the text: the scan resumes at a token's start, and
+	// meets them again after the change.
+	var cuts func(after int) int
+	if incremental {
+		cuts = func(after int) int {
+			search := func(at int) int {
+				i, _ := slices.BinarySearchFunc(prev.points, at, func(c checkpoint, at int) int { return c.at - at })
+				return i
+			}
+			if after < d {
+				if i := search(after + 1); i < len(prev.points) && prev.points[i].at <= d {
+					return prev.points[i].at
+				}
+			}
+			if i := search(max(after-delta, oldEnd-1) + 1); i < len(prev.points) {
+				return prev.points[i].at + delta
+			}
+			return -1
+		}
+	}
+	u.tokens(cuts, func(t Token) bool {
 		if t.At < resume {
 			return true
 		}
+		// Past the change, any token may start where a checkpoint stood:
+		// the scan stops at the first whose state is as it was there.
+		if incremental && t.At != last && t.At-delta >= oldEnd && t.At > d {
+			if c, ok := findCheckpoint(prev.points, t.At-delta); ok && c.state == state {
+				base := len(emitted)
+				for _, f := range prev.emitted[c.emitted:] {
+					emitted = append(emitted, shiftAfter(f, oldEnd, delta))
+				}
+				for _, oc := range prev.points {
+					// A state may hold offsets, which past the change are the old
+					// text's: only a checkpoint whose state is the one met here
+					// holds none of those, and stays.
+					if oc.at >= c.at && oc.state == c.state {
+						points = append(points, checkpoint{at: oc.at + delta, state: oc.state, emitted: base + oc.emitted - c.emitted})
+					}
+				}
+				reused = true
+				return false
+			}
+		}
 		lineStart := t.At > 0 && u.Content.TextRange(t.At-1, t.At) == "\n"
 		if t.At != last && (lineStart || last < 0 || t.At >= last+checkpointEvery) {
-			if incremental && t.At-delta >= oldEnd && t.At > d {
-				if c, ok := findCheckpoint(prev.points, t.At-delta); ok && c.state == state {
-					base := len(emitted)
-					for _, f := range prev.emitted[c.emitted:] {
-						emitted = append(emitted, shiftAfter(f, oldEnd, delta))
-					}
-					for _, oc := range prev.points {
-						if oc.at >= c.at {
-							points = append(points, checkpoint{at: oc.at + delta, state: oc.state, emitted: base + oc.emitted - c.emitted})
-						}
-					}
-					reused = true
-					return false
-				}
-			}
 			points = append(points, checkpoint{at: t.At, state: state, emitted: len(emitted)})
 			last = t.At
 		}
