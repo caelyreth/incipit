@@ -393,3 +393,74 @@ func TestPinsAreKept(t *testing.T) {
 		t.Fatalf("Pins should be kept as they were: %v.", pinned)
 	}
 }
+
+func TestXDGDataHomeAndRoot(t *testing.T) {
+	home := filepath.Join(t.TempDir(), "home")
+	xdg := filepath.Join(t.TempDir(), "xdg-data")
+	t.Setenv(HomeVariable, "")
+	t.Setenv("HOME", home)
+
+	t.Setenv("XDG_DATA_HOME", xdg+string(filepath.Separator))
+	got, err := XDGDataHome()
+	if err != nil || got != xdg {
+		t.Fatalf("XDGDataHome() with absolute XDG_DATA_HOME = %q, %v; want %q", got, err, xdg)
+	}
+	root, err := Root(got)
+	if err != nil || root != filepath.Join(xdg, FolderName) {
+		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(xdg, FolderName))
+	}
+
+	// Relative XDG_DATA_HOME is ignored per the XDG Base Directory specification.
+	t.Setenv("XDG_DATA_HOME", "relative/share")
+	got, err = XDGDataHome()
+	wantFallback := filepath.Join(home, ".local", "share")
+	if err != nil || got != wantFallback {
+		t.Fatalf("XDGDataHome() with relative XDG_DATA_HOME = %q, %v; want %q", got, err, wantFallback)
+	}
+
+	t.Setenv("XDG_DATA_HOME", "")
+	got, err = XDGDataHome()
+	if err != nil || got != wantFallback {
+		t.Fatalf("XDGDataHome() default = %q, %v; want %q", got, err, wantFallback)
+	}
+	root, err = Root(got)
+	if err != nil || root != filepath.Join(wantFallback, FolderName) {
+		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(wantFallback, FolderName))
+	}
+
+	override := t.TempDir()
+	t.Setenv(HomeVariable, override)
+	if root, err := Root(""); err != nil || root != override {
+		t.Fatalf("Root with %s = %q, %v; want %q", HomeVariable, root, err, override)
+	}
+}
+
+func TestChosenRoot(t *testing.T) {
+	userData := filepath.Join(t.TempDir(), "user data")
+	if root, ok, err := ChosenRoot(userData); err != nil || ok || root != "" {
+		t.Fatalf("ChosenRoot before a choice = %q, %v, %v; want none", root, ok, err)
+	}
+	if err := ChooseRoot(userData, "relative"); err == nil {
+		t.Fatal("ChooseRoot took a relative folder")
+	}
+	chosen := filepath.Join(t.TempDir(), "Notes")
+	if err := ChooseRoot(userData, chosen+string(filepath.Separator)); err != nil {
+		t.Fatal(err)
+	}
+	if root, ok, err := ChosenRoot(userData); err != nil || !ok || root != chosen {
+		t.Fatalf("ChosenRoot = %q, %v, %v; want %q", root, ok, err, chosen)
+	}
+	if Holds(chosen) {
+		t.Fatal("an empty folder holds a notebook")
+	}
+	store, err := Open(chosen)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !Holds(chosen) {
+		t.Fatal("a notebook's folder does not hold it")
+	}
+}

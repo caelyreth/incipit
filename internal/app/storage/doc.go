@@ -1,10 +1,13 @@
 // Package storage keeps the notebook on disk, so that what is written
 // survives a quit, a crash or a lost machine state.
 //
-// The notebook is one SQLite database in a Neverland folder of the user's
-// Documents (Root). Memory stays the source of truth while the app runs: a
-// Saver takes what changed and writes it in one transaction, off the UI
-// thread. What it relies on, from the bottom up:
+// The notebook is one SQLite database in the folder chosen on the first
+// launch and recorded in the app's data folder (ChosenRoot), which is
+// offered as a Neverland folder of the user's Documents on macOS and
+// Windows, or of the XDG data folder on Linux (Root). Memory stays the
+// source of truth while the app runs: a Saver takes what changed and
+// writes it in one transaction, off the UI thread. What it relies on,
+// from the bottom up:
 //
 //   - Every write is a transaction in a write-ahead log, synced with a full
 //     flush to the disk's platter (F_FULLFSYNC on macOS) before it counts.
