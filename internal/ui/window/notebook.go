@@ -307,6 +307,7 @@ func (a *AppState) Close() error {
 	// what it missed at the next launch.
 	a.closeFinder()
 	a.closeUpdater()
+	a.backupsWg.Wait()
 	if a.notebook == nil || a.notebook.closed {
 		return nil
 	}

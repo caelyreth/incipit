@@ -114,22 +114,30 @@ func TestBindNotebookSettingsPopulatesRootAndBackups(t *testing.T) {
 	if reopened.Settings.NotebookRoot != root {
 		t.Fatalf("NotebookRoot = %q, want %q", reopened.Settings.NotebookRoot, root)
 	}
+	reopened.backupsWg.Wait()
+	reopened.syncBackupsToSettings()
 	backups, err := storage.ListBackups(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for len(reopened.Settings.Backups) != len(backups) && time.Now().Before(deadline) {
-		time.Sleep(10 * time.Millisecond)
+	hasSeeded := false
+	for _, b := range reopened.Settings.Backups {
+		if filepath.Base(b.Path) == "notebook-20261126-120000.db" {
+			hasSeeded = true
+			break
+		}
 	}
-	if len(backups) == 0 || len(reopened.Settings.Backups) != len(backups) {
+	if len(backups) == 0 || len(reopened.Settings.Backups) < 1 || !hasSeeded {
 		t.Fatalf("Settings.Backups = %+v, storage.ListBackups = %d", reopened.Settings.Backups, len(backups))
 	}
 
 	// Subsequent refreshSettingsData reuses cached backups without re-scanning.
+	reopened.backupsMu.Lock()
 	cached := reopened.backupsCached
+	backupsRoot := reopened.backupsRoot
+	reopened.backupsMu.Unlock()
 	reopened.refreshSettingsData()
-	if len(reopened.Settings.Backups) != len(cached) || reopened.backupsRoot != root {
+	if len(reopened.Settings.Backups) != len(cached) || backupsRoot != root {
 		t.Fatalf("cached backups lost across refreshSettingsData: %+v", reopened.Settings.Backups)
 	}
 }

@@ -40,6 +40,18 @@ func backupOptions(root string) []settings.BackupOption {
 	return out
 }
 
+// syncBackupsToSettings copies the cached verified backups into Settings on the
+// UI/caller thread.
+func (a *AppState) syncBackupsToSettings() {
+	if a == nil {
+		return
+	}
+	a.backupsMu.Lock()
+	cached := a.backupsCached
+	a.backupsMu.Unlock()
+	a.Settings.Backups = cached
+}
+
 // refreshBackups synchronously scans verified backups under root and updates
 // the cached Settings backup list.
 func (a *AppState) refreshBackups(root string) {
@@ -47,9 +59,11 @@ func (a *AppState) refreshBackups(root string) {
 		return
 	}
 	opts := backupOptions(root)
+	a.backupsMu.Lock()
 	a.backupsSeq++
 	a.backupsRoot = root
 	a.backupsCached = opts
+	a.backupsMu.Unlock()
 	a.Settings.Backups = opts
 }
 
@@ -59,18 +73,24 @@ func (a *AppState) refreshBackupsAsync(root string) {
 	if a == nil || root == "" || a.closing.Load() {
 		return
 	}
+	a.backupsMu.Lock()
 	a.backupsSeq++
 	seq := a.backupsSeq
+	a.backupsMu.Unlock()
+	a.backupsWg.Add(1)
 	go func() {
+		defer a.backupsWg.Done()
 		opts := backupOptions(root)
-		a.onUI(func() {
-			if a.backupsSeq != seq {
-				return
-			}
+		a.backupsMu.Lock()
+		changed := a.backupsSeq == seq
+		if changed {
 			a.backupsRoot = root
 			a.backupsCached = opts
-			a.Settings.Backups = opts
-		})
+		}
+		a.backupsMu.Unlock()
+		if changed && a.mainWindow != nil {
+			a.onUI(func() { a.syncBackupsToSettings() })
+		}
 	}()
 }
 
@@ -83,8 +103,12 @@ func (a *AppState) bindNotebookSettings() {
 	root := a.notebook.store.Root()
 	a.Settings.NotebookRoot = root
 	a.Settings.PendingRoot = a.pendingRoot
-	a.Settings.Backups = a.backupsCached
-	if a.backupsRoot != root {
+	a.backupsMu.Lock()
+	cached := a.backupsCached
+	needRefresh := a.backupsRoot != root
+	a.backupsMu.Unlock()
+	a.Settings.Backups = cached
+	if needRefresh {
 		a.refreshBackupsAsync(root)
 	}
 	a.Settings.RevealNotebook = func() {

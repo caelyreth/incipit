@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -117,10 +118,12 @@ type AppState struct {
 	pendingRoot string
 	// backupsCached caches verified backups for Settings without blocking
 	// every refreshSettingsData pass.
-	backupsCached  []settings.BackupOption
-	backupsRoot    string
-	backupsSeq     uint64
-	settingsShown  bool
+	backupsMu     sync.Mutex
+	backupsWg     sync.WaitGroup
+	backupsCached []settings.BackupOption
+	backupsRoot   string
+	backupsSeq    uint64
+	settingsShown bool
 	// shownPictures decodes the notebook's pictures for every page, and
 	// cardPictures them small for the cards in the field.
 	shownPictures, cardPictures *page.Pictures
@@ -661,12 +664,15 @@ func (a *AppState) View(c *ui.Context) {
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion)
 	inSettings := a.Shell.InSettings() && !a.Shell.OnDesk()
-	if inSettings && !a.settingsShown {
-		a.settingsShown = true
-		if a.notebook != nil && a.notebook.store != nil {
-			a.refreshBackupsAsync(a.notebook.store.Root())
+	if inSettings {
+		a.syncBackupsToSettings()
+		if !a.settingsShown {
+			a.settingsShown = true
+			if a.notebook != nil && a.notebook.store != nil {
+				a.refreshBackupsAsync(a.notebook.store.Root())
+			}
 		}
-	} else if !inSettings {
+	} else {
 		a.settingsShown = false
 	}
 	a.pressedCommands(c)
