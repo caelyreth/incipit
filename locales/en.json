@@ -3180,6 +3180,34 @@
   "@onboardingWritingHeadline": {
     "description": "Onboarding, writing page: the headline."
   },
+  "onboardingWritingBody": "You can change these any time in Settings.",
+  "@onboardingWritingBody": {
+    "description": "Onboarding, writing page: under the headline, that these choices can be changed later in Settings."
+  },
+  "onboardingTrialGroup": "Journal",
+  "@onboardingTrialGroup": {
+    "description": "Onboarding, macOS page: the name of a sample group in the card the menus are tried on."
+  },
+  "onboardingTrialSubgroup": "Travel",
+  "@onboardingTrialSubgroup": {
+    "description": "Onboarding, macOS page: the name of a sample group inside the sample group."
+  },
+  "onboardingTrialFirst": "Morning pages",
+  "@onboardingTrialFirst": {
+    "description": "Onboarding, macOS page: the title of the first sample sheet."
+  },
+  "onboardingTrialFirstExcerpt": "Up before the birds. The kettle, the window, three pages before the day begins.",
+  "@onboardingTrialFirstExcerpt": {
+    "description": "Onboarding, macOS page: the opening words of the first sample sheet."
+  },
+  "onboardingTrialSecond": "Letters",
+  "@onboardingTrialSecond": {
+    "description": "Onboarding, macOS page: the title of the second sample sheet."
+  },
+  "onboardingTrialSecondExcerpt": "Dear M., the garden came back this spring, all of it at once.",
+  "@onboardingTrialSecondExcerpt": {
+    "description": "Onboarding, macOS page: the opening words of the second sample sheet."
+  },
   "onboardingMarks": "Formatting marks",
   "@onboardingMarks": {
     "description": "Onboarding, writing page: the choice of whether the asterisks and other signs of formatting show."
@@ -3272,7 +3300,7 @@
   "@onboardingMacHeadline": {
     "description": "Onboarding, macOS page: the headline; the choice of context menus."
   },
-  "onboardingMacBody": "Right-click here to try the ones chosen.",
+  "onboardingMacBody": "Right-click the card to try the menus chosen.",
   "@onboardingMacBody": {
     "description": "Onboarding, macOS page: how to try the menus chosen."
   },

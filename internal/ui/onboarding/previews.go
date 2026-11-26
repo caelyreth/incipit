@@ -81,19 +81,18 @@ func facePreview(c *ui.Context, m metrics, semantic theme.Theme, family string) 
 	})
 }
 
-// menuPreview draws a menu as it would open over a page: the Mac's own,
-// in its material and its blue, or Neverland's, of the page's surfaces
-// with a wash of its ink.
+// menuPreview draws a menu as it would open over a page: the Mac's own, in its material and its blue, or Neverland's, of
+// the page's surfaces with a wash of its ink.
 func menuPreview(c *ui.Context, m metrics, semantic theme.Theme, drawn bool) {
-	ui.Box(c).WidthPercent(100).Height(previewHeight * 1.45 * m.k).Background(semantic.Surface.Page).Clip().Children(func() {
+	ui.Box(c).WidthPercent(100).Height(previewHeight * 1.05 * m.k).Background(semantic.Surface.Page).Clip().Children(func() {
 		// Lines of a page behind it.
 		ui.Column(c).Absolute().Left(14 * m.k).Top(14 * m.k).Right(14 * m.k).Gap(9 * m.k).Children(func() {
 			for _, w := range []float32{92, 78, 86, 60} {
 				ui.Box(c).WidthPercent(w).Height(5 * m.k).Radius(3 * m.k).Background(semantic.Text.Muted.Alpha(0.22))
 			}
 		})
-		items := []string{locales.CommandNewSheet(), locales.CommandSplitSheet(), "", locales.CommandCloseSheet()}
-		panel := ui.Column(c).Absolute().Left(34 * m.k).Top(24 * m.k).Width(150 * m.k).Padding(5 * m.k)
+		items := []string{locales.Open(), locales.OpenAlongside(), "", locales.Duplicate()}
+		panel := ui.Column(c).Absolute().Left(34 * m.k).Top(10 * m.k).Width(150 * m.k).Padding(5 * m.k)
 		dark := semantic.Appearance == theme.Starfield
 		if drawn {
 			components.ElevatedSurface(panel, semantic, m.scale, components.PopoverElevation).Border(components.Rim, semantic.Text.Default.Alpha(0.1))
@@ -139,13 +138,3 @@ func menuPreview(c *ui.Context, m metrics, semantic theme.Theme, drawn bool) {
 	})
 }
 
-// tryMenu is the menu right-clicking the Mac's page opens, to try the
-// menus chosen; its commands do nothing here.
-func tryMenu(m *ui.Menu) {
-	m.Item(locales.CommandNewSheet())
-	m.Item(locales.CommandSplitSheet())
-	m.Separator()
-	m.Item(locales.CommandCloseSheet())
-	m.Separator()
-	m.EditItems()
-}

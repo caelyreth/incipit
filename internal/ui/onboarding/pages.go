@@ -11,6 +11,7 @@ import (
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	uisettings "github.com/caelyreth/neverland/internal/ui/settings"
+	"github.com/caelyreth/neverland/internal/ui/shell"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo/ui"
@@ -54,7 +55,7 @@ func (s *State) pageView(c *ui.Context, semantic theme.Theme, m metrics, animate
 		s.spread(c, semantic, m, animate, locales.OnboardingNotebookHeadline(), locales.OnboardingNotebookBody(),
 			func() { s.notebook(c, semantic, m, animate) })
 	case pageWriting:
-		s.spread(c, semantic, m, animate, locales.OnboardingWritingHeadline(), "",
+		s.spread(c, semantic, m, animate, locales.OnboardingWritingHeadline(), locales.OnboardingWritingBody(),
 			func() { s.writing(c, semantic, m, animate) })
 	case pageLook:
 		s.spread(c, semantic, m, animate, locales.OnboardingLookHeadline(), "",
@@ -92,7 +93,7 @@ func (s *State) welcome(c *ui.Context, semantic theme.Theme, m metrics, animate 
 		}
 		line.DrawOver(func(p *ui.Painter, r ui.Rect) {
 			// A stroke under the line, as a pen sets a title off.
-			components.InkUnderline(p, r.X+r.W*0.12, r.X+r.W*0.88, r.Y+r.H+4*m.k, semantic.Accent.Foreground, 2.4*m.k, 7, underline)
+			components.InkUnderline(p, r.X+r.W*0.12, r.X+r.W*0.88, r.Y+r.H+4*m.k, semantic.Accent.Foreground, 2.4*m.k, underline)
 		})
 		s.enter(c, line, 2, animate)
 		s.enter(c, ui.Row(c).Padding(40*m.k, 0, 0, 0).Children(func() {
@@ -293,8 +294,18 @@ func (s *State) look(c *ui.Context, semantic theme.Theme, m metrics, animate boo
 }
 
 // mac chooses the menus: the system's, or the app's own drawn to match.
+// Over the choice stands a piece of the field, a group's card of sample
+// sheets with the field's own menus on it, to try the menus chosen on.
 func (s *State) mac(c *ui.Context, semantic theme.Theme, m metrics, animate bool) {
-	s.enter(c, components.Label(c, locales.Menus(), theme.TextDefault, semantic.Text.Heading).FontWeight(600), 3, animate)
+	if s.trial == nil {
+		s.trial = shell.NewTrial(s.clock)
+	}
+	settings := s.settings()
+	settings.UIFontSize = m.scale
+	s.enter(c, ui.Row(c).Key("trial-area").WidthPercent(100).Padding(18*m.k).Justify(ui.Center).
+		Radius(m.radius).Background(semantic.Surface.Inset).Children(func() {
+		s.trial.View(c, semantic, settings, trialWidth*m.k, animate)
+	}), 3, animate)
 	s.choiceRow(c, m, locales.Menus(), 4, animate, func() {
 		kinds := []struct {
 			key            string
@@ -317,6 +328,10 @@ func (s *State) mac(c *ui.Context, semantic theme.Theme, m metrics, animate bool
 		}
 	})
 }
+
+// trialWidth is how wide the trial's card stands, at the default UI size:
+// as the field's cards do.
+const trialWidth = 300
 
 // summary is what was set, line by line: the notebook and every choice of
 // the pages, as chosen or as it stays.
@@ -374,8 +389,9 @@ func (s *State) summaryLine(c *ui.Context, semantic theme.Theme, m metrics, line
 }
 
 // foot is the way on: the pages as dots along a line, the one shown
-// ringed, and Back and Continue, Escape and Return.
-func (s *State) foot(c *ui.Context, semantic theme.Theme, m metrics, animate bool) {
+// ringed, and Back and Continue, Escape and Return. It stands shown of the
+// way up, its buttons growing to their size from a little smaller.
+func (s *State) foot(c *ui.Context, semantic theme.Theme, m metrics, animate bool, shown float32) {
 	if s.at == pageWelcome {
 		return
 	}
@@ -383,7 +399,17 @@ func (s *State) foot(c *ui.Context, semantic theme.Theme, m metrics, animate boo
 	pages := s.pages()[1:]
 	at := s.index(s.at) - 1
 	count := locales.OnboardingStep(fmt.Sprint(at+1), fmt.Sprint(len(pages)))
-	ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(16*m.k).Padding(20*m.k, 0, 0, 0).Children(func() {
+	grow := func(el ui.Element) ui.Element {
+		if shown < 1 {
+			el.Scale(0.86+0.14*shown, 0.86+0.14*shown)
+		}
+		return el.Transition(footTransition(animate))
+	}
+	row := ui.Row(c).Key("foot").WidthPercent(100).AlignItems(ui.Center).Gap(16*m.k).Padding(20*m.k, 0, 0, 0)
+	if shown < 1 {
+		row.Opacity(shown)
+	}
+	row.Children(func() {
 		step := 22 * m.k
 		track := ui.Box(c).Key("track").Size(float32(len(pages)-1)*step+16*m.k, 24*m.k).Shrink(0).
 			Role(ui.RoleImage).Label(count)
@@ -410,13 +436,25 @@ func (s *State) foot(c *ui.Context, semantic theme.Theme, m metrics, animate boo
 		})
 		components.Label(c, count, theme.TextSmall, semantic.Text.Muted).FontFeatures("tnum").AccessHidden(true)
 		ui.Box(c).Grow(1)
-		components.Button{Key: "back", Label: locales.Back(), Style: components.SubtleButton, Animate: animate,
-			Shortcut: escapeKey, Action: func() { s.turn(-1, s.clock) }}.View(c, semantic)
+		// The way on comes up with the first page counted, and as its words
+		// change, each button grows or shrinks to them.
+		grow(components.Button{Key: "back", Label: locales.Back(), Style: components.SubtleButton, Animate: animate,
+			Shortcut: escapeKey, Action: func() { s.turn(-1, s.clock) }}.View(c, semantic))
 		label := locales.OnboardingContinue()
 		if s.at == pageDone {
 			label = locales.OnboardingStart()
 		}
-		components.Button{Key: "continue", Label: label, Style: components.PrimaryButton, Animate: animate,
-			Shortcut: returnKey, Action: func() { s.next(s.clock) }}.View(c, semantic)
+		grow(components.Button{Key: "continue", Label: label, Style: components.PrimaryButton, Animate: animate,
+			Shortcut: returnKey, Action: func() { s.next(s.clock) }}.View(c, semantic))
 	})
+}
+
+// footTransition is how the way on's buttons move as their words change:
+// springing to their new width, and to where it puts them.
+func footTransition(animate bool) ui.ElementTransition {
+	if !animate {
+		return ui.ElementTransition{Duration: -1}
+	}
+	spring := components.Settle(components.MotionPanel)
+	return ui.ElementTransition{Animation: &spring, Position: true, Width: true}
 }

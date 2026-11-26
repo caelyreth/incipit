@@ -11555,6 +11555,110 @@ func (msgs Messages) OnboardingWritingHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingWritingHeadline", nil)
 }
 
+// OnboardingWritingBody says "You can change these any time in Settings."
+// in the language the app shows.
+//
+// Onboarding, writing page: under the headline, that these choices can be
+// changed later in Settings.
+func OnboardingWritingBody() string { return In(i18n.Locale()).OnboardingWritingBody() }
+
+// OnboardingWritingBody says "You can change these any time in Settings."
+// in the language of msgs.
+//
+// Onboarding, writing page: under the headline, that these choices can be
+// changed later in Settings.
+func (msgs Messages) OnboardingWritingBody() string {
+	return Catalog.Format(msgs.locale, "onboardingWritingBody", nil)
+}
+
+// OnboardingTrialGroup says "Journal"
+// in the language the app shows.
+//
+// Onboarding, macOS page: the name of a sample group in the card the menus
+// are tried on.
+func OnboardingTrialGroup() string { return In(i18n.Locale()).OnboardingTrialGroup() }
+
+// OnboardingTrialGroup says "Journal"
+// in the language of msgs.
+//
+// Onboarding, macOS page: the name of a sample group in the card the menus
+// are tried on.
+func (msgs Messages) OnboardingTrialGroup() string {
+	return Catalog.Format(msgs.locale, "onboardingTrialGroup", nil)
+}
+
+// OnboardingTrialSubgroup says "Travel"
+// in the language the app shows.
+//
+// Onboarding, macOS page: the name of a sample group inside the sample
+// group.
+func OnboardingTrialSubgroup() string { return In(i18n.Locale()).OnboardingTrialSubgroup() }
+
+// OnboardingTrialSubgroup says "Travel"
+// in the language of msgs.
+//
+// Onboarding, macOS page: the name of a sample group inside the sample
+// group.
+func (msgs Messages) OnboardingTrialSubgroup() string {
+	return Catalog.Format(msgs.locale, "onboardingTrialSubgroup", nil)
+}
+
+// OnboardingTrialFirst says "Morning pages"
+// in the language the app shows.
+//
+// Onboarding, macOS page: the title of the first sample sheet.
+func OnboardingTrialFirst() string { return In(i18n.Locale()).OnboardingTrialFirst() }
+
+// OnboardingTrialFirst says "Morning pages"
+// in the language of msgs.
+//
+// Onboarding, macOS page: the title of the first sample sheet.
+func (msgs Messages) OnboardingTrialFirst() string {
+	return Catalog.Format(msgs.locale, "onboardingTrialFirst", nil)
+}
+
+// OnboardingTrialFirstExcerpt says "Up before the birds. The kettle, the window, three pages before the day begins."
+// in the language the app shows.
+//
+// Onboarding, macOS page: the opening words of the first sample sheet.
+func OnboardingTrialFirstExcerpt() string { return In(i18n.Locale()).OnboardingTrialFirstExcerpt() }
+
+// OnboardingTrialFirstExcerpt says "Up before the birds. The kettle, the window, three pages before the day begins."
+// in the language of msgs.
+//
+// Onboarding, macOS page: the opening words of the first sample sheet.
+func (msgs Messages) OnboardingTrialFirstExcerpt() string {
+	return Catalog.Format(msgs.locale, "onboardingTrialFirstExcerpt", nil)
+}
+
+// OnboardingTrialSecond says "Letters"
+// in the language the app shows.
+//
+// Onboarding, macOS page: the title of the second sample sheet.
+func OnboardingTrialSecond() string { return In(i18n.Locale()).OnboardingTrialSecond() }
+
+// OnboardingTrialSecond says "Letters"
+// in the language of msgs.
+//
+// Onboarding, macOS page: the title of the second sample sheet.
+func (msgs Messages) OnboardingTrialSecond() string {
+	return Catalog.Format(msgs.locale, "onboardingTrialSecond", nil)
+}
+
+// OnboardingTrialSecondExcerpt says "Dear M., the garden came back this spring, all of it at once."
+// in the language the app shows.
+//
+// Onboarding, macOS page: the opening words of the second sample sheet.
+func OnboardingTrialSecondExcerpt() string { return In(i18n.Locale()).OnboardingTrialSecondExcerpt() }
+
+// OnboardingTrialSecondExcerpt says "Dear M., the garden came back this spring, all of it at once."
+// in the language of msgs.
+//
+// Onboarding, macOS page: the opening words of the second sample sheet.
+func (msgs Messages) OnboardingTrialSecondExcerpt() string {
+	return Catalog.Format(msgs.locale, "onboardingTrialSecondExcerpt", nil)
+}
+
 // OnboardingMarks says "Formatting marks"
 // in the language the app shows.
 //
@@ -11883,13 +11987,13 @@ func (msgs Messages) OnboardingMacHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingMacHeadline", nil)
 }
 
-// OnboardingMacBody says "Right-click here to try the ones chosen."
+// OnboardingMacBody says "Right-click the card to try the menus chosen."
 // in the language the app shows.
 //
 // Onboarding, macOS page: how to try the menus chosen.
 func OnboardingMacBody() string { return In(i18n.Locale()).OnboardingMacBody() }
 
-// OnboardingMacBody says "Right-click here to try the ones chosen."
+// OnboardingMacBody says "Right-click the card to try the menus chosen."
 // in the language of msgs.
 //
 // Onboarding, macOS page: how to try the menus chosen.

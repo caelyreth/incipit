@@ -77,38 +77,47 @@ func (b Button) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		action:   b.Action,
 		children: func() {
 			if b.Shortcut.Cap == "" {
-				CenteredLabel(c, b.Label, theme.TextSmall, ink)
+				b.label(c, ink)
 				return
 			}
-			ui.Row(c).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
-				CenteredLabel(c, b.Label, theme.TextSmall, ink)
-				Keycaps(c, buttonKeycap(semantic, scale, b.Style, b.Selected), []string{b.Shortcut.Cap}, "").AccessHidden(true)
+			ui.Row(c).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Shrink(0).Children(func() {
+				b.label(c, ink)
+				Keycaps(c, buttonKeycap(semantic, scale, b.Style, b.Selected), []string{b.Shortcut.Cap}, "").Shrink(0).AccessHidden(true)
 			})
 		},
 	}).PaddingX(theme.Space12.DIPs(scale)).MinWidth(0)
+	if b.Animate {
+		// While the button springs to new words' width (a caller's
+		// transition), they stand whole, clipped by its rim as they fade
+		// in, never cut short.
+		el.Clip()
+	}
 	if b.Shortcut.Key != 0 {
 		el.KeyShortcuts(b.Shortcut.Mods, b.Shortcut.Key)
-		if b.Shortcut.Cap != "" {
-			// The cap stands in a little from the end, as far as the label
-			// from the start's rim less the cap's own margin.
-			el.Padding(0, theme.Space06.DIPs(scale), 0, theme.Space12.DIPs(scale))
-		}
 	}
 	return el
 }
 
-// buttonKeycap is a key's cap inside a button: smaller than a row's, its
-// face a step off the button's own and its glyph the label's ink, softer.
+// label is the button's words. Animated, words that change fade in over
+// those they replace, which go at once.
+func (b Button) label(c *ui.Context, ink ui.Color) ui.Element {
+	if !b.Animate {
+		return CenteredLabel(c, b.Label, theme.TextSmall, ink)
+	}
+	return CenteredLabel(c.Key("label:"+b.Label), b.Label, theme.TextSmall, ink).Shrink(0).
+		Transition(ui.ElementTransition{Duration: MotionNormal, Colors: true, Enter: &ui.Motion{Opacity: 0}, ExitDuration: -1})
+}
+
+// buttonKeycap is a key's cap inside a button: smaller than a row's, on
+// the button's own ground, under the pointer and pressed as well, drawn by
+// its rim and its glyph alone, in the label's ink, softer. It stands as
+// far in from the button's end as the label from its start.
 func buttonKeycap(semantic theme.Theme, scale float32, style ButtonStyle, selected bool) Keycap {
 	k := KeycapStyle(semantic, scale, true)
 	unit := scale / theme.DefaultUIFontSize
 	k.Height, k.Radius, k.PadX = 18*unit, 4*unit, theme.Space04.DIPs(scale)
-	rest, _, _ := buttonColors(semantic, style, selected)
 	label := buttonTextColor(semantic, style, selected)
-	if rest.A == 0 {
-		rest = semantic.Surface.Page
-	}
-	k.Face, k.Border, k.Ink = blend(rest, label, 0.08), blend(rest, label, 0.22), blend(rest, label, 0.7)
+	k.Face, k.Border, k.Ink = ui.Transparent, label.Alpha(0.28), label.Alpha(0.72)
 	return k
 }
 

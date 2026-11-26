@@ -13,6 +13,14 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
+// The walkthrough's window opens at this size and grows no smaller: each
+// page is laid out for at least this much room. It fits a 13-inch
+// laptop's screen.
+const (
+	onboardingWidth  = 1200
+	onboardingHeight = 820
+)
+
 // welcome opens the first launch's walkthrough in a window of its own,
 // the notebook offered in defaultRoot. Finished, it opens the notebook in
 // the folder chosen, records that folder in userData, applies what was
@@ -72,10 +80,10 @@ func welcome(defaultRoot, userData string, opened func(*AppState)) {
 	settings.Appearance = theme.Appearance(first)
 	window = mygo.NewWindow(mygo.WindowOptions{
 		Title:                locales.OnboardingTitle(),
-		Width:                1040,
-		Height:               720,
-		MinWidth:             900,
-		MinHeight:            640,
+		Width:                onboardingWidth,
+		Height:               onboardingHeight,
+		MinWidth:             onboardingWidth,
+		MinHeight:            onboardingHeight,
 		TitleBarStyle:        mygo.TitleBarHidden,
 		TrafficLightPosition: trafficLights(),
 		Content:              ui.View(state.View),

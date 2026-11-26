@@ -5,6 +5,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func newWalkthrough(t *testing.T, mac bool, still bool) *walkthrough {
 			return nil
 		},
 	})
-	w.tester = ui.NewTesterWith(w.View, 1040, 720, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: still}})
+	w.tester = ui.NewTesterWith(w.View, 1200, 820, ui.TesterOptions{Preferences: ui.Preferences{ReduceMotion: still}})
 	return w
 }
 
@@ -206,5 +207,31 @@ func TestMotion(t *testing.T) {
 	}
 	if w.at != pageDone {
 		t.Fatalf("ended on %s", w.at.name())
+	}
+}
+
+// TestTrialCardTakesTheFieldsMenus right-clicks the sample group on the
+// Mac's page: its menu is the field's, a pin chosen on it shows on the
+// card, and nothing of it reaches what the walkthrough sets up.
+func TestTrialCardTakesTheFieldsMenus(t *testing.T) {
+	w := newWalkthrough(t, true, true)
+	w.at = pageMac
+	w.tester.Frame()
+	w.shoot(t, "4-mac-trial")
+	if err := w.tester.RightClick(locales.OnboardingTrialGroup()); err != nil {
+		t.Fatal(err)
+	}
+	if menu := w.tester.Menu(); !slices.Contains(menu, locales.Pin()) || !slices.Contains(menu, locales.RenameEllipsis()) {
+		t.Fatalf("the trial group's menu is %q, want the field's", menu)
+	}
+	if err := w.tester.ChooseMenuItem(locales.Pin()); err != nil {
+		t.Fatal(err)
+	}
+	w.tester.Advance(time.Second)
+	if _, ok := w.tester.Find(locales.Pinned()); !ok {
+		t.Error("the pin chosen is not on the card")
+	}
+	if got := w.Result().Changes; len(got) != 0 {
+		t.Errorf("trying the menus set up %+v", got)
 	}
 }

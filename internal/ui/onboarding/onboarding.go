@@ -17,6 +17,7 @@ import (
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
 	"github.com/caelyreth/neverland/internal/editor/policy"
 	"github.com/caelyreth/neverland/internal/ui/components"
+	"github.com/caelyreth/neverland/internal/ui/shell"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
@@ -88,6 +89,9 @@ type State struct {
 	// mark is the brand's, as rasterized.
 	mark   components.BrandMark
 	placed bool
+	// trial is the field's card the menus are tried on, made as the Mac's
+	// page first shows.
+	trial *shell.Trial
 }
 
 // New starts the walkthrough with the notebook in defaultRoot.
@@ -243,8 +247,8 @@ func proseFamily(style fonts.Style) string {
 	return theme.ProseFontFamily
 }
 
-// View draws the walkthrough: the halftone ground behind, the page in front, the way
-// on at its foot.
+// View draws the walkthrough: the page on the window's ground, the way on
+// at its foot. Anywhere nothing answers the pointer, it moves the window.
 func (s *State) View(c *ui.Context) {
 	now := c.Now()
 	s.clock = now
@@ -268,26 +272,29 @@ func (s *State) View(c *ui.Context) {
 	components.Menus(c, semantic, settings.DrawnMenus)
 	m := newMetrics(c)
 
-	root := ui.Box(c).Key("onboarding").WidthPercent(100).HeightPercent(100).Clip()
-	drift := float32(s.index(s.at))
-	if animate {
-		drift = components.Follow(root, "drift", drift, components.MotionScene*2)
-	}
-	root.Draw(func(p *ui.Painter, r ui.Rect) { paintGround(p, r, semantic, drift) })
+	root := ui.Box(c).Key("onboarding").WidthPercent(100).HeightPercent(100).Clip().
+		Background(semantic.Surface.Background).DragWindow()
 	root.Children(func() {
 		// The page stands in a measure of its own, centered, however wide
 		// the window: room around it, never stretched thin.
 		ui.Column(c).WidthPercent(100).HeightPercent(100).Padding(m.top, m.pad, m.pad, m.pad).AlignItems(ui.Center).Children(func() {
-			ui.Column(c).WidthPercent(100).MaxWidth(m.measure).Grow(1).MinHeight(0).Children(func() {
+			page := ui.Column(c).Key("page").WidthPercent(100).MaxWidth(m.measure).Grow(1).MinHeight(0)
+			// The way on comes up as the first page counted shows, and goes
+			// back to the cover.
+			foot := float32(0)
+			if s.at != pageWelcome {
+				foot = 1
+			}
+			if animate {
+				foot = components.Follow(page, "foot", foot, components.MotionPanel)
+			}
+			page.Children(func() {
 				body := ui.Column(c).Key(int(s.at)).WidthPercent(100).Grow(1).MinHeight(0).Justify(ui.Center)
 				body.Children(func() { s.pageView(c, semantic, m, animate, now) })
-				s.foot(c, semantic, m, animate)
+				s.foot(c, semantic, m, animate, foot)
 			})
 		})
 	})
-	if s.at == pageMac {
-		root.ContextMenu(tryMenu)
-	}
 }
 
 // entering is how far an element of the page shown has come in, from 0
