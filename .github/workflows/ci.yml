@@ -68,3 +68,10 @@ jobs:
 
       - name: test
         run: go test -count=1 ./...
+
+      - name: test race
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          go test -race -count=1 ./internal/app/storage ./internal/app/search ./internal/app/updater ./internal/app/fonts
+          go test -race -count=1 -run 'Test.*Backup|Test.*Restore|Test.*Flush|Test.*Notice|Test.*Saving|Test.*Goroutine|Test.*Search|Test.*Index|Test.*Update|Test.*NewerSettings|Test.*Settings|Test.*Lost|Test.*Written|Test.*Font|Test.*Repaired' ./internal/ui/window
