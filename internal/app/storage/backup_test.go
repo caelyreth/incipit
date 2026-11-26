@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -163,5 +165,66 @@ func TestListBackupsSkipsNewerSchemaVersion(t *testing.T) {
 		if b.Path == newerPath {
 			t.Fatalf("ListBackups returned backup with newer schema version %q", newerPath)
 		}
+	}
+}
+
+func TestRestoreBackupLocksMovesWithRollbackAndPreservesMedia(t *testing.T) {
+	root := t.TempDir()
+	s := openStore(t, root)
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Take an initial verified backup before adding new media.
+	s = openStore(t, root)
+	list, err := ListBackups(root)
+	if err != nil || len(list) == 0 {
+		t.Fatalf("ListBackups = %+v, %v", list, err)
+	}
+	// Leave a stale .partial in Backups and ensure backupNamed cleans it.
+	stalePartial := filepath.Join(root, backupDir, "notebook-20250101-000000.db.partial")
+	if err := os.WriteFile(stalePartial, []byte("partial"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.backupNamed(context.Background(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stalePartial); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("stale .partial was not cleaned: err=%v", err)
+	}
+
+	// Add media in this session; calling RestoreBackup while Store is open must return ErrLocked.
+	m, err := s.AddMedia(picture(t, 2, 2, 7), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreBackup(root, list[0].Path); !errors.Is(err, ErrLocked) {
+		t.Fatalf("RestoreBackup while open = %v, want ErrLocked", err)
+	}
+	mediaFile := s.MediaFile(m)
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test moveDBAside + rollbackDBAside preserves notebook.db cleanly.
+	folder, moved, err := moveDBAside(root)
+	if err != nil || len(moved) == 0 {
+		t.Fatalf("moveDBAside = %q, %v, %v", folder, moved, err)
+	}
+	rollbackDBAside(root, folder, moved)
+	if _, err := os.Stat(filepath.Join(root, databaseName)); err != nil {
+		t.Fatalf("rollbackDBAside did not restore notebook.db: %v", err)
+	}
+	if _, err := os.Stat(folder); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("rollbackDBAside left empty recovery folder: %v", err)
+	}
+
+	// RestoreBackup onto closed store writes .restored marker so post-backup media file survives reopen.
+	if err := RestoreBackup(root, list[0].Path); err != nil {
+		t.Fatalf("RestoreBackup failed: %v", err)
+	}
+	reopened := openStore(t, root)
+	defer reopened.Close()
+	if _, err := os.Stat(mediaFile); err != nil {
+		t.Fatalf("post-backup media file was wiped immediately after RestoreBackup: %v", err)
 	}
 }

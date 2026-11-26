@@ -163,7 +163,7 @@ func Load(schema *doc.Schema, marks *doc.Interner, root doc.ID, seed uint64, row
 	built := 0
 	var build func(r Row) (*doc.Node, error)
 	build = func(r Row) (*doc.Node, error) {
-		attrs, err := DecodeAttrs(r.Attrs, knownFields(schema, r.Kind))
+		attrs, err := decodeNodeAttrs(r.Attrs, schema, r.Kind)
 		if err != nil {
 			return nil, corrupt(r.ID, "attributes")
 		}

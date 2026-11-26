@@ -118,6 +118,10 @@ func intIn(lo, hi int64) func(doc.Value) bool {
 func isText(v doc.Value) bool { return v.Kind() == doc.ValueText }
 func isBool(v doc.Value) bool { return v.Kind() == doc.ValueBool }
 
+func columnFieldKnown(num uint16) bool {
+	return num == FieldColumnAlign || num == FieldColumnWidth || num == FieldColumnFit
+}
+
 func columnsValid(v doc.Value) bool {
 	if v.Kind() != doc.ValueList || v.Len() == 0 {
 		return false
@@ -204,7 +208,7 @@ var kindSpecs = []doc.KindSpec{
 	{Kind: Table, Name: "table", Placement: doc.PlaceBlock, Object: true,
 		Slots: []doc.SlotSpec{{Name: "rows", Blocks: true, Accepts: only(Row)}},
 		Fields: []doc.FieldSpec{
-			{Num: FieldColumns, Name: "columns", Default: doc.List(), Valid: columnsValid},
+			{Num: FieldColumns, Name: "columns", Default: doc.List(), Valid: columnsValid, NestedFields: columnFieldKnown},
 			{Num: FieldHeader, Name: "header", Default: doc.Bool(true), Valid: isBool},
 		},
 		Check: checkTable},

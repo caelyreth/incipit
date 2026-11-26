@@ -188,4 +188,33 @@ func TestMarkUnknownAttrsDecodeAsRawAndSchemaIDsStayStable(t *testing.T) {
 	if rv, rok := redecoded.Get(99); !rok || rv.Text() != "https://example.com" {
 		t.Fatalf("raw mark field failed round-trip: ok=%v val=%+v", rok, rv)
 	}
+
+	// Verify unknown fields inside Table.FieldColumns wireList decode as ValueRaw
+	// and pass columnsValid validation on round-trip.
+	tableAttrs := EncodeAttrs(doc.MakeAttrs(
+		doc.Field{Num: profile.FieldHeader, Value: doc.Bool(false)},
+		doc.Field{Num: profile.FieldColumns, Value: doc.List(
+			doc.MakeAttrs(
+				doc.Field{Num: profile.FieldColumnAlign, Value: doc.Int(1)},
+				doc.Field{Num: 77, Value: doc.Text("future-col-attr")},
+			),
+		)},
+	))
+	decodedTable, err := decodeNodeAttrs(tableAttrs, profile.Schema(), profile.Table)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cols, ok := decodedTable.Get(profile.FieldColumns)
+	if !ok || cols.Len() != 1 {
+		t.Fatalf("decoded table columns = %+v (%v)", cols, ok)
+	}
+	f77, ok := cols.Records()[0].Get(77)
+	if !ok || f77.Kind() != doc.ValueRaw {
+		t.Fatalf("expected unknown table column field 77 to decode as ValueRaw, got %+v (%v)", f77, ok)
+	}
+	tbl := doc.NewNodeWithID(2, profile.Table, decodedTable, "n", doc.BlockSlot())
+	pg := doc.NewNodeWithID(1, profile.Page, doc.Attrs{}, "", doc.BlockSlot(tbl))
+	if _, err := doc.NewSnapshot(profile.Schema(), doc.NewInterner(), pg, 3); err != nil {
+		t.Fatalf("table with ValueRaw column field failed validation: %v", err)
+	}
 }

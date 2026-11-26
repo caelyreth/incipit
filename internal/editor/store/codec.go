@@ -146,12 +146,20 @@ func encodeAttrs(w *writer, a doc.Attrs) {
 // DecodeAttrs decodes attributes. Fields the kind does not declare are
 // kept raw, so a rewrite preserves them.
 func DecodeAttrs(b []byte, known func(num uint16) bool) (doc.Attrs, error) {
+	return decodeNodeAttrsWithNested(b, known, nil)
+}
+
+func decodeNodeAttrs(b []byte, schema *doc.Schema, k doc.Kind) (doc.Attrs, error) {
+	return decodeNodeAttrsWithNested(b, knownFields(schema, k), knownNestedFields(schema, k))
+}
+
+func decodeNodeAttrsWithNested(b []byte, known func(num uint16) bool, nested func(field, sub uint16) bool) (doc.Attrs, error) {
 	r := &reader{b: b}
-	a := decodeAttrs(r, known)
+	a := decodeAttrs(r, known, nested)
 	return a, r.err
 }
 
-func decodeAttrs(r *reader, known func(uint16) bool) doc.Attrs {
+func decodeAttrs(r *reader, known func(uint16) bool, nested func(field, sub uint16) bool) doc.Attrs {
 	var fields []doc.Field
 	for len(r.b) > 0 && r.err == nil {
 		num := uint16(r.uvarint())
@@ -168,9 +176,14 @@ func decodeAttrs(r *reader, known func(uint16) bool) doc.Attrs {
 		case wireList:
 			n := r.count()
 			recs := make([]doc.Attrs, 0, n)
+			subKnown := func(uint16) bool { return true }
+			if nested != nil && (known == nil || known(num)) {
+				fieldNum := num
+				subKnown = func(sub uint16) bool { return nested(fieldNum, sub) }
+			}
 			for i := 0; i < n && r.err == nil; i++ {
 				sub := &reader{b: []byte(r.bytes())}
-				recs = append(recs, decodeAttrs(sub, func(uint16) bool { return true }))
+				recs = append(recs, decodeAttrs(sub, subKnown, nil))
 				if sub.err != nil {
 					r.fail()
 				}
@@ -252,7 +265,7 @@ func decodeSlots(r *reader, text *string, schema *doc.Schema, marks *doc.Interne
 			case tagNode:
 				id := doc.ID(r.uvarint())
 				k := doc.Kind(r.uvarint())
-				attrs, err := DecodeAttrs([]byte(r.bytes()), knownFields(schema, k))
+				attrs, err := decodeNodeAttrs([]byte(r.bytes()), schema, k)
 				if err != nil {
 					r.fail()
 				}
@@ -295,6 +308,24 @@ func knownFields(schema *doc.Schema, k doc.Kind) func(uint16) bool {
 		for _, f := range spec.Fields {
 			if f.Num == num {
 				return true
+			}
+		}
+		return false
+	}
+}
+
+func knownNestedFields(schema *doc.Schema, k doc.Kind) func(field, sub uint16) bool {
+	spec, ok := schema.Kind(k)
+	return func(field, sub uint16) bool {
+		if !ok {
+			return false
+		}
+		for _, f := range spec.Fields {
+			if f.Num == field {
+				if f.NestedFields == nil {
+					return true
+				}
+				return f.NestedFields(sub)
 			}
 		}
 		return false

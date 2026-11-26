@@ -72,32 +72,87 @@ func ListBackups(root string) ([]BackupInfo, error) {
 	return out, nil
 }
 
-// RestoreBackup moves any existing database files in root aside into Recovery/
-// and durably installs backupPath as the notebook database. Caller must ensure
-// the notebook Store is not open (hold/acquire the notebook lock if needed).
+// RestoreBackup locks root, moves existing database files aside into Recovery/,
+// and transactionally installs backupPath. If copying fails, any moved files
+// are rolled back from Recovery/ so root is never left without notebook.db.
 func RestoreBackup(root, backupPath string) error {
 	ctx := context.Background()
-	if err := verifyFile(ctx, backupPath); err != nil {
-		return err
-	}
-	folder, err := uniqueSubdir(filepath.Join(root, recoveryDir), time.Now().Format("20060102-150405"))
+	lock, err := acquireLock(root)
 	if err != nil {
 		return err
 	}
-	dbPath := filepath.Join(root, databaseName)
-	for _, suffix := range []string{"", "-wal", "-shm"} {
-		from := dbPath + suffix
-		if _, err := os.Stat(from); err != nil {
-			continue
-		}
-		if err := os.Rename(from, filepath.Join(folder, databaseName+suffix)); err != nil {
-			return err
-		}
-	}
-	if err := syncDir(root); err != nil {
+	defer func() { _ = releaseLock(lock) }()
+
+	if _, err := swapDatabase(ctx, root, backupPath); err != nil {
 		return err
 	}
-	return copyDurably(backupPath, dbPath)
+	// Mark so the immediate reopen skips purging media referenced only by
+	// the pre-restore database preserved in Recovery/.
+	_ = os.WriteFile(filepath.Join(root, restoredMarker), nil, 0o644)
+	_ = syncDir(root)
+	return nil
+}
+
+// swapDatabase verifies backupPath, moves existing DB files aside into
+// Recovery/, and copies backupPath to notebook.db, rolling back on failure.
+func swapDatabase(ctx context.Context, root, backupPath string) (string, error) {
+	if err := verifyFile(ctx, backupPath); err != nil {
+		return "", err
+	}
+	folder, moved, err := moveDBAside(root)
+	if err != nil {
+		return "", err
+	}
+	if err := syncDir(root); err != nil {
+		rollbackDBAside(root, folder, moved)
+		return "", err
+	}
+	dbPath := filepath.Join(root, databaseName)
+	if err := copyDurably(backupPath, dbPath); err != nil {
+		_ = os.Remove(dbPath)
+		rollbackDBAside(root, folder, moved)
+		return "", err
+	}
+	return folder, nil
+}
+
+func moveDBAside(root string) (folder string, moved []string, err error) {
+	folder, err = uniqueSubdir(filepath.Join(root, recoveryDir), time.Now().Format("20060102-150405"))
+	if err != nil {
+		return "", nil, err
+	}
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		name := databaseName + suffix
+		from := filepath.Join(root, name)
+		if _, statErr := os.Stat(from); statErr != nil {
+			if errors.Is(statErr, os.ErrNotExist) {
+				continue
+			}
+			rollbackDBAside(root, folder, moved)
+			return "", nil, statErr
+		}
+		if renameErr := os.Rename(from, filepath.Join(folder, name)); renameErr != nil {
+			rollbackDBAside(root, folder, moved)
+			return "", nil, renameErr
+		}
+		moved = append(moved, name)
+	}
+	if len(moved) == 0 {
+		_ = os.Remove(folder)
+		return "", nil, nil
+	}
+	return folder, moved, nil
+}
+
+func rollbackDBAside(root, folder string, moved []string) {
+	if folder == "" {
+		return
+	}
+	for i := len(moved) - 1; i >= 0; i-- {
+		_ = os.Rename(filepath.Join(folder, moved[i]), filepath.Join(root, moved[i]))
+	}
+	_ = syncDir(root)
+	_ = os.Remove(folder)
 }
 
 func uniqueSubdir(parent, base string) (string, error) {
@@ -203,6 +258,12 @@ func (s *Store) backupNamed(ctx context.Context, now time.Time) (string, error) 
 	folder := filepath.Join(s.root, backupDir)
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		return "", err
+	}
+	// Sweep orphaned .partial files from prior interrupted backup runs.
+	if partials, err := filepath.Glob(filepath.Join(folder, backupPrefix+"*"+backupSuffix+".partial")); err == nil {
+		for _, p := range partials {
+			_ = os.Remove(p)
+		}
 	}
 	name, _ := uniqueBackupPath(folder, now)
 	partial := name + ".partial"

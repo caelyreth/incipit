@@ -47,6 +47,9 @@ type FieldSpec struct {
 	Default Value
 	// Valid reports whether a value is within the field's domain.
 	Valid func(Value) bool
+	// NestedFields, when non-nil on a list-of-records field, reports the known
+	// nested field numbers inside each record; unknown fields decode as ValueRaw.
+	NestedFields func(uint16) bool
 }
 
 // KindSpec declares a node kind.

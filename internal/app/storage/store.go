@@ -27,10 +27,11 @@ var (
 )
 
 const (
-	databaseName = "notebook.db"
-	lockName     = ".lock"
-	backupDir    = "Backups"
-	recoveryDir  = "Recovery"
+	databaseName   = "notebook.db"
+	lockName       = ".lock"
+	restoredMarker = ".restored"
+	backupDir      = "Backups"
+	recoveryDir    = "Recovery"
 )
 
 // Store is one open notebook, held by this process alone until Close.
@@ -65,14 +66,10 @@ type Recovery struct {
 // Repaired reports whether opening had to replace the notebook.
 func (r Recovery) Repaired() bool { return r.Damaged != "" }
 
-// Open takes the notebook in root for this process, creating the folder
-// and the notebook as needed. A damaged notebook is moved aside and
-// replaced from its newest sound backup; Recovery says so.
-func Open(root string) (*Store, error) {
+func acquireLock(root string) (*os.File, error) {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return nil, err
 	}
-	keepLocal(root)
 	lock, err := os.OpenFile(filepath.Join(root, lockName), os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
 		return nil, err
@@ -84,11 +81,36 @@ func Open(root string) (*Store, error) {
 	// The holder's process, for whoever finds the lock held.
 	_ = lock.Truncate(0)
 	_, _ = lock.WriteAt([]byte(fmt.Sprintf("%d\n", os.Getpid())), 0)
+	return lock, nil
+}
+
+func releaseLock(lock *os.File) error {
+	if lock == nil {
+		return nil
+	}
+	err := unlock(lock)
+	if closeErr := lock.Close(); err == nil {
+		err = closeErr
+	}
+	return err
+}
+
+// Open takes the notebook in root for this process, creating the folder
+// and the notebook as needed. A damaged notebook is moved aside and
+// replaced from its newest sound backup; Recovery says so.
+func Open(root string) (*Store, error) {
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return nil, err
+	}
+	keepLocal(root)
+	lock, err := acquireLock(root)
+	if err != nil {
+		return nil, err
+	}
 
 	store := &Store{root: root, lock: lock}
 	if err := store.open(); err != nil {
-		_ = unlock(lock)
-		_ = lock.Close()
+		_ = releaseLock(lock)
 		return nil, err
 	}
 	return store, nil
@@ -147,11 +169,18 @@ func (s *Store) open() error {
 	if err := s.loadMedia(ctx); err != nil {
 		return closeOnErr(err)
 	}
+	// Consume any one-launch marker left by RestoreBackup so post-backup media
+	// belonging to Recovery/ is not purged immediately on first reopen.
+	markerPath := filepath.Join(s.root, restoredMarker)
+	_, restErr := os.Stat(markerPath)
+	restored := restErr == nil
+	if restored {
+		_ = os.Remove(markerPath)
+	}
 	// A sweep that cannot finish tries again at the next launch: it never
-	// stops the notebook opening. A notebook just repaired is not swept:
-	// the damaged one moved aside may name pictures the one opened does
-	// not.
-	if !s.Recovery.Repaired() {
+	// stops the notebook opening. A notebook just repaired or restored is not
+	// swept: the prior database moved to Recovery may still name newer pictures.
+	if !s.Recovery.Repaired() && !restored {
 		_ = s.sweepMedia(ctx, time.Now())
 	}
 	return nil
@@ -240,24 +269,6 @@ func damaged(err error) bool {
 // recover moves the damaged notebook, its log and its index into a
 // Recovery folder, then installs the newest backup that checks out.
 func (s *Store) recover(ctx context.Context) (*sql.DB, error) {
-	stamp := time.Now().Format("20060102-150405")
-	folder, err := uniqueSubdir(filepath.Join(s.root, recoveryDir), stamp)
-	if err != nil {
-		return nil, err
-	}
-	for _, suffix := range []string{"", "-wal", "-shm"} {
-		from := s.path() + suffix
-		if _, err := os.Stat(from); err != nil {
-			continue
-		}
-		if err := os.Rename(from, filepath.Join(folder, databaseName+suffix)); err != nil {
-			return nil, err
-		}
-	}
-	s.Recovery.Damaged = folder
-	if err := syncDir(s.root); err != nil {
-		return nil, err
-	}
 	backups, err := s.backups()
 	if err != nil {
 		return nil, err
@@ -266,11 +277,23 @@ func (s *Store) recover(ctx context.Context) (*sql.DB, error) {
 		if err := verifyFile(ctx, backup.path); err != nil {
 			continue
 		}
-		if err := copyDurably(backup.path, s.path()); err != nil {
+		folder, err := swapDatabase(ctx, s.root, backup.path)
+		if err != nil {
 			return nil, err
 		}
+		s.Recovery.Damaged = folder
 		s.Recovery.Restored = backup.path
 		break
+	}
+	if s.Recovery.Restored == "" {
+		folder, _, err := moveDBAside(s.root)
+		if err != nil {
+			return nil, err
+		}
+		s.Recovery.Damaged = folder
+		if err := syncDir(s.root); err != nil {
+			return nil, err
+		}
 	}
 	db, err := openDatabase(s.path())
 	if err != nil {
