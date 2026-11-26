@@ -1,0 +1,57 @@
+name: deploy
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: published release tag to deploy (e.g. v1.0.0-alpha.1)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy release to r2 and worker
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: setup go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: download published release assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ inputs.tag || github.event.release.tag_name }}"
+          if [ -z "$tag" ]; then
+            echo "::error::missing release tag"
+            exit 1
+          fi
+          echo "DEPLOY_TAG=$tag" >> "$GITHUB_ENV"
+          mkdir -p release-assets
+          gh release download "$tag" --dir release-assets
+
+      - name: verify checksums and deploy to r2 and manifest worker
+        shell: bash
+        env:
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PREFIX: ${{ vars.R2_PREFIX || 'neverland' }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          MANIFEST_DEPLOY_URL: ${{ secrets.MANIFEST_DEPLOY_URL }}
+          MANIFEST_DEPLOY_TOKEN: ${{ secrets.MANIFEST_DEPLOY_TOKEN }}
+        run: go tool release deploy -dir release-assets -version "$DEPLOY_TAG"

@@ -1,0 +1,198 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: release version (defaults to version in mygo.json)
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: resolve version
+        id: resolve
+        shell: bash
+        run: |
+          raw="${{ inputs.version }}"
+          if [ -z "$raw" ]; then
+            if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
+              raw="${GITHUB_REF#refs/tags/v}"
+            elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+              raw="${GITHUB_REF#refs/tags/}"
+            else
+              raw="$(jq -r '.version' mygo.json)"
+            fi
+          fi
+          ver="${raw#v}"
+          tag="v${ver}"
+          pre="false"
+          if [[ "$ver" == *-* ]]; then
+            pre="true"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build ${{ matrix.name }}
+    needs: version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: darwin-universal
+            os: macos-latest
+            target: darwin/universal
+            artifact: dist-darwin-universal
+          - name: linux
+            os: ubuntu-latest
+            target: linux/amd64,linux/arm64
+            artifact: dist-linux
+          - name: windows
+            os: windows-latest
+            target: windows/amd64,windows/arm64
+            artifact: dist-windows
+    env:
+      CGO_ENABLED: "0"
+      MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: setup go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: fetch assets
+        shell: bash
+        run: go tool fetch
+
+      - name: import macos signing identity
+        if: matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_P12 != ''
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || github.run_id }}
+        run: |
+          kc="$RUNNER_TEMP/neverland-build.keychain-db"
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$kc"
+          security set-keychain-settings -lut 21600 "$kc"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$kc"
+          security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$kc"
+          security list-keychains -d user -s "$kc" login.keychain-db
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: build packages and updates
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          if [ -z "$MYGO_UPDATER_PRIVATE_KEY" ] && [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            echo "::error::MYGO_UPDATER_PRIVATE_KEY secret is required for tagged releases"
+            exit 1
+          fi
+          args=(-platform "${{ matrix.target }}" -version "${{ needs.version.outputs.version }}")
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            if [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+              args+=(-sign "$APPLE_SIGNING_IDENTITY")
+            else
+              args+=(-skip-notarize)
+            fi
+          fi
+          go tool mygo build "${args[@]}"
+          find dist -maxdepth 3 -type d -name '*.app' -exec rm -rf {} +
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist
+          if-no-files-found: error
+
+  draft:
+    name: create draft release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: setup go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: dist-*
+          path: artifacts
+
+      - name: stage assets and merge checksums
+        shell: bash
+        run: go tool release prepare-draft -in artifacts -out stage
+
+      - name: generate release notes
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ needs.version.outputs.tag }}"
+          from_tag="$(git tag --sort=-creatordate | grep -vxF "$tag" | head -n 1 || true)"
+          notes_args=(--output release-notes.md --to "$GITHUB_SHA")
+          if [ -n "$from_tag" ]; then
+            notes_args+=(--from "$from_tag")
+          fi
+          if ! npx --yes changelogithub "${notes_args[@]}" || [ ! -s release-notes.md ]; then
+            echo "changelogithub skipped or empty; falling back to github generated notes"
+            if ! gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="$tag" -q .body > release-notes.md || [ ! -s release-notes.md ]; then
+              printf "Release %s\n" "$tag" > release-notes.md
+            fi
+          fi
+
+      - name: publish draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ needs.version.outputs.tag }}"
+          pre_flag=""
+          if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then
+            pre_flag="--prerelease"
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --draft $pre_flag --title "$tag" --notes-file release-notes.md
+            gh release upload "$tag" --clobber stage/*
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --draft $pre_flag --title "$tag" --notes-file release-notes.md stage/*
+          fi
