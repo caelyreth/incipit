@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -39,4 +40,58 @@ func BenchmarkShellFrames(b *testing.B) {
 			}
 		})
 	}
+}
+
+// BenchmarkShellTransitions measures Field <-> Desk spring transitions across
+// a 30-sheet Field and an 8-sheet Desk, exercising leanDesk CacheScaled and
+// Field card Cache layer lifecycle transitions.
+func BenchmarkShellTransitions(b *testing.B) {
+	setup := func(onDesk bool) (*State, *ui.Tester) {
+		state, library := libraryState()
+		library.extraSheets = 30
+		library.desk = state
+		state.Sheet = func(c *ui.Context, page Page, _ SheetFrame) {
+			ui.Text(c, "Body of "+page.Title)
+		}
+		state.Open = nil
+		for i := 1; i <= 8; i++ {
+			id := fmt.Sprint(i)
+			state.Open = append(state.Open, sheetPage(id, fmt.Sprintf("Sheet %d", i)))
+		}
+		inFront(state, "1")
+		if onDesk {
+			state.ShowDesk()
+		} else {
+			state.ShowField()
+		}
+		tester := ui.NewTester(state.View, 1260, 850)
+		settle(tester)
+		return state, tester
+	}
+
+	b.Run("desk_to_field", func(b *testing.B) {
+		state, tester := setup(true)
+		b.ReportAllocs()
+		for b.Loop() {
+			state.ShowField()
+			settle(tester)
+			b.StopTimer()
+			state.ShowDesk()
+			settle(tester)
+			b.StartTimer()
+		}
+	})
+
+	b.Run("field_to_desk", func(b *testing.B) {
+		state, tester := setup(false)
+		b.ReportAllocs()
+		for b.Loop() {
+			state.ShowDesk()
+			settle(tester)
+			b.StopTimer()
+			state.ShowField()
+			settle(tester)
+			b.StartTimer()
+		}
+	})
 }
