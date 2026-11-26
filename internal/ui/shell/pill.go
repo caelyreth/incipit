@@ -47,13 +47,7 @@ func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stageRect, rl
 		s.goHome()
 	}
 	mark.Children(func() {
-		ui.Row(c).Key("name").AlignItems(ui.End).Children(func() {
-			size := 22 * k
-			ui.Text(c, "Neverland").Font(theme.UIFontFamily).FontSize(size).FontWeight(700).
-				LetterSpacing(-0.02 * size).TextColor(semantic.Text.Default).SingleLine()
-			ui.Text(c, ".").Font(theme.UIFontFamily).FontSize(size).FontWeight(700).
-				TextColor(semantic.Accent.Foreground).SingleLine()
-		})
+		components.Wordmark(c, "name", semantic, 22*k)
 	})
 	acts := s.fieldActions()
 	s.noticeView(c, semantic, r, w, gap, k, animate)
