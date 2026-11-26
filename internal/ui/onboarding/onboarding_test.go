@@ -11,7 +11,6 @@ import (
 
 	"github.com/caelyreth/neverland/internal/app/fonts"
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo/ui"
 )
@@ -32,9 +31,6 @@ type walkthrough struct {
 
 func newWalkthrough(t *testing.T, mac bool, still bool) *walkthrough {
 	t.Helper()
-	if err := theme.RegisterFonts(); err != nil {
-		t.Fatal(err)
-	}
 	root := filepath.Join(t.TempDir(), "Neverland")
 	w := &walkthrough{holds: map[string]bool{}, elsewhere: filepath.Join(filepath.Dir(root), "Elsewhere")}
 	w.State = New(root, Platform{Mac: mac}, Host{

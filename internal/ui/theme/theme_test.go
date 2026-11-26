@@ -21,9 +21,9 @@ func TestProseMetricsKeepReferenceProportionsAndClamp(t *testing.T) {
 	}
 }
 
-func TestReferenceProseFontRegisters(t *testing.T) {
-	if err := RegisterFonts(); err != nil {
-		t.Fatal(err)
+func TestMathFontEmbedded(t *testing.T) {
+	if len(MathFont()) == 0 {
+		t.Fatal("missing embedded math font")
 	}
 }
 

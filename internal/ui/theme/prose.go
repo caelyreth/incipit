@@ -3,8 +3,8 @@ package theme
 import "math"
 
 const (
-	ProseFontFamily    = "Noto Serif"
-	ProseSansFamily    = "Noto Sans"
+	ProseFontFamily    = "serif"
+	ProseSansFamily    = "sans-serif"
 	UIFontFamily       = "system-ui"
 	MonoFontFamily     = "monospace"
 	referenceFontSize  = float32(19)
@@ -20,8 +20,8 @@ const (
 type ProseStyle struct {
 	FontSize float32
 	Spacing  float32
-	// Family is its family list: the Latin face, ProseFontFamily or
-	// ProseSansFamily, then the face chosen for Chinese and Japanese.
+	// Family is its family list: the primary prose face (chosen or the
+	// system's Serif / Sans), optional CJK forms, and the system fallback.
 	Family string
 }
 

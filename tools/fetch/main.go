@@ -29,22 +29,9 @@ type asset struct {
 }
 
 var assets = []asset{
-	// Noto Serif, the prose face, Latin, Greek and Cyrillic: other
-	// scripts' faces are downloaded in the app, when asked
-	// (internal/app/fonts).
-	{"Noto Serif", "internal/ui/theme/fonts/NotoSerif-Variable.ttf",
-		"https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/notoserif/NotoSerif%5Bwdth%2Cwght%5D.ttf",
-		"4d8e6761424656867019081a1a01336f3cb086982682698714054fc33f782713"},
-	{"Noto Serif Italic", "internal/ui/theme/fonts/NotoSerif-Italic-Variable.ttf",
-		"https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/notoserif/NotoSerif-Italic%5Bwdth%2Cwght%5D.ttf",
-		"e87acbc6c0efd0d9a20d6a8cbbda2b266c14be3a3a6f5af8ec9d7b2460570ad1"},
-	// Noto Sans, the prose face set Sans, as Noto Serif.
-	{"Noto Sans", "internal/ui/theme/fonts/NotoSans-Variable.ttf",
-		"https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf",
-		"bfb7bb691513f12e734dc346c03a03f784912432d7e3fa8e56efcf906fe86b3d"},
-	{"Noto Sans Italic", "internal/ui/theme/fonts/NotoSans-Italic-Variable.ttf",
-		"https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/notosans/NotoSans-Italic%5Bwdth%2Cwght%5D.ttf",
-		"58e6e0ebd1931b29a365aa2d3e2ee9a9e831a3af7cf3ad1462d4e72154f0b291"},
+	// Formulas are laid out from New Computer Modern Math's OpenType MATH table;
+	// prose fonts fall back to the system's serif/sans-serif or are downloaded
+	// in the app on request (internal/app/fonts).
 	{"New Computer Modern Math", "internal/ui/theme/fonts/NewCMMath-Book.otf",
 		"https://raw.githubusercontent.com/typst/typst-assets/94dcb990edb36311ef85162baa26e4a8205e0bf0/files/fonts/NewCMMath-Book.otf",
 		"2ea09ebc9167b1e1a66f31390dc917f2d4004ecfca72d51b28010e4ad6becd95"},

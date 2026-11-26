@@ -29,9 +29,6 @@ func Run() error {
 	if path := keepLog(userData); path != "" {
 		log.Printf("Neverland %s started, logging to %s", mygo.App.Version(), path)
 	}
-	if err := theme.RegisterFonts(); err != nil {
-		return err
-	}
 	root, chosen, err := notebookRoot(userData)
 	if err != nil {
 		return err
