@@ -31,30 +31,37 @@ type face struct {
 	style, forms, family string
 }
 
-// forms are the languages the faces draw, in the order the settings list
-// them: Chinese and Japanese, the languages the app is written for beyond
-// Latin.
+// forms are the faces the catalog offers in each style: Latin (Noto Serif /
+// Noto Sans), plus Chinese and Japanese glyph forms.
 var forms = []struct{ id, suffix string }{
+	{"latin", ""},
 	{"sc", "SC"},
 	{"tc", "TC"},
 	{"hk", "HK"},
 	{"jp", "JP"},
 }
 
-// faces are the catalog's: Noto Serif, then Noto Sans, for each language.
+// faces are the catalog's: Noto Serif, then Noto Sans, for Latin and each CJK language.
 func faces() []face {
 	var out []face
 	for _, style := range []string{"Serif", "Sans"} {
 		for _, f := range forms {
-			out = append(out, face{style, f.id, "Noto " + style + " " + f.suffix})
+			name := "Noto " + style
+			if f.suffix != "" {
+				name += " " + f.suffix
+			}
+			out = append(out, face{style, f.id, name})
 		}
 	}
 	return out
 }
 
-// weights are those the page draws: body text, and headings and strong
-// text; a table header's 600 is drawn in the nearer of them.
-const weights = "400;700"
+// weights are those the page draws: body, medium, semibold, and strong text
+// (with italics) for Latin, and 400;700 for the larger CJK faces.
+const (
+	latinSpec = ":ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700"
+	cjkSpec   = ":wght@400;700"
+)
 
 // static is the host the CSS API names, whose paths the app asks of each
 // of internal/app/fonts' hosts.
@@ -65,6 +72,7 @@ const static = "https://fonts.gstatic.com/"
 const agent = "Mozilla/4.0"
 
 var (
+	styleRule  = regexp.MustCompile(`font-style:\s*(italic|normal);`)
 	weightRule = regexp.MustCompile(`font-weight:\s*(\d+);`)
 	srcRule    = regexp.MustCompile(`src:\s*url\(([^)]+)\)`)
 )
@@ -72,6 +80,7 @@ var (
 type file struct {
 	path, name   string
 	weight, size int
+	italic       bool
 	sha          string
 }
 
@@ -83,9 +92,10 @@ func main() {
 
 package fonts
 
-// Catalog is the faces the app offers for Chinese and Japanese: Noto
-// Serif, then Noto Sans, for each language's glyph forms. Each file is
-// Google Fonts' static build at a weight, at its path on each of Hosts.
+// Catalog is the faces the app offers: Noto Serif, then Noto Sans, for
+// Latin and for Chinese and Japanese glyph forms. Each file is Google
+// Fonts' static build at a weight (and style for Latin), at its path on
+// each of Hosts.
 var Catalog = []Face{
 `)
 	for _, f := range faces() {
@@ -96,7 +106,8 @@ var Catalog = []Face{
 		fmt.Fprintf(&b, "{ID: %q, Style: %s, Forms: %q, Family: %q, Files: []File{\n",
 			strings.ToLower(f.style)+"-"+f.forms, f.style, f.forms, f.family)
 		for _, fl := range files {
-			fmt.Fprintf(&b, "{Path: %q, Name: %q, Weight: %d, Size: %d, SHA256: %q},\n", fl.path, fl.name, fl.weight, fl.size, fl.sha)
+			fmt.Fprintf(&b, "{Path: %q, Name: %q, Weight: %d, Italic: %v, Size: %d, SHA256: %q},\n",
+				fl.path, fl.name, fl.weight, fl.italic, fl.size, fl.sha)
 		}
 		b.WriteString("}},\n")
 		log.Printf("%s: %d files", f.family, len(files))
@@ -111,10 +122,14 @@ var Catalog = []Face{
 	}
 }
 
-// filesOf is f's files at the page's weights, or at the regular weight
-// alone where it has no other.
+// filesOf is f's files at the page's weights (and italics for Latin), or at
+// the regular weight alone where it has no other.
 func filesOf(f face) ([]file, error) {
-	css, err := stylesheet(f.family + ":wght@" + weights)
+	spec := cjkSpec
+	if f.forms == "latin" {
+		spec = latinSpec
+	}
+	css, err := stylesheet(f.family + spec)
 	if err != nil {
 		css, err = stylesheet(f.family)
 	}
@@ -127,14 +142,20 @@ func filesOf(f face) ([]file, error) {
 		if w == nil || src == nil || !strings.HasPrefix(src[1], static) {
 			return nil, fmt.Errorf("a face the stylesheet does not tell whole: %q", block)
 		}
+		st := styleRule.FindStringSubmatch(block)
+		italic := st != nil && st[1] == "italic"
 		weight, _ := strconv.Atoi(w[1])
 		data, err := get(src[1], "")
 		if err != nil {
 			return nil, err
 		}
 		sum := sha256.Sum256(data)
-		name := strings.ReplaceAll(f.family, " ", "") + "-" + w[1] + ".ttf"
-		out = append(out, file{strings.TrimPrefix(src[1], static), name, weight, len(data), hex.EncodeToString(sum[:])})
+		suffix := ""
+		if italic {
+			suffix = "-Italic"
+		}
+		name := strings.ReplaceAll(f.family, " ", "") + "-" + w[1] + suffix + ".ttf"
+		out = append(out, file{strings.TrimPrefix(src[1], static), name, weight, len(data), italic, hex.EncodeToString(sum[:])})
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no files in %q", css)

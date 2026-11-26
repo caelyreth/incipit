@@ -29,6 +29,7 @@ type persisted struct {
 	ProseSize    float32                    `json:"proseFontSize"`
 	LineSpacing  float32                    `json:"lineSpacing"`
 	Typeface     string                     `json:"typeface,omitempty"`
+	ProseFont    string                     `json:"proseFont,omitempty"`
 	CJKForms     string                     `json:"cjkForms,omitempty"`
 	Menus        string                     `json:"menus,omitempty"`
 	Keymap       map[string]*persistedChord `json:"keymap,omitempty"`
@@ -59,6 +60,7 @@ func (s State) Encode() ([]byte, error) {
 		ProseSize:    s.Appearance.ProseFontSize,
 		LineSpacing:  s.Appearance.LineSpacing,
 		Typeface:     strings.ToLower(s.Appearance.Typeface.String()),
+		ProseFont:    s.Appearance.ProseFont,
 		CJKForms:     s.Appearance.CJKForms,
 		Menus:        menusName(s.Appearance.DrawnMenus),
 		Keymap:       persistedOverrides(s.Keymap),
@@ -109,6 +111,7 @@ func (s *State) Decode(data []byte) error {
 			ProseFontSize: record.ProseSize,
 			LineSpacing:   record.LineSpacing,
 			Typeface:      parseTypeface(record.Typeface),
+			ProseFont:     record.ProseFont,
 			CJKForms:      record.CJKForms,
 			DrawnMenus:    record.Menus == "drawn",
 		}.Normalized(),

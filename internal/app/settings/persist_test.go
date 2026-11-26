@@ -17,6 +17,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		ProseFontSize: 21,
 		LineSpacing:   2,
 		Typeface:      fonts.Sans,
+		ProseFont:     "Georgia",
 		CJKForms:      "jp",
 		DrawnMenus:    true,
 	}

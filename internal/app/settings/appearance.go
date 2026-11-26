@@ -2,6 +2,7 @@ package settings
 
 import (
 	"math"
+	"strings"
 
 	"github.com/caelyreth/neverland/internal/app/fonts"
 )
@@ -57,9 +58,13 @@ type AppearanceSettings struct {
 	UIFontSize    float32
 	ProseFontSize float32
 	LineSpacing   float32
-	// Typeface is the prose's style, Serif or Sans: the Latin face the app
-	// ships in it, and the face for Chinese and Japanese.
+	// Typeface is the prose's style, Serif or Sans: sets the system generic
+	// fallback and pairs downloadable Noto faces.
 	Typeface fonts.Style
+	// ProseFont is the user-chosen primary prose font family (any installed
+	// system font or downloaded face); empty uses the system generic family
+	// matching Typeface ("serif" or "sans-serif").
+	ProseFont string
 	// CJKForms is the language (internal/app/fonts) whose glyph forms Chinese and
 	// Japanese are drawn in, by its face in Typeface once kept; empty, the
 	// system's fonts draw them.
@@ -94,7 +99,8 @@ func (s AppearanceSettings) Normalized() AppearanceSettings {
 	if !s.Typeface.Valid() {
 		s.Typeface = fonts.Serif
 	}
-	if _, ok := fonts.Find(fonts.Serif, s.CJKForms); !ok {
+	s.ProseFont = cleanFontName(s.ProseFont)
+	if _, ok := fonts.Find(fonts.Serif, s.CJKForms); !ok || s.CJKForms == fonts.FormsLatin {
 		s.CJKForms = ""
 	}
 	return s
@@ -134,7 +140,16 @@ func (s *AppearanceSettings) Apply(change AppearanceChange) bool {
 			return false
 		}
 		s.Typeface = change.Typeface
+	case SetProseFont:
+		font, ok := parseFontName(change.Font)
+		if !ok {
+			return false
+		}
+		s.ProseFont = font
 	case SetCJKForms:
+		if change.Forms == fonts.FormsLatin {
+			return false
+		}
 		if _, ok := fonts.Find(fonts.Serif, change.Forms); !ok && change.Forms != "" {
 			return false
 		}
@@ -149,4 +164,20 @@ func (s *AppearanceSettings) Apply(change AppearanceChange) bool {
 
 func clampFloat(value, low, high float32) float32 {
 	return max(low, min(value, high))
+}
+
+func parseFontName(name string) (string, bool) {
+	name = strings.TrimSpace(name)
+	if strings.ContainsAny(name, ",\r\n") {
+		return "", false
+	}
+	return name, true
+}
+
+func cleanFontName(name string) string {
+	cleaned, ok := parseFontName(name)
+	if !ok {
+		return ""
+	}
+	return cleaned
 }

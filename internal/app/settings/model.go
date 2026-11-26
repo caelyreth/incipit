@@ -190,6 +190,7 @@ const (
 	SetProseFontSize
 	SetLineSpacing
 	SetTypeface
+	SetProseFont
 	SetCJKForms
 	SetDrawnMenus
 )
@@ -201,9 +202,11 @@ type AppearanceChange struct {
 	Theme    uint8
 	FontSize float32
 	Spacing  float32
-	// Typeface is SetTypeface's style, and Forms SetCJKForms' language
-	// (internal/app/fonts), empty for the system's fonts.
+	// Typeface is SetTypeface's style, Font SetProseFont's chosen family
+	// ("" for the system generic font matching Typeface), and Forms
+	// SetCJKForms' language (internal/app/fonts), empty for the system's fonts.
 	Typeface fonts.Style
+	Font     string
 	Forms    string
 	// Drawn is SetDrawnMenus' choice: the app's own menus on macOS.
 	Drawn bool

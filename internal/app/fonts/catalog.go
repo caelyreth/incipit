@@ -2,40 +2,61 @@
 
 package fonts
 
-// Catalog is the faces the app offers for Chinese and Japanese: Noto
-// Serif, then Noto Sans, for each language's glyph forms. Each file is
-// Google Fonts' static build at a weight, at its path on each of Hosts.
+// Catalog is the faces the app offers: Noto Serif, then Noto Sans, for
+// Latin and for Chinese and Japanese glyph forms. Each file is Google
+// Fonts' static build at a weight (and style for Latin), at its path on
+// each of Hosts.
 var Catalog = []Face{
+	{ID: "serif-latin", Style: Serif, Forms: "latin", Family: "Noto Serif", Files: []File{
+		{Path: "s/notoserif/v33/ga6saw1J5X9T9RW6j9bNfFIMZhhWnFTyNZIQD1-_FXP0RgnaOg9MYBNLg8cP.ttf", Name: "NotoSerif-400-Italic.ttf", Weight: 400, Italic: true, Size: 476400, SHA256: "f06cb5f088620048826b520a145b0410065bfef099113c4e8898b3fab48d506d"},
+		{Path: "s/notoserif/v33/ga6saw1J5X9T9RW6j9bNfFIMZhhWnFTyNZIQD1-_FXP0RgnaOg9MYBN5g8cP.ttf", Name: "NotoSerif-500-Italic.ttf", Weight: 500, Italic: true, Size: 477208, SHA256: "c7fc83d551359a1d548a41bbf6f86a49ef71de8f273b5b7da0b1f6b5b5582a1c"},
+		{Path: "s/notoserif/v33/ga6saw1J5X9T9RW6j9bNfFIMZhhWnFTyNZIQD1-_FXP0RgnaOg9MYBOVhMcP.ttf", Name: "NotoSerif-600-Italic.ttf", Weight: 600, Italic: true, Size: 477268, SHA256: "acce9d6b4e4dda066ed26dc641057911d5a0ab9fc50470df9f8c17eaf0900c48"},
+		{Path: "s/notoserif/v33/ga6saw1J5X9T9RW6j9bNfFIMZhhWnFTyNZIQD1-_FXP0RgnaOg9MYBOshMcP.ttf", Name: "NotoSerif-700-Italic.ttf", Weight: 700, Italic: true, Size: 476596, SHA256: "e8f4212d591d4075bfb39422937bb71b2d893a59f87606503b789f7e3d23bd7f"},
+		{Path: "s/notoserif/v33/ga6iaw1J5X9T9RW6j9bNVls-hfgvz8JcMofYTa32J4wsL2JAlAhZqFCjwA.ttf", Name: "NotoSerif-400.ttf", Weight: 400, Italic: false, Size: 444064, SHA256: "5473d2e43bdd018ee124a4addba8091fd0a29894b121cbb741023af6549662b6"},
+		{Path: "s/notoserif/v33/ga6iaw1J5X9T9RW6j9bNVls-hfgvz8JcMofYTa32J4wsL2JAlAhZmlCjwA.ttf", Name: "NotoSerif-500.ttf", Weight: 500, Italic: false, Size: 445448, SHA256: "4ac293744360aaf983c105398e3fb4b5bfe03c784689c3c4f5c0071dce73e8df"},
+		{Path: "s/notoserif/v33/ga6iaw1J5X9T9RW6j9bNVls-hfgvz8JcMofYTa32J4wsL2JAlAhZdlejwA.ttf", Name: "NotoSerif-600.ttf", Weight: 600, Italic: false, Size: 445604, SHA256: "6f232358fe1ca18c9ef85a5e6ef09b82188794256c9e8873f8f323f424eb6373"},
+		{Path: "s/notoserif/v33/ga6iaw1J5X9T9RW6j9bNVls-hfgvz8JcMofYTa32J4wsL2JAlAhZT1ejwA.ttf", Name: "NotoSerif-700.ttf", Weight: 700, Italic: false, Size: 445548, SHA256: "0fb67e6eecf823169409867bdda4fe1b91d6ff1adee5288f233cba0d42dc4734"},
+	}},
 	{ID: "serif-sc", Style: Serif, Forms: "sc", Family: "Noto Serif SC", Files: []File{
-		{Path: "s/notoserifsc/v36/H4cyBXePl9DZ0Xe7gG9cyOj7uK2-n-D2rd4FY7SCqyWv.ttf", Name: "NotoSerifSC-400.ttf", Weight: 400, Size: 14785412, SHA256: "a513b97fa1503422d78ee1f40415db736926e2d0d8d99701bdcede8cf6f6058e"},
-		{Path: "s/notoserifsc/v36/H4cyBXePl9DZ0Xe7gG9cyOj7uK2-n-D2rd4FY7RlrCWv.ttf", Name: "NotoSerifSC-700.ttf", Weight: 700, Size: 14784324, SHA256: "478964fe127eb4503248b057f675bbb26c67b2adf6a78643ff52549d28e0a3e9"},
+		{Path: "s/notoserifsc/v36/H4cyBXePl9DZ0Xe7gG9cyOj7uK2-n-D2rd4FY7SCqyWv.ttf", Name: "NotoSerifSC-400.ttf", Weight: 400, Italic: false, Size: 14785412, SHA256: "a513b97fa1503422d78ee1f40415db736926e2d0d8d99701bdcede8cf6f6058e"},
+		{Path: "s/notoserifsc/v36/H4cyBXePl9DZ0Xe7gG9cyOj7uK2-n-D2rd4FY7RlrCWv.ttf", Name: "NotoSerifSC-700.ttf", Weight: 700, Italic: false, Size: 14784324, SHA256: "478964fe127eb4503248b057f675bbb26c67b2adf6a78643ff52549d28e0a3e9"},
 	}},
 	{ID: "serif-tc", Style: Serif, Forms: "tc", Family: "Noto Serif TC", Files: []File{
-		{Path: "s/notoseriftc/v37/XLYzIZb5bJNDGYxLBibeHZ0BnHwmuanx8cUaGX9aMOpD.ttf", Name: "NotoSerifTC-400.ttf", Weight: 400, Size: 9934616, SHA256: "2aa67c20b8cc8b929cc2ace9c0896cee033abbdfe11fe65306a5caede1cdc6ac"},
-		{Path: "s/notoseriftc/v37/XLYzIZb5bJNDGYxLBibeHZ0BnHwmuanx8cUaGX-9N-pD.ttf", Name: "NotoSerifTC-700.ttf", Weight: 700, Size: 9937380, SHA256: "3e2b71256bf380d8aaf7b7fee13aa7690b3f20326dc8815a4e6beead3f1a23e1"},
+		{Path: "s/notoseriftc/v37/XLYzIZb5bJNDGYxLBibeHZ0BnHwmuanx8cUaGX9aMOpD.ttf", Name: "NotoSerifTC-400.ttf", Weight: 400, Italic: false, Size: 9934616, SHA256: "2aa67c20b8cc8b929cc2ace9c0896cee033abbdfe11fe65306a5caede1cdc6ac"},
+		{Path: "s/notoseriftc/v37/XLYzIZb5bJNDGYxLBibeHZ0BnHwmuanx8cUaGX-9N-pD.ttf", Name: "NotoSerifTC-700.ttf", Weight: 700, Italic: false, Size: 9937380, SHA256: "3e2b71256bf380d8aaf7b7fee13aa7690b3f20326dc8815a4e6beead3f1a23e1"},
 	}},
 	{ID: "serif-hk", Style: Serif, Forms: "hk", Family: "Noto Serif HK", Files: []File{
-		{Path: "s/notoserifhk/v13/BngdUXBETWXI6LwlBZGcqL-B_KuJFcgfwP_9RMd-K2Rm.ttf", Name: "NotoSerifHK-400.ttf", Weight: 400, Size: 9920428, SHA256: "16cbc5633c50b37b87a1510a57dc080c5e087891043c3c1018bc26d4a6c0f737"},
-		{Path: "s/notoserifhk/v13/BngdUXBETWXI6LwlBZGcqL-B_KuJFcgfwP_9RMeZLGRm.ttf", Name: "NotoSerifHK-700.ttf", Weight: 700, Size: 9922364, SHA256: "b14729ec38c9a666c88cbdb3af318bf943cd80204db8de5a48051ae2faaee5a4"},
+		{Path: "s/notoserifhk/v13/BngdUXBETWXI6LwlBZGcqL-B_KuJFcgfwP_9RMd-K2Rm.ttf", Name: "NotoSerifHK-400.ttf", Weight: 400, Italic: false, Size: 9920428, SHA256: "16cbc5633c50b37b87a1510a57dc080c5e087891043c3c1018bc26d4a6c0f737"},
+		{Path: "s/notoserifhk/v13/BngdUXBETWXI6LwlBZGcqL-B_KuJFcgfwP_9RMeZLGRm.ttf", Name: "NotoSerifHK-700.ttf", Weight: 700, Italic: false, Size: 9922364, SHA256: "b14729ec38c9a666c88cbdb3af318bf943cd80204db8de5a48051ae2faaee5a4"},
 	}},
 	{ID: "serif-jp", Style: Serif, Forms: "jp", Family: "Noto Serif JP", Files: []File{
-		{Path: "s/notoserifjp/v34/xn71YHs72GKoTvER4Gn3b5eMRtWGkp6o7MjQ2bwxOubA.ttf", Name: "NotoSerifJP-400.ttf", Weight: 400, Size: 8005896, SHA256: "11bb8d2b5e3589d9d4ca0de2c3c4d98cf5ef16cc2b7ee4f257d489e7b214eaf6"},
-		{Path: "s/notoserifjp/v34/xn71YHs72GKoTvER4Gn3b5eMRtWGkp6o7MjQ2bzWPebA.ttf", Name: "NotoSerifJP-700.ttf", Weight: 700, Size: 8000096, SHA256: "7259dd476d2f56504d5a55e9eab4a87cdf21b5aa708c17648c9224abd3f0aed1"},
+		{Path: "s/notoserifjp/v34/xn71YHs72GKoTvER4Gn3b5eMRtWGkp6o7MjQ2bwxOubA.ttf", Name: "NotoSerifJP-400.ttf", Weight: 400, Italic: false, Size: 8005896, SHA256: "11bb8d2b5e3589d9d4ca0de2c3c4d98cf5ef16cc2b7ee4f257d489e7b214eaf6"},
+		{Path: "s/notoserifjp/v34/xn71YHs72GKoTvER4Gn3b5eMRtWGkp6o7MjQ2bzWPebA.ttf", Name: "NotoSerifJP-700.ttf", Weight: 700, Italic: false, Size: 8000096, SHA256: "7259dd476d2f56504d5a55e9eab4a87cdf21b5aa708c17648c9224abd3f0aed1"},
+	}},
+	{ID: "sans-latin", Style: Sans, Forms: "latin", Family: "Noto Sans", Files: []File{
+		{Path: "s/notosans/v42/o-0kIpQlx3QUlC5A4PNr4C5OaxRsfNNlKbCePevHtVtX57DGjDU1QDce6Vc.ttf", Name: "NotoSans-400-Italic.ttf", Weight: 400, Italic: true, Size: 570384, SHA256: "45648f562e6bab5361c9b04e85529fb457ee7045357df4f585bc5d7ea0114cc0"},
+		{Path: "s/notosans/v42/o-0kIpQlx3QUlC5A4PNr4C5OaxRsfNNlKbCePevHtVtX57DGjDU1QAUe6Vc.ttf", Name: "NotoSans-500-Italic.ttf", Weight: 500, Italic: true, Size: 575100, SHA256: "5e1d0220d85b4dda1eed572c6124d8c8edacc2a0eb49b592d026fcf40b1c1cf7"},
+		{Path: "s/notosans/v42/o-0kIpQlx3QUlC5A4PNr4C5OaxRsfNNlKbCePevHtVtX57DGjDU1QOkZ6Vc.ttf", Name: "NotoSans-600-Italic.ttf", Weight: 600, Italic: true, Size: 572392, SHA256: "25cd2c5c1649f6050c91897b8df1867b775fb3624ca5f21f1b30b829d601096b"},
+		{Path: "s/notosans/v42/o-0kIpQlx3QUlC5A4PNr4C5OaxRsfNNlKbCePevHtVtX57DGjDU1QNAZ6Vc.ttf", Name: "NotoSans-700-Italic.ttf", Weight: 700, Italic: true, Size: 572252, SHA256: "7816e05d1be6cf199044c307bd20fe8a87ce1c306c1168bf6f820f809b128bb1"},
+		{Path: "s/notosans/v42/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyD9A99d.ttf", Name: "NotoSans-400.ttf", Weight: 400, Italic: false, Size: 556328, SHA256: "5be701a9511117e73603bdab95947feef4f18bd1851dbddc30659370b26c69f1"},
+		{Path: "s/notosans/v42/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyDPA99d.ttf", Name: "NotoSans-500.ttf", Weight: 500, Italic: false, Size: 558180, SHA256: "94499fa8e77fbb927426767aa48e98f96e94dc4919d7bb7d98732ee985e2afe3"},
+		{Path: "s/notosans/v42/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyAjBN9d.ttf", Name: "NotoSans-600.ttf", Weight: 600, Italic: false, Size: 558412, SHA256: "d28e6da8972668eff5b2faacb865cab11195aba6b0683aee040d20a04928817b"},
+		{Path: "s/notosans/v42/o-0mIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjcz6L1SoM-jCpoiyAaBN9d.ttf", Name: "NotoSans-700.ttf", Weight: 700, Italic: false, Size: 558012, SHA256: "9f0ce911354e554bbac00c399dcea71c785962cebfd86e965656f0bd011dfca9"},
 	}},
 	{ID: "sans-sc", Style: Sans, Forms: "sc", Family: "Noto Sans SC", Files: []File{
-		{Path: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYw.ttf", Name: "NotoSansSC-400.ttf", Weight: 400, Size: 10540644, SHA256: "450625c8d46ab3df97b7904ded955ec2746d17ec76740cb1e91d1ba63a0f89af"},
-		{Path: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGzjCnYw.ttf", Name: "NotoSansSC-700.ttf", Weight: 700, Size: 10530408, SHA256: "0066a522a1ac007c1d72bc4fccb114f80ff7294641c78cead9715bd14d43b9ea"},
+		{Path: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYw.ttf", Name: "NotoSansSC-400.ttf", Weight: 400, Italic: false, Size: 10540644, SHA256: "450625c8d46ab3df97b7904ded955ec2746d17ec76740cb1e91d1ba63a0f89af"},
+		{Path: "s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaGzjCnYw.ttf", Name: "NotoSansSC-700.ttf", Weight: 700, Italic: false, Size: 10530408, SHA256: "0066a522a1ac007c1d72bc4fccb114f80ff7294641c78cead9715bd14d43b9ea"},
 	}},
 	{ID: "sans-tc", Style: Sans, Forms: "tc", Family: "Noto Sans TC", Files: []File{
-		{Path: "s/notosanstc/v40/-nFuOG829Oofr2wohFbTp9ifNAn722rq0MXz76Cy_Co.ttf", Name: "NotoSansTC-400.ttf", Weight: 400, Size: 7090820, SHA256: "619662a0583f38311e92666927e5edbfd30f2a1fbe8593685660bd11bdd46a10"},
-		{Path: "s/notosanstc/v40/-nFuOG829Oofr2wohFbTp9ifNAn722rq0MXz70e1_Co.ttf", Name: "NotoSansTC-700.ttf", Weight: 700, Size: 7085600, SHA256: "33e8464f3432fd9eba5fa6ff74f5fb9ee612cad703877bd71c36e6f167c0a7e3"},
+		{Path: "s/notosanstc/v40/-nFuOG829Oofr2wohFbTp9ifNAn722rq0MXz76Cy_Co.ttf", Name: "NotoSansTC-400.ttf", Weight: 400, Italic: false, Size: 7090820, SHA256: "619662a0583f38311e92666927e5edbfd30f2a1fbe8593685660bd11bdd46a10"},
+		{Path: "s/notosanstc/v40/-nFuOG829Oofr2wohFbTp9ifNAn722rq0MXz70e1_Co.ttf", Name: "NotoSansTC-700.ttf", Weight: 700, Italic: false, Size: 7085600, SHA256: "33e8464f3432fd9eba5fa6ff74f5fb9ee612cad703877bd71c36e6f167c0a7e3"},
 	}},
 	{ID: "sans-hk", Style: Sans, Forms: "hk", Family: "Noto Sans HK", Files: []File{
-		{Path: "s/notosanshk/v36/nKKF-GM_FYFRJvXzVXaAPe97P1KHynJFP716qHB--oU.ttf", Name: "NotoSansHK-400.ttf", Weight: 400, Size: 7073452, SHA256: "7d5b9b82615fc05dc6f5b1a55686a8a9a56d7c439ada87152ec7b9be3c75d45b"},
-		{Path: "s/notosanshk/v36/nKKF-GM_FYFRJvXzVXaAPe97P1KHynJFP716qJd5-oU.ttf", Name: "NotoSansHK-700.ttf", Weight: 700, Size: 7068188, SHA256: "134317005ab911ff8a8e2f961c5a25dfadfaa1c5092c830d3d8f94a598a1e241"},
+		{Path: "s/notosanshk/v36/nKKF-GM_FYFRJvXzVXaAPe97P1KHynJFP716qHB--oU.ttf", Name: "NotoSansHK-400.ttf", Weight: 400, Italic: false, Size: 7073452, SHA256: "7d5b9b82615fc05dc6f5b1a55686a8a9a56d7c439ada87152ec7b9be3c75d45b"},
+		{Path: "s/notosanshk/v36/nKKF-GM_FYFRJvXzVXaAPe97P1KHynJFP716qJd5-oU.ttf", Name: "NotoSansHK-700.ttf", Weight: 700, Italic: false, Size: 7068188, SHA256: "134317005ab911ff8a8e2f961c5a25dfadfaa1c5092c830d3d8f94a598a1e241"},
 	}},
 	{ID: "sans-jp", Style: Sans, Forms: "jp", Family: "Noto Sans JP", Files: []File{
-		{Path: "s/notosansjp/v57/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFBEj75s.ttf", Name: "NotoSansJP-400.ttf", Weight: 400, Size: 5703608, SHA256: "f037d714109f22d57ce75fd9a6b9d23439c903061fb11106c070b2dcc03f2021"},
-		{Path: "s/notosansjp/v57/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFPYk75s.ttf", Name: "NotoSansJP-700.ttf", Weight: 700, Size: 5698616, SHA256: "59bb5d2915bba3a256950116e7a48a810bd8cde63793d5111b9e5726eec1e799"},
+		{Path: "s/notosansjp/v57/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFBEj75s.ttf", Name: "NotoSansJP-400.ttf", Weight: 400, Italic: false, Size: 5703608, SHA256: "f037d714109f22d57ce75fd9a6b9d23439c903061fb11106c070b2dcc03f2021"},
+		{Path: "s/notosansjp/v57/-F6jfjtqLzI2JPCgQBnw7HFyzSD-AsregP8VFPYk75s.ttf", Name: "NotoSansJP-700.ttf", Weight: 700, Italic: false, Size: 5698616, SHA256: "59bb5d2915bba3a256950116e7a48a810bd8cde63793d5111b9e5726eec1e799"},
 	}},
 }

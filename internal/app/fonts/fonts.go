@@ -1,11 +1,8 @@
-// Package fonts keeps the prose faces for Chinese and Japanese, which the
-// app does not ship: Google Fonts' Noto Serif and Noto Sans for each
-// language's glyph forms, their static builds at the weights the page
-// draws, downloaded only when the person chooses one, from Google Fonts'
-// static hosts, verified against the SHA-256 pinned in the catalog
-// (tools/fonts), and kept on this machine, not in the notebook.
-// The one chosen draws what the Latin face, Noto Serif or Noto Sans as the
-// style is, does not; with none, the system's fonts draw it.
+// Package fonts keeps downloadable prose faces for Latin and for Chinese and
+// Japanese: Google Fonts' Noto Serif and Noto Sans, verified against the
+// SHA-256 pinned in the catalog (tools/fonts) and stored locally on this
+// machine. When none are chosen, the system's own fonts (or a user-selected
+// installed font) draw prose.
 package fonts
 
 import (
@@ -13,10 +10,14 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 )
 
-// Style is the prose's style: Serif or Sans, for the Latin face the app
-// ships and the face of each language alike.
+// FormsLatin identifies the downloadable Latin Noto face in each style.
+const FormsLatin = "latin"
+
+// Style is the prose's style: Serif or Sans, controlling the system generic
+// fallback ("serif" / "sans-serif") and pairing downloadable Noto faces.
 type Style uint8
 
 const (
@@ -35,13 +36,12 @@ func (s Style) String() string {
 	return "Serif"
 }
 
-// Face is one language's downloadable face in a style.
+// Face is one downloadable face in a style.
 type Face struct {
 	// ID names it, by its style and its forms.
 	ID    string
 	Style Style
-	// Forms names the language whose glyph forms it draws: sc, tc, hk or
-	// jp.
+	// Forms names what it draws: "latin", "sc", "tc", "hk" or "jp".
 	Forms string
 	// Family is its name, the family its files are registered under and
 	// the prose family list names.
@@ -49,12 +49,16 @@ type Face struct {
 	Files  []File
 }
 
+// IsLatin reports whether f is a downloadable Latin prose face.
+func (f Face) IsLatin() bool { return f.Forms == FormsLatin }
+
 // File is one of a face's font files: its path on each of Hosts, the name
-// it is kept under, its weight, its size and its SHA-256.
+// it is kept under, its weight, whether it is italic, its size and its SHA-256.
 type File struct {
 	Path   string
 	Name   string
 	Weight int
+	Italic bool
 	Size   int64
 	SHA256 string
 }
@@ -82,6 +86,15 @@ func Lookup(id string) (Face, bool) {
 	return Catalog[i], true
 }
 
+// LookupFamily returns the catalog face matching family, case-insensitively.
+func LookupFamily(family string) (Face, bool) {
+	i := slices.IndexFunc(Catalog, func(f Face) bool { return strings.EqualFold(f.Family, family) })
+	if i < 0 {
+		return Face{}, false
+	}
+	return Catalog[i], true
+}
+
 // Find is the catalog's face of forms in style.
 func Find(style Style, forms string) (Face, bool) {
 	i := slices.IndexFunc(Catalog, func(f Face) bool { return f.Style == style && f.Forms == forms })
@@ -91,25 +104,56 @@ func Find(style Style, forms string) (Face, bool) {
 	return Catalog[i], true
 }
 
-// Languages are the glyph forms the catalog has faces for, each once, in
-// its order, as the faces of one style name them.
+// Latin returns the downloadable Latin Noto face for style.
+func Latin(style Style) (Face, bool) {
+	return Find(style, FormsLatin)
+}
+
+// Languages returns the CJK glyph-form faces the catalog offers, each once,
+// in catalog order.
 func Languages() []Face {
 	var out []Face
 	for _, f := range Catalog {
-		if f.Style == Serif {
+		if f.Style == Serif && !f.IsLatin() {
 			out = append(out, f)
 		}
 	}
 	return out
 }
 
-// Family is the prose family list: base, the Latin face the app ships,
-// then the face chosen, when there is one.
-func Family(base string, chosen *Face) string {
-	if chosen == nil {
-		return base
+// ResolveFamily returns the prose family list: primary (when non-empty),
+// then any optional fallback faces (e.g. a downloaded CJK face), ending with
+// the system fallback base ("serif" or "sans-serif") without duplicates.
+// When primary is empty or equals base, base comes first so system glyphs
+// draw Latin before any CJK fallback font.
+func ResolveFamily(base, primary string, fallbacks ...*Face) string {
+	var parts []string
+	seen := map[string]bool{}
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return
+		}
+		key := strings.ToLower(name)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		parts = append(parts, name)
 	}
-	return base + ", " + chosen.Family
+	primary = strings.TrimSpace(primary)
+	if primary == "" || strings.EqualFold(primary, base) {
+		add(base)
+	} else {
+		add(primary)
+	}
+	for _, fb := range fallbacks {
+		if fb != nil {
+			add(fb.Family)
+		}
+	}
+	add(base)
+	return strings.Join(parts, ", ")
 }
 
 // HomeVariable is the variable that moves the notebook, and with it the
