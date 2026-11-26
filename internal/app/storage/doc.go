@@ -4,9 +4,10 @@
 // The notebook is one SQLite database in the folder chosen on the first
 // launch and recorded in the app's data folder (ChosenRoot), which is
 // offered as a Neverland folder of the user's Documents on macOS and
-// Windows, or of the XDG data folder on Linux (Root). Memory stays the
-// source of truth while the app runs: a Saver takes what changed and
-// writes it in one transaction, off the UI thread. What it relies on,
+// Windows, or a neverland folder of the XDG data folder on Linux (Root,
+// FolderName). Memory stays the source of truth while the app runs: a
+// Saver takes what changed and writes it in one transaction, off the UI
+// thread. What it relies on,
 // from the bottom up:
 //
 //   - Every write is a transaction in a write-ahead log, synced with a full

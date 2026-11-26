@@ -9,9 +9,16 @@ import (
 	"path/filepath"
 )
 
-// FolderName is the folder inside the base directory (Documents on macOS
-// and Windows, the XDG data folder on Linux) that holds the notebook.
-const FolderName = "Neverland"
+// FolderName is the name of Neverland's own folders on goos: the
+// notebook's inside the base directory (Documents on macOS and Windows, the
+// XDG data folder on Linux), and the app's data, cache and logs folders.
+// Linux names them in lowercase, as its folders are named.
+func FolderName(goos string) string {
+	if goos == "linux" {
+		return "neverland"
+	}
+	return "Neverland"
+}
 
 // HomeVariable names the environment variable that moves the notebook
 // elsewhere, for development and tests.
@@ -34,16 +41,16 @@ func XDGDataHome() (string, error) {
 }
 
 // Root is the folder that holds the notebook: NEVERLAND_HOME when set, or
-// a Neverland folder inside base (the user's Documents on macOS and
-// Windows, or the XDG data folder on Linux).
-func Root(base string) (string, error) {
+// a folder named FolderName(goos) inside base (the user's Documents on
+// macOS and Windows, or the XDG data folder on Linux).
+func Root(base, goos string) (string, error) {
 	if home := os.Getenv(HomeVariable); home != "" {
 		return filepath.Abs(home)
 	}
 	if base == "" {
 		return "", errors.New("storage: the Documents or data folder could not be found")
 	}
-	return filepath.Join(base, FolderName), nil
+	return filepath.Join(base, FolderName(goos)), nil
 }
 
 // locationName is the record, in the app's own data folder, of the folder

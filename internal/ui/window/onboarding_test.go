@@ -2,6 +2,7 @@ package window
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
@@ -20,7 +21,7 @@ func TestNotebookRootFirstLaunch(t *testing.T) {
 	t.Cleanup(func() { mygo.App.SetPath(mygo.PathDocuments, "") })
 
 	root, chosen, err := notebookRoot(userData)
-	if err != nil || chosen || root != filepath.Join(docs, storage.FolderName) {
+	if err != nil || chosen || root != filepath.Join(docs, storage.FolderName(runtime.GOOS)) {
 		t.Fatalf("first launch: %q, chosen %v, %v; want the default, not chosen", root, chosen, err)
 	}
 	elsewhere := filepath.Join(t.TempDir(), "Notes")

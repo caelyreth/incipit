@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/caelyreth/neverland/internal/app/fonts"
@@ -22,6 +23,7 @@ func Run() error {
 		return nil
 	}
 	useSystemSpelling()
+	appFolders(runtime.GOOS)
 	userData, _ := mygo.App.Path(mygo.PathUserData)
 	if path := keepLog(userData); path != "" {
 		log.Printf("Neverland %s started, logging to %s", mygo.App.Version(), path)
@@ -64,13 +66,35 @@ func Run() error {
 	return mygo.App.Run()
 }
 
+// appFolders names the app's own folders, its data, cache and logs, as
+// storage.FolderName does on goos: on Linux in lowercase, in the XDG
+// config and cache folders, where MyGo would take the app's name as it is
+// written. Elsewhere MyGo's own stand.
+func appFolders(goos string) {
+	if goos != "linux" {
+		return
+	}
+	name := storage.FolderName(goos)
+	if dir, err := os.UserConfigDir(); err == nil {
+		data := filepath.Join(dir, name)
+		if err := os.MkdirAll(data, 0o755); err != nil {
+			log.Printf("making the app's data folder: %v", err)
+		}
+		mygo.App.SetPath(mygo.PathUserData, data)
+		mygo.App.SetPath(mygo.PathLogs, filepath.Join(data, "logs"))
+	}
+	if dir, err := os.UserCacheDir(); err == nil {
+		mygo.App.SetPath(mygo.PathCache, filepath.Join(dir, name))
+	}
+}
+
 // notebookRoot is the notebook's folder and whether it has been chosen:
 // NEVERLAND_HOME's, or the one recorded on the first launch; else the
 // folder the walkthrough offers, not chosen yet. A record that cannot be
 // read is set up again.
 func notebookRoot(userData string) (string, bool, error) {
 	if os.Getenv(storage.HomeVariable) != "" {
-		root, err := storage.Root("")
+		root, err := storage.Root("", runtime.GOOS)
 		return root, true, err
 	}
 	root, ok, err := storage.ChosenRoot(userData)
@@ -81,7 +105,7 @@ func notebookRoot(userData string) (string, bool, error) {
 		return root, true, nil
 	}
 	base, _ := notebookBase(runtime.GOOS)
-	root, err = storage.Root(base)
+	root, err = storage.Root(base, runtime.GOOS)
 	return root, false, err
 }
 

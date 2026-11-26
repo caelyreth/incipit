@@ -405,9 +405,9 @@ func TestXDGDataHomeAndRoot(t *testing.T) {
 	if err != nil || got != xdg {
 		t.Fatalf("XDGDataHome() with absolute XDG_DATA_HOME = %q, %v; want %q", got, err, xdg)
 	}
-	root, err := Root(got)
-	if err != nil || root != filepath.Join(xdg, FolderName) {
-		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(xdg, FolderName))
+	root, err := Root(got, "linux")
+	if err != nil || root != filepath.Join(xdg, "neverland") {
+		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(xdg, "neverland"))
 	}
 
 	// Relative XDG_DATA_HOME is ignored per the XDG Base Directory specification.
@@ -423,14 +423,14 @@ func TestXDGDataHomeAndRoot(t *testing.T) {
 	if err != nil || got != wantFallback {
 		t.Fatalf("XDGDataHome() default = %q, %v; want %q", got, err, wantFallback)
 	}
-	root, err = Root(got)
-	if err != nil || root != filepath.Join(wantFallback, FolderName) {
-		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(wantFallback, FolderName))
+	root, err = Root(got, "linux")
+	if err != nil || root != filepath.Join(wantFallback, "neverland") {
+		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(wantFallback, "neverland"))
 	}
 
 	override := t.TempDir()
 	t.Setenv(HomeVariable, override)
-	if root, err := Root(""); err != nil || root != override {
+	if root, err := Root("", "linux"); err != nil || root != override {
 		t.Fatalf("Root with %s = %q, %v; want %q", HomeVariable, root, err, override)
 	}
 }
