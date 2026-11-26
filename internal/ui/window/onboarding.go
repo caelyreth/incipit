@@ -22,12 +22,14 @@ const (
 )
 
 // welcome opens the first launch's walkthrough in a window of its own,
-// the notebook offered in defaultRoot. Finished, it opens the notebook in
+// the notebook offered in defaultRoot; with lost, a notebook recorded
+// that is not there, or would not open, it begins by saying so. Finished, it opens the notebook in
 // the folder chosen, records that folder in userData, applies what was
 // chosen through the settings as any change in Settings is, hands the app
 // to opened and gives way to the main window. Closed before it finishes,
-// nothing is kept, and the next launch begins it again.
-func welcome(defaultRoot, userData string, opened func(*AppState)) {
+// nothing is kept, and the next launch begins it again: a lost notebook's
+// record stands until another folder is chosen.
+func welcome(defaultRoot, userData string, lost *onboarding.Lost, opened func(*AppState)) {
 	var window *mygo.Window
 	// A second launch brings the walkthrough forward while it runs.
 	second := func() {}
@@ -74,6 +76,9 @@ func welcome(defaultRoot, userData string, opened func(*AppState)) {
 			return nil
 		},
 	})
+	if lost != nil {
+		state.Lost(*lost)
+	}
 	first := appsettings.DefaultAppearance().Appearance
 	mygo.Theme.SetSource(themeSource(first))
 	settings := theme.DefaultSettings()

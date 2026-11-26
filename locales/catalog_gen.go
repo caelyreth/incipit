@@ -11559,6 +11559,120 @@ func (msgs Messages) OnboardingNotebookFailed() string {
 	return Catalog.Format(msgs.locale, "onboardingNotebookFailed", nil)
 }
 
+// OnboardingLostHeadline says "Your notebook isn't where it was"
+// in the language the app shows.
+//
+// Onboarding, lost notebook: the headline, when the notebook recorded on an
+// earlier launch is not in its folder or would not open.
+func OnboardingLostHeadline() string { return In(i18n.Locale()).OnboardingLostHeadline() }
+
+// OnboardingLostHeadline says "Your notebook isn't where it was"
+// in the language of msgs.
+//
+// Onboarding, lost notebook: the headline, when the notebook recorded on an
+// earlier launch is not in its folder or would not open.
+func (msgs Messages) OnboardingLostHeadline() string {
+	return Catalog.Format(msgs.locale, "onboardingLostHeadline", nil)
+}
+
+// OnboardingLostBody says "It may have been moved, renamed or deleted, or be on a drive that isn't connected. Nothing has been made in its place."
+// in the language the app shows.
+//
+// Onboarding, lost notebook: what may have happened, and that no new
+// notebook was made.
+func OnboardingLostBody() string { return In(i18n.Locale()).OnboardingLostBody() }
+
+// OnboardingLostBody says "It may have been moved, renamed or deleted, or be on a drive that isn't connected. Nothing has been made in its place."
+// in the language of msgs.
+//
+// Onboarding, lost notebook: what may have happened, and that no new
+// notebook was made.
+func (msgs Messages) OnboardingLostBody() string {
+	return Catalog.Format(msgs.locale, "onboardingLostBody", nil)
+}
+
+// OnboardingLostMissing says "No notebook in this folder"
+// in the language the app shows.
+//
+// Onboarding, lost notebook: under the folder's path, that it holds no
+// notebook (or is not there).
+func OnboardingLostMissing() string { return In(i18n.Locale()).OnboardingLostMissing() }
+
+// OnboardingLostMissing says "No notebook in this folder"
+// in the language of msgs.
+//
+// Onboarding, lost notebook: under the folder's path, that it holds no
+// notebook (or is not there).
+func (msgs Messages) OnboardingLostMissing() string {
+	return Catalog.Format(msgs.locale, "onboardingLostMissing", nil)
+}
+
+// OnboardingLostStill says "Still not there."
+// in the language the app shows.
+//
+// Onboarding, lost notebook: after Look Again, that the notebook is still
+// not in its folder.
+func OnboardingLostStill() string { return In(i18n.Locale()).OnboardingLostStill() }
+
+// OnboardingLostStill says "Still not there."
+// in the language of msgs.
+//
+// Onboarding, lost notebook: after Look Again, that the notebook is still
+// not in its folder.
+func (msgs Messages) OnboardingLostStill() string {
+	return Catalog.Format(msgs.locale, "onboardingLostStill", nil)
+}
+
+// OnboardingLostNotThere says "No notebook in “{folder}”."
+// in the language the app shows.
+//
+// Onboarding, lost notebook: the folder chosen to find it in holds no
+// notebook either.
+func OnboardingLostNotThere(folder string) string {
+	return In(i18n.Locale()).OnboardingLostNotThere(folder)
+}
+
+// OnboardingLostNotThere says "No notebook in “{folder}”."
+// in the language of msgs.
+//
+// Onboarding, lost notebook: the folder chosen to find it in holds no
+// notebook either.
+func (msgs Messages) OnboardingLostNotThere(folder string) string {
+	return Catalog.Format(msgs.locale, "onboardingLostNotThere", map[string]any{"folder": folder})
+}
+
+// OnboardingLostLookAgain says "Look Again"
+// in the language the app shows.
+//
+// Onboarding, lost notebook: button that looks in the folder again, as
+// after connecting its drive, and opens the notebook if it is there.
+func OnboardingLostLookAgain() string { return In(i18n.Locale()).OnboardingLostLookAgain() }
+
+// OnboardingLostLookAgain says "Look Again"
+// in the language of msgs.
+//
+// Onboarding, lost notebook: button that looks in the folder again, as
+// after connecting its drive, and opens the notebook if it is there.
+func (msgs Messages) OnboardingLostLookAgain() string {
+	return Catalog.Format(msgs.locale, "onboardingLostLookAgain", nil)
+}
+
+// OnboardingLostNew says "Start a New Notebook"
+// in the language the app shows.
+//
+// Onboarding, lost notebook: button that goes on to the walkthrough to set
+// up a new notebook instead.
+func OnboardingLostNew() string { return In(i18n.Locale()).OnboardingLostNew() }
+
+// OnboardingLostNew says "Start a New Notebook"
+// in the language of msgs.
+//
+// Onboarding, lost notebook: button that goes on to the walkthrough to set
+// up a new notebook instead.
+func (msgs Messages) OnboardingLostNew() string {
+	return Catalog.Format(msgs.locale, "onboardingLostNew", nil)
+}
+
 // OnboardingWritingHeadline says "How it writes"
 // in the language the app shows.
 //

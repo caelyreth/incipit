@@ -1,6 +1,7 @@
 package window
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -68,4 +69,40 @@ func TestWalkthroughChoicesPersist(t *testing.T) {
 	if got := again.Product.Policy["pairs.autoClose"]; got != false {
 		t.Errorf("pairs.autoClose reopened as %v, want false", got)
 	}
+}
+
+// TestOpenChosenLost makes nothing where the recorded notebook is not:
+// the folder gone stays gone, and an empty one stays empty.
+func TestOpenChosenLost(t *testing.T) {
+	t.Setenv(storage.HomeVariable, "")
+	userData := t.TempDir()
+	gone := filepath.Join(t.TempDir(), "gone")
+	for _, root := range []string{gone, t.TempDir()} {
+		app, lost := openChosen(root, userData)
+		if app != nil {
+			app.Close()
+			t.Fatalf("%s: opened a notebook", root)
+		}
+		if lost == nil || lost.Root != root || lost.Reason != "" {
+			t.Fatalf("%s: lost %+v", root, lost)
+		}
+		if storage.Holds(root) {
+			t.Errorf("%s: a notebook was made", root)
+		}
+	}
+	if _, err := os.Stat(gone); err == nil {
+		t.Error("the folder gone was made again")
+	}
+	// A notebook there opens.
+	root := t.TempDir()
+	made, err := openApp(root, userData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	made.Close()
+	app, lost := openChosen(root, userData)
+	if app == nil || lost != nil {
+		t.Fatalf("a notebook there: app %v, lost %+v", app != nil, lost)
+	}
+	app.Close()
 }

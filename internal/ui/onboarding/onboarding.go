@@ -64,6 +64,8 @@ const (
 	pageLook
 	pageMac
 	pageDone
+	// pageLost says a notebook recorded is not there, before the cover.
+	pageLost
 )
 
 // State is the walkthrough as it runs.
@@ -89,6 +91,10 @@ type State struct {
 	// mark is the brand's, as rasterized.
 	mark   components.BrandMark
 	placed bool
+	// lost is the notebook recorded that is not there, if it is not, and
+	// lostNote what looking for it last found.
+	lost     *Lost
+	lostNote string
 	// trial is the field's card the menus are tried on, made as the Mac's
 	// page first shows.
 	trial *shell.Trial
@@ -107,13 +113,24 @@ func (s *State) Result() Result {
 	return Result{Root: s.root, Changes: slices.Clone(s.changes)}
 }
 
-// pages are the walkthrough's pages here: the Mac's only on the Mac.
+// pages are the walkthrough's pages here: the lost notebook's first where
+// one is, the Mac's only on the Mac.
 func (s *State) pages() []page {
-	pages := []page{pageWelcome, pageNotebook, pageWriting, pageLook}
+	var pages []page
+	if s.lost != nil {
+		pages = append(pages, pageLost)
+	}
+	pages = append(pages, pageWelcome, pageNotebook, pageWriting, pageLook)
 	if s.Platform.Mac {
 		pages = append(pages, pageMac)
 	}
 	return append(pages, pageDone)
+}
+
+// counted are the pages the foot counts: those after the cover.
+func (s *State) counted() []page {
+	pages := s.pages()
+	return pages[s.index(pageWelcome)+1:]
 }
 
 // index is p's place among the pages.
@@ -282,7 +299,7 @@ func (s *State) View(c *ui.Context) {
 			// The way on comes up as the first page counted shows, and goes
 			// back to the cover.
 			foot := float32(0)
-			if s.at != pageWelcome {
+			if s.at != pageWelcome && s.at != pageLost {
 				foot = 1
 			}
 			if animate {

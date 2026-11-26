@@ -9,6 +9,7 @@ import (
 
 	"github.com/caelyreth/neverland/internal/app/fonts"
 	"github.com/caelyreth/neverland/internal/app/storage"
+	"github.com/caelyreth/neverland/internal/ui/onboarding"
 
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/egoist/mygo"
@@ -50,18 +51,22 @@ func Run() error {
 	}
 	defer closeApp()
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) { closeApp() })
+	var lost *onboarding.Lost
 	if chosen {
-		if app, err = openApp(root, userData); err != nil {
-			return err
+		if app, lost = openChosen(root, userData); app != nil {
+			mygo.Theme.SetSource(themeSource(app.Product.Appearance.Appearance))
 		}
-		mygo.Theme.SetSource(themeSource(app.Product.Appearance.Appearance))
 	}
 	mygo.App.WhenReady(func() {
 		if app != nil {
 			app.start()
 			return
 		}
-		welcome(root, userData, func(opened *AppState) { app = opened })
+		offered := root
+		if lost != nil {
+			offered, _ = defaultRoot()
+		}
+		welcome(offered, userData, lost, func(opened *AppState) { app = opened })
 	})
 	return mygo.App.Run()
 }
@@ -104,9 +109,31 @@ func notebookRoot(userData string) (string, bool, error) {
 	if ok {
 		return root, true, nil
 	}
-	base, _ := notebookBase(runtime.GOOS)
-	root, err = storage.Root(base, runtime.GOOS)
+	root, err = defaultRoot()
 	return root, false, err
+}
+
+// defaultRoot is the folder the walkthrough offers for a notebook.
+func defaultRoot() (string, error) {
+	base, _ := notebookBase(runtime.GOOS)
+	return storage.Root(base, runtime.GOOS)
+}
+
+// openChosen opens the notebook recorded in root, or says why it is lost:
+// a folder that holds no notebook is never made one unasked, as one moved,
+// deleted or on a drive not connected would be, and one that will not open
+// keeps the app from opening on nothing. NEVERLAND_HOME's folder is made
+// as it is named, for development and tests.
+func openChosen(root, userData string) (*AppState, *onboarding.Lost) {
+	if os.Getenv(storage.HomeVariable) == "" && !storage.Holds(root) {
+		return nil, &onboarding.Lost{Root: root}
+	}
+	app, err := openApp(root, userData)
+	if err != nil {
+		log.Printf("opening the notebook in %s: %v", root, err)
+		return nil, &onboarding.Lost{Root: root, Reason: err.Error()}
+	}
+	return app, nil
 }
 
 // openApp opens the notebook in root, with the fonts kept in userData.

@@ -3180,6 +3180,40 @@
   "@onboardingNotebookFailed": {
     "description": "Onboarding: the notebook could not be opened in the folder chosen; the reason follows."
   },
+  "onboardingLostHeadline": "Your notebook isn't where it was",
+  "@onboardingLostHeadline": {
+    "description": "Onboarding, lost notebook: the headline, when the notebook recorded on an earlier launch is not in its folder or would not open."
+  },
+  "onboardingLostBody": "It may have been moved, renamed or deleted, or be on a drive that isn't connected. Nothing has been made in its place.",
+  "@onboardingLostBody": {
+    "description": "Onboarding, lost notebook: what may have happened, and that no new notebook was made."
+  },
+  "onboardingLostMissing": "No notebook in this folder",
+  "@onboardingLostMissing": {
+    "description": "Onboarding, lost notebook: under the folder's path, that it holds no notebook (or is not there)."
+  },
+  "onboardingLostStill": "Still not there.",
+  "@onboardingLostStill": {
+    "description": "Onboarding, lost notebook: after Look Again, that the notebook is still not in its folder."
+  },
+  "onboardingLostNotThere": "No notebook in “{folder}”.",
+  "@onboardingLostNotThere": {
+    "description": "Onboarding, lost notebook: the folder chosen to find it in holds no notebook either.",
+    "placeholders": {
+      "folder": {
+        "type": "String",
+        "example": "Notes"
+      }
+    }
+  },
+  "onboardingLostLookAgain": "Look Again",
+  "@onboardingLostLookAgain": {
+    "description": "Onboarding, lost notebook: button that looks in the folder again, as after connecting its drive, and opens the notebook if it is there."
+  },
+  "onboardingLostNew": "Start a New Notebook",
+  "@onboardingLostNew": {
+    "description": "Onboarding, lost notebook: button that goes on to the walkthrough to set up a new notebook instead."
+  },
   "onboardingWritingHeadline": "How it writes",
   "@onboardingWritingHeadline": {
     "description": "Onboarding, writing page: the headline."

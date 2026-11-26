@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -49,6 +50,8 @@ var (
 // pageView draws the page shown.
 func (s *State) pageView(c *ui.Context, semantic theme.Theme, m metrics, animate bool, now time.Time) {
 	switch s.at {
+	case pageLost:
+		s.lostView(c, semantic, m, animate)
 	case pageWelcome:
 		s.welcome(c, semantic, m, animate, now)
 	case pageNotebook:
@@ -388,12 +391,13 @@ func (s *State) summaryLine(c *ui.Context, semantic theme.Theme, m metrics, line
 // ringed, and Back and Continue, Escape and Return. It stands shown of the
 // way up, its buttons growing to their size from a little smaller.
 func (s *State) foot(c *ui.Context, semantic theme.Theme, m metrics, animate bool, shown float32) {
-	if s.at == pageWelcome {
+	if s.at == pageWelcome || s.at == pageLost {
 		return
 	}
-	// The cover is not counted: the count starts at the first choice.
-	pages := s.pages()[1:]
-	at := s.index(s.at) - 1
+	// The cover is not counted, nor what comes before it: the count starts
+	// at the first choice.
+	pages := s.counted()
+	at := slices.Index(pages, s.at)
 	count := locales.OnboardingStep(fmt.Sprint(at+1), fmt.Sprint(len(pages)))
 	grow := func(el ui.Element) ui.Element {
 		if shown < 1 {

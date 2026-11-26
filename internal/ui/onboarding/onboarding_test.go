@@ -24,6 +24,10 @@ type walkthrough struct {
 	finished []Result
 	themes   []appsettings.ThemeChoice
 	fail     error
+	// holds are the folders that hold a notebook; elsewhere is where the
+	// folder picker answers.
+	holds     map[string]bool
+	elsewhere string
 }
 
 func newWalkthrough(t *testing.T, mac bool, still bool) *walkthrough {
@@ -31,11 +35,11 @@ func newWalkthrough(t *testing.T, mac bool, still bool) *walkthrough {
 	if err := theme.RegisterFonts(); err != nil {
 		t.Fatal(err)
 	}
-	w := &walkthrough{}
 	root := filepath.Join(t.TempDir(), "Neverland")
+	w := &walkthrough{holds: map[string]bool{}, elsewhere: filepath.Join(filepath.Dir(root), "Elsewhere")}
 	w.State = New(root, Platform{Mac: mac}, Host{
-		Holds:        func(string) bool { return false },
-		ChooseFolder: func(_ string, chosen func(string)) { chosen(filepath.Join(filepath.Dir(root), "Elsewhere")) },
+		Holds:        func(root string) bool { return w.holds[root] },
+		ChooseFolder: func(_ string, chosen func(string)) { chosen(w.elsewhere) },
 		Appearance:   func(choice appsettings.ThemeChoice) { w.themes = append(w.themes, choice) },
 		Finish: func(r Result) error {
 			if w.fail != nil {
@@ -75,7 +79,7 @@ func (w *walkthrough) shoot(t *testing.T, name string) {
 }
 
 func (p page) name() string {
-	return [...]string{"welcome", "notebook", "writing", "look", "mac", "done"}[p]
+	return [...]string{"welcome", "notebook", "writing", "look", "mac", "done", "lost"}[p]
 }
 
 // TestWalkthrough goes through every page, choosing on each, and finishes
@@ -233,5 +237,75 @@ func TestTrialCardTakesTheFieldsMenus(t *testing.T) {
 	}
 	if got := w.Result().Changes; len(got) != 0 {
 		t.Errorf("trying the menus set up %+v", got)
+	}
+}
+
+// TestLostNotebook begins with the notebook recorded and not there: it
+// says so, makes nothing, opens it as it is once it is found, where it
+// was or elsewhere, and begins anew only when asked.
+func TestLostNotebook(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "Notes")
+	w := newWalkthrough(t, true, true)
+	w.Lost(Lost{Root: gone})
+	w.tester.Frame()
+	w.shoot(t, "lost")
+	if w.at != pageLost {
+		t.Fatalf("began on %s", w.at.name())
+	}
+	if _, ok := w.tester.Find(locales.OnboardingContinue()); ok {
+		t.Error("the lost page shows the way on")
+	}
+	w.click(t, locales.OnboardingLostLookAgain())
+	if len(w.finished) != 0 || w.lostNote != locales.OnboardingLostStill() {
+		t.Fatalf("looking again at nothing: finished %v, note %q", w.finished, w.lostNote)
+	}
+	w.click(t, locales.ChooseFolderEllipsis())
+	if len(w.finished) != 0 || w.lostNote != locales.OnboardingLostNotThere("Elsewhere") {
+		t.Fatalf("choosing a folder with no notebook: finished %v, note %q", w.finished, w.lostNote)
+	}
+	w.shoot(t, "lost-not-there")
+	w.holds[w.elsewhere] = true
+	w.click(t, locales.ChooseFolderEllipsis())
+	if len(w.finished) != 1 || w.finished[0].Root != w.elsewhere || len(w.finished[0].Changes) != 0 {
+		t.Fatalf("found elsewhere: finished %+v, want %q as it is", w.finished, w.elsewhere)
+	}
+
+	again := newWalkthrough(t, true, true)
+	again.Lost(Lost{Root: gone})
+	again.tester.Frame()
+	again.holds[gone] = true
+	again.click(t, locales.OnboardingLostLookAgain())
+	if len(again.finished) != 1 || again.finished[0].Root != gone {
+		t.Fatalf("found where it was: finished %+v", again.finished)
+	}
+
+	anew := newWalkthrough(t, true, true)
+	anew.Lost(Lost{Root: gone})
+	anew.tester.Frame()
+	anew.click(t, locales.OnboardingLostNew())
+	if anew.at != pageWelcome || len(anew.finished) != 0 {
+		t.Fatalf("beginning anew went to %s, finished %v", anew.at.name(), anew.finished)
+	}
+	anew.click(t, locales.OnboardingBegin())
+	if _, ok := anew.tester.Find(locales.OnboardingStep("1", "5")); !ok || anew.Root() != anew.defaultRoot {
+		t.Errorf("after the cover: not counted from 1 of 5, or the folder offered is %q", anew.Root())
+	}
+}
+
+// TestLostNotebookThatWouldNotOpen says why, and looks again.
+func TestLostNotebookThatWouldNotOpen(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "Notes")
+	w := newWalkthrough(t, false, true)
+	w.Lost(Lost{Root: root, Reason: "database disk image is malformed"})
+	w.holds[root] = true
+	w.tester.Frame()
+	w.shoot(t, "lost-failed")
+	if _, ok := w.tester.Find("database disk image is malformed"); !ok {
+		t.Error("the reason is not shown")
+	}
+	w.fail = errors.New("still malformed")
+	w.click(t, locales.OnboardingLostLookAgain())
+	if w.lost.Reason != "still malformed" || w.at != pageLost {
+		t.Errorf("a second failure: reason %q on %s", w.lost.Reason, w.at.name())
 	}
 }
