@@ -67,6 +67,7 @@ tool (
 	github.com/caelyreth/neverland/tools/fonts
 	github.com/caelyreth/neverland/tools/icon
 	github.com/caelyreth/neverland/tools/locales
+	github.com/caelyreth/neverland/tools/release
 	github.com/egoist/mygo/cmd/mygo
 )
 
