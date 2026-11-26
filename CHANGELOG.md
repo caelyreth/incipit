@@ -3,4 +3,4 @@
 ## 0.1.0
 
 - Initial Neverland release.
-- Built-in signed software updates with zstd archives, delta patches, multi-source failover, and resumable downloads.
+- Built-in signed software updates with `.tar.zst` archives, RFC 3284 VCDIFF delta patches, multi-source failover, and resumable downloads.
