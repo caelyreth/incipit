@@ -26,6 +26,7 @@ const (
 	IconCode            IconName = "code"
 	IconCommand         IconName = "command"
 	IconDesk            IconName = "lamp-desk"
+	IconDownload        IconName = "download"
 	IconError           IconName = "circle-alert"
 	IconFolder          IconName = "folder"
 	IconFileText        IconName = "file-text"
@@ -74,6 +75,7 @@ const (
 	IconColumnRemove    IconName = "column-remove"
 	IconPreview         IconName = "eye"
 	IconLookUp          IconName = "book-open"
+	IconRefresh         IconName = "refresh-cw"
 )
 
 var AllIcons = [...]IconName{
@@ -137,6 +139,8 @@ var AllIcons = [...]IconName{
 	IconColumnRemove,
 	IconPreview,
 	IconLookUp,
+	IconDownload,
+	IconRefresh,
 }
 
 // GroupIcons are the icons a group can wear, in the order the picker

@@ -82,6 +82,8 @@ func settingsCategoryIcon(category string) components.IconName {
 		return components.IconName("palette")
 	case "editor":
 		return components.IconName("pen-line")
+	case "updates":
+		return components.IconRefresh
 	case "keymap":
 		return components.IconKeyboard
 	default:
@@ -381,6 +383,12 @@ func abs32(x float32) float32 { return max(x, -x) }
 func (s *State) ShowShortcuts() {
 	s.FindSettings("")
 	s.intoSettings(settings.Keymap.Key(), "", stageRect{})
+}
+
+// ShowUpdates brings the field up directly on the updates settings section.
+func (s *State) ShowUpdates() {
+	s.FindSettings("")
+	s.intoSettings(settings.Updates.Key(), "", stageRect{})
 }
 
 // sectionLine is what a section's row says of it under its title: its

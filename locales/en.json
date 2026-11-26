@@ -3357,5 +3357,68 @@
   "onboardingStart": "Start Writing",
   "@onboardingStart": {
     "description": "Onboarding, last page: the button that opens the notebook."
-  }
+  },
+  "commandCheckUpdates": "Check for Updates",
+  "@commandCheckUpdates": {
+    "description": "A command and macOS app menu item: opens Updates settings and checks for new versions."
+  },
+  "categoryUpdates": "Updates",
+  "@categoryUpdates": {
+    "description": "A category of Settings: software updates."
+  },
+  "categoryUpdatesDescription": "Keep Neverland current and choose how updates arrive.",
+  "updatesKeywords": "Updates Upgrade Check Download Install Automatic Channel Stable Beta Release Notes Restart Version Refresh",
+  "updatesVersionSection": "Version",
+  "updatesVersionDescription": "Current build status, release notes, and ready-to-install updates.",
+  "updatesAppVersion": "Neverland {version}",
+  "@updatesAppVersion": {
+    "description": "Heading showing Neverland with its version number."
+  },
+  "updatesCurrentVersion": "Version {version}",
+  "@updatesCurrentVersion": {
+    "description": "Subtitle showing the installed version."
+  },
+  "updatesChecking": "Checking for updates…",
+  "updatesUpToDate": "Neverland is up to date.",
+  "updatesUpToDateTitle": "Up to Date",
+  "updatesAvailableTitle": "Neverland {version} is Available",
+  "updatesAvailablePrompt": "Ready to download and install.",
+  "updatesDownloading": "Downloading Neverland {version}… {percent}%",
+  "updatesDownloadProgress": "{done} of {total}",
+  "updatesInstalling": "Verifying signature and preparing update…",
+  "updatesReadyTitle": "Neverland {version} is Ready to Install",
+  "updatesReadyDescription": "Restart Neverland to finish updating.",
+  "updatesErrorTitle": "Update Failed",
+  "updatesCheckErrorTitle": "Couldn’t Check for Updates",
+  "updatesInstallErrorTitle": "Couldn’t Install Update",
+  "updatesLastCheckedJustNow": "Last checked just now",
+  "updatesLastCheckedMinutes": "{count, plural, one {Last checked # minute ago} other {Last checked # minutes ago}}",
+  "updatesLastCheckedHours": "{count, plural, one {Last checked # hour ago} other {Last checked # hours ago}}",
+  "updatesLastCheckedDays": "{count, plural, one {Last checked # day ago} other {Last checked # days ago}}",
+  "updatesNeverChecked": "Not checked yet",
+  "updatesButtonCheck": "Check for Updates",
+  "updatesButtonCancel": "Cancel",
+  "updatesButtonDownload": "Download & Install",
+  "updatesButtonDownloadManually": "Download Manually…",
+  "updatesButtonSkip": "Skip This Version",
+  "updatesButtonRetry": "Retry",
+  "updatesButtonRestart": "Restart Now",
+  "updatesButtonView": "View Update",
+  "updatesReleaseNotes": "Release Notes",
+  "updatesManualRequired": "This release requires a newer system version or manual installer.",
+  "updatesPreferencesSection": "Preferences",
+  "updatesPreferencesDescription": "Choose whether Neverland checks and prepares updates automatically.",
+  "updatesAutomaticChecks": "Check automatically",
+  "updatesAutomaticChecksDescription": "Check daily in the background for new Neverland releases.",
+  "updatesAutomaticDownloads": "Download automatically",
+  "updatesAutomaticDownloadsDescription": "Verify and prepare new updates quietly so they are ready on restart.",
+  "updatesChannel": "Release channel",
+  "updatesChannelDescription": "Beta builds include upcoming improvements ahead of stable releases.",
+  "updatesChannelStable": "Stable",
+  "updatesChannelBeta": "Beta",
+  "updatesUnavailableDev": "Self-update is turned off in development builds.",
+  "updatesUnavailableTranslocated": "Move Neverland into your Applications folder to enable automatic updates.",
+  "updatesUnavailableReadOnly": "Neverland cannot update from a read-only disk or volume.",
+  "updatesUnavailableUnconfigured": "Update feed is not configured for this build.",
+  "updatesUnavailablePackage": "Updates for this installation are managed outside the app."
 }

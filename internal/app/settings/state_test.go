@@ -9,7 +9,7 @@ import (
 
 func TestCategoryOrderAndMetadata(t *testing.T) {
 	t.Parallel()
-	if AllCategories != [...]Category{Appearance, Editor, Keymap} {
+	if AllCategories != [...]Category{Appearance, Editor, Updates, Keymap} {
 		t.Fatalf("categories = %v", AllCategories)
 	}
 	for _, category := range AllCategories {

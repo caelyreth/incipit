@@ -12190,3 +12190,551 @@ func OnboardingStart() string { return In(i18n.Locale()).OnboardingStart() }
 func (msgs Messages) OnboardingStart() string {
 	return Catalog.Format(msgs.locale, "onboardingStart", nil)
 }
+
+// CommandCheckUpdates says "Check for Updates"
+// in the language the app shows.
+//
+// A command and macOS app menu item: opens Updates settings and checks for
+// new versions.
+func CommandCheckUpdates() string { return In(i18n.Locale()).CommandCheckUpdates() }
+
+// CommandCheckUpdates says "Check for Updates"
+// in the language of msgs.
+//
+// A command and macOS app menu item: opens Updates settings and checks for
+// new versions.
+func (msgs Messages) CommandCheckUpdates() string {
+	return Catalog.Format(msgs.locale, "commandCheckUpdates", nil)
+}
+
+// CategoryUpdates says "Updates"
+// in the language the app shows.
+//
+// A category of Settings: software updates.
+func CategoryUpdates() string { return In(i18n.Locale()).CategoryUpdates() }
+
+// CategoryUpdates says "Updates"
+// in the language of msgs.
+//
+// A category of Settings: software updates.
+func (msgs Messages) CategoryUpdates() string {
+	return Catalog.Format(msgs.locale, "categoryUpdates", nil)
+}
+
+// CategoryUpdatesDescription says "Keep Neverland current and choose how updates arrive."
+// in the language the app shows.
+func CategoryUpdatesDescription() string { return In(i18n.Locale()).CategoryUpdatesDescription() }
+
+// CategoryUpdatesDescription says "Keep Neverland current and choose how updates arrive."
+// in the language of msgs.
+func (msgs Messages) CategoryUpdatesDescription() string {
+	return Catalog.Format(msgs.locale, "categoryUpdatesDescription", nil)
+}
+
+// UpdatesKeywords says "Updates Upgrade Check Download Install Automatic Channel Stable Beta Release Notes Restart Version Refresh"
+// in the language the app shows.
+func UpdatesKeywords() string { return In(i18n.Locale()).UpdatesKeywords() }
+
+// UpdatesKeywords says "Updates Upgrade Check Download Install Automatic Channel Stable Beta Release Notes Restart Version Refresh"
+// in the language of msgs.
+func (msgs Messages) UpdatesKeywords() string {
+	return Catalog.Format(msgs.locale, "updatesKeywords", nil)
+}
+
+// UpdatesVersionSection says "Version"
+// in the language the app shows.
+func UpdatesVersionSection() string { return In(i18n.Locale()).UpdatesVersionSection() }
+
+// UpdatesVersionSection says "Version"
+// in the language of msgs.
+func (msgs Messages) UpdatesVersionSection() string {
+	return Catalog.Format(msgs.locale, "updatesVersionSection", nil)
+}
+
+// UpdatesVersionDescription says "Current build status, release notes, and ready-to-install updates."
+// in the language the app shows.
+func UpdatesVersionDescription() string { return In(i18n.Locale()).UpdatesVersionDescription() }
+
+// UpdatesVersionDescription says "Current build status, release notes, and ready-to-install updates."
+// in the language of msgs.
+func (msgs Messages) UpdatesVersionDescription() string {
+	return Catalog.Format(msgs.locale, "updatesVersionDescription", nil)
+}
+
+// UpdatesAppVersion says "Neverland {version}"
+// in the language the app shows.
+//
+// Heading showing Neverland with its version number.
+func UpdatesAppVersion(version string) string { return In(i18n.Locale()).UpdatesAppVersion(version) }
+
+// UpdatesAppVersion says "Neverland {version}"
+// in the language of msgs.
+//
+// Heading showing Neverland with its version number.
+func (msgs Messages) UpdatesAppVersion(version string) string {
+	return Catalog.Format(msgs.locale, "updatesAppVersion", map[string]any{"version": version})
+}
+
+// UpdatesCurrentVersion says "Version {version}"
+// in the language the app shows.
+//
+// Subtitle showing the installed version.
+func UpdatesCurrentVersion(version string) string {
+	return In(i18n.Locale()).UpdatesCurrentVersion(version)
+}
+
+// UpdatesCurrentVersion says "Version {version}"
+// in the language of msgs.
+//
+// Subtitle showing the installed version.
+func (msgs Messages) UpdatesCurrentVersion(version string) string {
+	return Catalog.Format(msgs.locale, "updatesCurrentVersion", map[string]any{"version": version})
+}
+
+// UpdatesChecking says "Checking for updates…"
+// in the language the app shows.
+func UpdatesChecking() string { return In(i18n.Locale()).UpdatesChecking() }
+
+// UpdatesChecking says "Checking for updates…"
+// in the language of msgs.
+func (msgs Messages) UpdatesChecking() string {
+	return Catalog.Format(msgs.locale, "updatesChecking", nil)
+}
+
+// UpdatesUpToDate says "Neverland is up to date."
+// in the language the app shows.
+func UpdatesUpToDate() string { return In(i18n.Locale()).UpdatesUpToDate() }
+
+// UpdatesUpToDate says "Neverland is up to date."
+// in the language of msgs.
+func (msgs Messages) UpdatesUpToDate() string {
+	return Catalog.Format(msgs.locale, "updatesUpToDate", nil)
+}
+
+// UpdatesUpToDateTitle says "Up to Date"
+// in the language the app shows.
+func UpdatesUpToDateTitle() string { return In(i18n.Locale()).UpdatesUpToDateTitle() }
+
+// UpdatesUpToDateTitle says "Up to Date"
+// in the language of msgs.
+func (msgs Messages) UpdatesUpToDateTitle() string {
+	return Catalog.Format(msgs.locale, "updatesUpToDateTitle", nil)
+}
+
+// UpdatesAvailableTitle says "Neverland {version} is Available"
+// in the language the app shows.
+func UpdatesAvailableTitle(version string) string {
+	return In(i18n.Locale()).UpdatesAvailableTitle(version)
+}
+
+// UpdatesAvailableTitle says "Neverland {version} is Available"
+// in the language of msgs.
+func (msgs Messages) UpdatesAvailableTitle(version string) string {
+	return Catalog.Format(msgs.locale, "updatesAvailableTitle", map[string]any{"version": version})
+}
+
+// UpdatesAvailablePrompt says "Ready to download and install."
+// in the language the app shows.
+func UpdatesAvailablePrompt() string { return In(i18n.Locale()).UpdatesAvailablePrompt() }
+
+// UpdatesAvailablePrompt says "Ready to download and install."
+// in the language of msgs.
+func (msgs Messages) UpdatesAvailablePrompt() string {
+	return Catalog.Format(msgs.locale, "updatesAvailablePrompt", nil)
+}
+
+// UpdatesDownloading says "Downloading Neverland {version}… {percent}%"
+// in the language the app shows.
+func UpdatesDownloading(version string, percent string) string {
+	return In(i18n.Locale()).UpdatesDownloading(version, percent)
+}
+
+// UpdatesDownloading says "Downloading Neverland {version}… {percent}%"
+// in the language of msgs.
+func (msgs Messages) UpdatesDownloading(version string, percent string) string {
+	return Catalog.Format(msgs.locale, "updatesDownloading", map[string]any{"version": version, "percent": percent})
+}
+
+// UpdatesDownloadProgress says "{done} of {total}"
+// in the language the app shows.
+func UpdatesDownloadProgress(done string, total string) string {
+	return In(i18n.Locale()).UpdatesDownloadProgress(done, total)
+}
+
+// UpdatesDownloadProgress says "{done} of {total}"
+// in the language of msgs.
+func (msgs Messages) UpdatesDownloadProgress(done string, total string) string {
+	return Catalog.Format(msgs.locale, "updatesDownloadProgress", map[string]any{"done": done, "total": total})
+}
+
+// UpdatesInstalling says "Verifying signature and preparing update…"
+// in the language the app shows.
+func UpdatesInstalling() string { return In(i18n.Locale()).UpdatesInstalling() }
+
+// UpdatesInstalling says "Verifying signature and preparing update…"
+// in the language of msgs.
+func (msgs Messages) UpdatesInstalling() string {
+	return Catalog.Format(msgs.locale, "updatesInstalling", nil)
+}
+
+// UpdatesReadyTitle says "Neverland {version} is Ready to Install"
+// in the language the app shows.
+func UpdatesReadyTitle(version string) string { return In(i18n.Locale()).UpdatesReadyTitle(version) }
+
+// UpdatesReadyTitle says "Neverland {version} is Ready to Install"
+// in the language of msgs.
+func (msgs Messages) UpdatesReadyTitle(version string) string {
+	return Catalog.Format(msgs.locale, "updatesReadyTitle", map[string]any{"version": version})
+}
+
+// UpdatesReadyDescription says "Restart Neverland to finish updating."
+// in the language the app shows.
+func UpdatesReadyDescription() string { return In(i18n.Locale()).UpdatesReadyDescription() }
+
+// UpdatesReadyDescription says "Restart Neverland to finish updating."
+// in the language of msgs.
+func (msgs Messages) UpdatesReadyDescription() string {
+	return Catalog.Format(msgs.locale, "updatesReadyDescription", nil)
+}
+
+// UpdatesErrorTitle says "Update Failed"
+// in the language the app shows.
+func UpdatesErrorTitle() string { return In(i18n.Locale()).UpdatesErrorTitle() }
+
+// UpdatesErrorTitle says "Update Failed"
+// in the language of msgs.
+func (msgs Messages) UpdatesErrorTitle() string {
+	return Catalog.Format(msgs.locale, "updatesErrorTitle", nil)
+}
+
+// UpdatesCheckErrorTitle says "Couldn’t Check for Updates"
+// in the language the app shows.
+func UpdatesCheckErrorTitle() string { return In(i18n.Locale()).UpdatesCheckErrorTitle() }
+
+// UpdatesCheckErrorTitle says "Couldn’t Check for Updates"
+// in the language of msgs.
+func (msgs Messages) UpdatesCheckErrorTitle() string {
+	return Catalog.Format(msgs.locale, "updatesCheckErrorTitle", nil)
+}
+
+// UpdatesInstallErrorTitle says "Couldn’t Install Update"
+// in the language the app shows.
+func UpdatesInstallErrorTitle() string { return In(i18n.Locale()).UpdatesInstallErrorTitle() }
+
+// UpdatesInstallErrorTitle says "Couldn’t Install Update"
+// in the language of msgs.
+func (msgs Messages) UpdatesInstallErrorTitle() string {
+	return Catalog.Format(msgs.locale, "updatesInstallErrorTitle", nil)
+}
+
+// UpdatesLastCheckedJustNow says "Last checked just now"
+// in the language the app shows.
+func UpdatesLastCheckedJustNow() string { return In(i18n.Locale()).UpdatesLastCheckedJustNow() }
+
+// UpdatesLastCheckedJustNow says "Last checked just now"
+// in the language of msgs.
+func (msgs Messages) UpdatesLastCheckedJustNow() string {
+	return Catalog.Format(msgs.locale, "updatesLastCheckedJustNow", nil)
+}
+
+// UpdatesLastCheckedMinutes says "{count, plural, one {Last checked # minute ago} other {Last checked # minutes ago}}"
+// in the language the app shows.
+func UpdatesLastCheckedMinutes(count int) string {
+	return In(i18n.Locale()).UpdatesLastCheckedMinutes(count)
+}
+
+// UpdatesLastCheckedMinutes says "{count, plural, one {Last checked # minute ago} other {Last checked # minutes ago}}"
+// in the language of msgs.
+func (msgs Messages) UpdatesLastCheckedMinutes(count int) string {
+	return Catalog.Format(msgs.locale, "updatesLastCheckedMinutes", map[string]any{"count": count})
+}
+
+// UpdatesLastCheckedHours says "{count, plural, one {Last checked # hour ago} other {Last checked # hours ago}}"
+// in the language the app shows.
+func UpdatesLastCheckedHours(count int) string {
+	return In(i18n.Locale()).UpdatesLastCheckedHours(count)
+}
+
+// UpdatesLastCheckedHours says "{count, plural, one {Last checked # hour ago} other {Last checked # hours ago}}"
+// in the language of msgs.
+func (msgs Messages) UpdatesLastCheckedHours(count int) string {
+	return Catalog.Format(msgs.locale, "updatesLastCheckedHours", map[string]any{"count": count})
+}
+
+// UpdatesLastCheckedDays says "{count, plural, one {Last checked # day ago} other {Last checked # days ago}}"
+// in the language the app shows.
+func UpdatesLastCheckedDays(count int) string { return In(i18n.Locale()).UpdatesLastCheckedDays(count) }
+
+// UpdatesLastCheckedDays says "{count, plural, one {Last checked # day ago} other {Last checked # days ago}}"
+// in the language of msgs.
+func (msgs Messages) UpdatesLastCheckedDays(count int) string {
+	return Catalog.Format(msgs.locale, "updatesLastCheckedDays", map[string]any{"count": count})
+}
+
+// UpdatesNeverChecked says "Not checked yet"
+// in the language the app shows.
+func UpdatesNeverChecked() string { return In(i18n.Locale()).UpdatesNeverChecked() }
+
+// UpdatesNeverChecked says "Not checked yet"
+// in the language of msgs.
+func (msgs Messages) UpdatesNeverChecked() string {
+	return Catalog.Format(msgs.locale, "updatesNeverChecked", nil)
+}
+
+// UpdatesButtonCheck says "Check for Updates"
+// in the language the app shows.
+func UpdatesButtonCheck() string { return In(i18n.Locale()).UpdatesButtonCheck() }
+
+// UpdatesButtonCheck says "Check for Updates"
+// in the language of msgs.
+func (msgs Messages) UpdatesButtonCheck() string {
+	return Catalog.Format(msgs.locale, "updatesButtonCheck", nil)
+}
+
+// UpdatesButtonCancel says "Cancel"
+// in the language the app shows.
+func UpdatesButtonCancel() string { return In(i18n.Locale()).UpdatesButtonCancel() }
+
+// UpdatesButtonCancel says "Cancel"
+// in the language of msgs.
+func (msgs Messages) UpdatesButtonCancel() string {
+	return Catalog.Format(msgs.locale, "updatesButtonCancel", nil)
+}
+
+// UpdatesButtonDownload says "Download & Install"
+// in the language the app shows.
+func UpdatesButtonDownload() string { return In(i18n.Locale()).UpdatesButtonDownload() }
+
+// UpdatesButtonDownload says "Download & Install"
+// in the language of msgs.
+func (msgs Messages) UpdatesButtonDownload() string {
+	return Catalog.Format(msgs.locale, "updatesButtonDownload", nil)
+}
+
+// UpdatesButtonDownloadManually says "Download Manually…"
+// in the language the app shows.
+func UpdatesButtonDownloadManually() string { return In(i18n.Locale()).UpdatesButtonDownloadManually() }
+
+// UpdatesButtonDownloadManually says "Download Manually…"
+// in the language of msgs.
+func (msgs Messages) UpdatesButtonDownloadManually() string {
+	return Catalog.Format(msgs.locale, "updatesButtonDownloadManually", nil)
+}
+
+// UpdatesButtonSkip says "Skip This Version"
+// in the language the app shows.
+func UpdatesButtonSkip() string { return In(i18n.Locale()).UpdatesButtonSkip() }
+
+// UpdatesButtonSkip says "Skip This Version"
+// in the language of msgs.
+func (msgs Messages) UpdatesButtonSkip() string {
+	return Catalog.Format(msgs.locale, "updatesButtonSkip", nil)
+}
+
+// UpdatesButtonRetry says "Retry"
+// in the language the app shows.
+func UpdatesButtonRetry() string { return In(i18n.Locale()).UpdatesButtonRetry() }
+
+// UpdatesButtonRetry says "Retry"
+// in the language of msgs.
+func (msgs Messages) UpdatesButtonRetry() string {
+	return Catalog.Format(msgs.locale, "updatesButtonRetry", nil)
+}
+
+// UpdatesButtonRestart says "Restart Now"
+// in the language the app shows.
+func UpdatesButtonRestart() string { return In(i18n.Locale()).UpdatesButtonRestart() }
+
+// UpdatesButtonRestart says "Restart Now"
+// in the language of msgs.
+func (msgs Messages) UpdatesButtonRestart() string {
+	return Catalog.Format(msgs.locale, "updatesButtonRestart", nil)
+}
+
+// UpdatesButtonView says "View Update"
+// in the language the app shows.
+func UpdatesButtonView() string { return In(i18n.Locale()).UpdatesButtonView() }
+
+// UpdatesButtonView says "View Update"
+// in the language of msgs.
+func (msgs Messages) UpdatesButtonView() string {
+	return Catalog.Format(msgs.locale, "updatesButtonView", nil)
+}
+
+// UpdatesReleaseNotes says "Release Notes"
+// in the language the app shows.
+func UpdatesReleaseNotes() string { return In(i18n.Locale()).UpdatesReleaseNotes() }
+
+// UpdatesReleaseNotes says "Release Notes"
+// in the language of msgs.
+func (msgs Messages) UpdatesReleaseNotes() string {
+	return Catalog.Format(msgs.locale, "updatesReleaseNotes", nil)
+}
+
+// UpdatesManualRequired says "This release requires a newer system version or manual installer."
+// in the language the app shows.
+func UpdatesManualRequired() string { return In(i18n.Locale()).UpdatesManualRequired() }
+
+// UpdatesManualRequired says "This release requires a newer system version or manual installer."
+// in the language of msgs.
+func (msgs Messages) UpdatesManualRequired() string {
+	return Catalog.Format(msgs.locale, "updatesManualRequired", nil)
+}
+
+// UpdatesPreferencesSection says "Preferences"
+// in the language the app shows.
+func UpdatesPreferencesSection() string { return In(i18n.Locale()).UpdatesPreferencesSection() }
+
+// UpdatesPreferencesSection says "Preferences"
+// in the language of msgs.
+func (msgs Messages) UpdatesPreferencesSection() string {
+	return Catalog.Format(msgs.locale, "updatesPreferencesSection", nil)
+}
+
+// UpdatesPreferencesDescription says "Choose whether Neverland checks and prepares updates automatically."
+// in the language the app shows.
+func UpdatesPreferencesDescription() string { return In(i18n.Locale()).UpdatesPreferencesDescription() }
+
+// UpdatesPreferencesDescription says "Choose whether Neverland checks and prepares updates automatically."
+// in the language of msgs.
+func (msgs Messages) UpdatesPreferencesDescription() string {
+	return Catalog.Format(msgs.locale, "updatesPreferencesDescription", nil)
+}
+
+// UpdatesAutomaticChecks says "Check automatically"
+// in the language the app shows.
+func UpdatesAutomaticChecks() string { return In(i18n.Locale()).UpdatesAutomaticChecks() }
+
+// UpdatesAutomaticChecks says "Check automatically"
+// in the language of msgs.
+func (msgs Messages) UpdatesAutomaticChecks() string {
+	return Catalog.Format(msgs.locale, "updatesAutomaticChecks", nil)
+}
+
+// UpdatesAutomaticChecksDescription says "Check daily in the background for new Neverland releases."
+// in the language the app shows.
+func UpdatesAutomaticChecksDescription() string {
+	return In(i18n.Locale()).UpdatesAutomaticChecksDescription()
+}
+
+// UpdatesAutomaticChecksDescription says "Check daily in the background for new Neverland releases."
+// in the language of msgs.
+func (msgs Messages) UpdatesAutomaticChecksDescription() string {
+	return Catalog.Format(msgs.locale, "updatesAutomaticChecksDescription", nil)
+}
+
+// UpdatesAutomaticDownloads says "Download automatically"
+// in the language the app shows.
+func UpdatesAutomaticDownloads() string { return In(i18n.Locale()).UpdatesAutomaticDownloads() }
+
+// UpdatesAutomaticDownloads says "Download automatically"
+// in the language of msgs.
+func (msgs Messages) UpdatesAutomaticDownloads() string {
+	return Catalog.Format(msgs.locale, "updatesAutomaticDownloads", nil)
+}
+
+// UpdatesAutomaticDownloadsDescription says "Verify and prepare new updates quietly so they are ready on restart."
+// in the language the app shows.
+func UpdatesAutomaticDownloadsDescription() string {
+	return In(i18n.Locale()).UpdatesAutomaticDownloadsDescription()
+}
+
+// UpdatesAutomaticDownloadsDescription says "Verify and prepare new updates quietly so they are ready on restart."
+// in the language of msgs.
+func (msgs Messages) UpdatesAutomaticDownloadsDescription() string {
+	return Catalog.Format(msgs.locale, "updatesAutomaticDownloadsDescription", nil)
+}
+
+// UpdatesChannel says "Release channel"
+// in the language the app shows.
+func UpdatesChannel() string { return In(i18n.Locale()).UpdatesChannel() }
+
+// UpdatesChannel says "Release channel"
+// in the language of msgs.
+func (msgs Messages) UpdatesChannel() string {
+	return Catalog.Format(msgs.locale, "updatesChannel", nil)
+}
+
+// UpdatesChannelDescription says "Beta builds include upcoming improvements ahead of stable releases."
+// in the language the app shows.
+func UpdatesChannelDescription() string { return In(i18n.Locale()).UpdatesChannelDescription() }
+
+// UpdatesChannelDescription says "Beta builds include upcoming improvements ahead of stable releases."
+// in the language of msgs.
+func (msgs Messages) UpdatesChannelDescription() string {
+	return Catalog.Format(msgs.locale, "updatesChannelDescription", nil)
+}
+
+// UpdatesChannelStable says "Stable"
+// in the language the app shows.
+func UpdatesChannelStable() string { return In(i18n.Locale()).UpdatesChannelStable() }
+
+// UpdatesChannelStable says "Stable"
+// in the language of msgs.
+func (msgs Messages) UpdatesChannelStable() string {
+	return Catalog.Format(msgs.locale, "updatesChannelStable", nil)
+}
+
+// UpdatesChannelBeta says "Beta"
+// in the language the app shows.
+func UpdatesChannelBeta() string { return In(i18n.Locale()).UpdatesChannelBeta() }
+
+// UpdatesChannelBeta says "Beta"
+// in the language of msgs.
+func (msgs Messages) UpdatesChannelBeta() string {
+	return Catalog.Format(msgs.locale, "updatesChannelBeta", nil)
+}
+
+// UpdatesUnavailableDev says "Self-update is turned off in development builds."
+// in the language the app shows.
+func UpdatesUnavailableDev() string { return In(i18n.Locale()).UpdatesUnavailableDev() }
+
+// UpdatesUnavailableDev says "Self-update is turned off in development builds."
+// in the language of msgs.
+func (msgs Messages) UpdatesUnavailableDev() string {
+	return Catalog.Format(msgs.locale, "updatesUnavailableDev", nil)
+}
+
+// UpdatesUnavailableTranslocated says "Move Neverland into your Applications folder to enable automatic updates."
+// in the language the app shows.
+func UpdatesUnavailableTranslocated() string {
+	return In(i18n.Locale()).UpdatesUnavailableTranslocated()
+}
+
+// UpdatesUnavailableTranslocated says "Move Neverland into your Applications folder to enable automatic updates."
+// in the language of msgs.
+func (msgs Messages) UpdatesUnavailableTranslocated() string {
+	return Catalog.Format(msgs.locale, "updatesUnavailableTranslocated", nil)
+}
+
+// UpdatesUnavailableReadOnly says "Neverland cannot update from a read-only disk or volume."
+// in the language the app shows.
+func UpdatesUnavailableReadOnly() string { return In(i18n.Locale()).UpdatesUnavailableReadOnly() }
+
+// UpdatesUnavailableReadOnly says "Neverland cannot update from a read-only disk or volume."
+// in the language of msgs.
+func (msgs Messages) UpdatesUnavailableReadOnly() string {
+	return Catalog.Format(msgs.locale, "updatesUnavailableReadOnly", nil)
+}
+
+// UpdatesUnavailableUnconfigured says "Update feed is not configured for this build."
+// in the language the app shows.
+func UpdatesUnavailableUnconfigured() string {
+	return In(i18n.Locale()).UpdatesUnavailableUnconfigured()
+}
+
+// UpdatesUnavailableUnconfigured says "Update feed is not configured for this build."
+// in the language of msgs.
+func (msgs Messages) UpdatesUnavailableUnconfigured() string {
+	return Catalog.Format(msgs.locale, "updatesUnavailableUnconfigured", nil)
+}
+
+// UpdatesUnavailablePackage says "Updates for this installation are managed outside the app."
+// in the language the app shows.
+func UpdatesUnavailablePackage() string { return In(i18n.Locale()).UpdatesUnavailablePackage() }
+
+// UpdatesUnavailablePackage says "Updates for this installation are managed outside the app."
+// in the language of msgs.
+func (msgs Messages) UpdatesUnavailablePackage() string {
+	return Catalog.Format(msgs.locale, "updatesUnavailablePackage", nil)
+}

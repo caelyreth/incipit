@@ -13,11 +13,12 @@ type Category uint8
 const (
 	Appearance Category = iota + 1
 	Editor
+	Updates
 	Keymap
 )
 
 // AllCategories is display order.
-var AllCategories = [...]Category{Appearance, Editor, Keymap}
+var AllCategories = [...]Category{Appearance, Editor, Updates, Keymap}
 
 // Key names the category where the field's query does, $in:Keymap, and
 // in its sections' identities, in every language.
@@ -25,6 +26,8 @@ func (c Category) Key() string {
 	switch c {
 	case Editor:
 		return "Editor"
+	case Updates:
+		return "Updates"
 	case Keymap:
 		return "Keymap"
 	default:
@@ -37,6 +40,8 @@ func (c Category) Title() string {
 	switch c {
 	case Editor:
 		return locales.CategoryEditor()
+	case Updates:
+		return locales.CategoryUpdates()
 	case Keymap:
 		return locales.CategoryKeymap()
 	default:
@@ -50,6 +55,8 @@ func (c Category) Description() string {
 	switch c {
 	case Editor:
 		return locales.CategoryEditorDescription()
+	case Updates:
+		return locales.CategoryUpdatesDescription()
 	case Keymap:
 		return locales.CategoryKeymapDescription()
 	default:

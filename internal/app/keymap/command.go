@@ -122,9 +122,10 @@ const (
 	Typewriter CommandID = "window.typewriter"
 	Motion     CommandID = "window.motion"
 	Field      CommandID = "window.field"
-	Commands   CommandID = "app.commands"
-	Settings   CommandID = "app.settings"
-	Shortcuts  CommandID = "app.shortcuts"
+	Commands     CommandID = "app.commands"
+	Settings     CommandID = "app.settings"
+	Shortcuts    CommandID = "app.shortcuts"
+	CheckUpdates CommandID = "app.check-updates"
 
 	// CheckSpelling, CheckGrammar, CorrectSpelling and PredictSpelling turn
 	// the spelling policy and its options on and off, from Edit › Spelling
@@ -231,5 +232,6 @@ func appCommands() []Command {
 		{ID: Commands, Words: "commandCommands", Scope: ScopeApp, Default: NewChord("k", ModifiersPrimary)},
 		{ID: Settings, Words: "commandSettings", Scope: ScopeApp, Default: NewChord(",", ModifiersPrimary)},
 		{ID: Shortcuts, Words: "commandKeyboardShortcuts", Scope: ScopeApp, Default: NewChord("/", ModifiersPrimary)},
+		{ID: CheckUpdates, Words: "commandCheckUpdates", Scope: ScopeApp},
 	}
 }
