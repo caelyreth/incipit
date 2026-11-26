@@ -15,5 +15,13 @@
   },
   "macos": {
     "icon": "assets/profile.icon"
+  },
+  "updates": {
+    "publicKey": "e4zBfbvt4P3modWlAy0Q8gzuFqtHIZYeAS2RRgI6+Fc=",
+    "feedUrl": "https://updates.example.com/neverland",
+    "url": "https://downloads.example.com/neverland",
+    "mirrors": [
+      "https://github.com/caelyreth/neverland/releases/download/v{version}"
+    ]
   }
 }
