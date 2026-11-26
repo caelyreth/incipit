@@ -305,3 +305,52 @@ func TestLostNotebookThatWouldNotOpen(t *testing.T) {
 		t.Errorf("a second failure: reason %q on %s", w.lost.Reason, w.at.name())
 	}
 }
+
+func TestLostNotebookOffersRestoreBackupAndGuardsFinish(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "Notes")
+	w := newWalkthrough(t, false, true)
+	var restoreCalls int
+	restoreResult := false
+	var restoreErr error
+	w.Host.Backups = func(r string) []Backup {
+		if r != root {
+			return nil
+		}
+		return []Backup{{Path: filepath.Join(root, "Backups", "b1.db"), Date: "Today, 9:00 AM", Size: "12 KB"}}
+	}
+	w.Host.RestoreBackup = func(r string, b Backup, done func(bool, error)) {
+		restoreCalls++
+		done(restoreResult, restoreErr)
+	}
+
+	w.Lost(Lost{Root: root, Reason: "corrupt"})
+	w.tester.Frame()
+	if _, ok := w.tester.Find(locales.RestoreBackupButton()); !ok {
+		t.Fatalf("missing %q button when backups exist", locales.RestoreBackupButton())
+	}
+
+	// Canceling restore keeps user on Lost screen cleanly.
+	w.click(t, locales.RestoreBackupButton())
+	if restoreCalls != 1 || len(w.finished) != 0 || w.at != pageLost || w.finishing {
+		t.Fatalf("after cancel: calls=%d finished=%d at=%s finishing=%v", restoreCalls, len(w.finished), w.at.name(), w.finishing)
+	}
+
+	// Confirming restore reopens notebook automatically.
+	restoreResult = true
+	w.click(t, locales.RestoreBackupButton())
+	if restoreCalls != 2 || len(w.finished) != 1 || w.finished[0].Root != root {
+		t.Fatalf("after confirm: calls=%d finished=%+v", restoreCalls, w.finished)
+	}
+
+	// Guard against duplicate finish while already finishing.
+	w.finishing = true
+	w.at = pageDone
+	w.tester.Frame()
+	if _, ok := w.tester.Find(locales.OnboardingOpening()); !ok {
+		t.Fatalf("expected busy label %q when finishing", locales.OnboardingOpening())
+	}
+	w.finish()
+	if len(w.finished) != 1 {
+		t.Fatalf("duplicate finish fired: %+v", w.finished)
+	}
+}

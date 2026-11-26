@@ -3,6 +3,8 @@ package window
 import (
 	"fmt"
 	"slices"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/app/keymap"
@@ -12,6 +14,7 @@ import (
 	appupdater "github.com/caelyreth/neverland/internal/app/updater"
 	"github.com/caelyreth/neverland/internal/app/workspace"
 	"github.com/caelyreth/neverland/internal/editor/engine"
+	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/page"
@@ -76,6 +79,10 @@ type AppState struct {
 	// System theme follows, as last read while it was chosen; running is
 	// set once the app runs and can ask.
 	systemDark, running bool
+	closing             atomic.Bool
+	quitConfirmed       bool
+	quitAsking          bool
+	userDataDir         string
 	// fonts are the faces for Chinese and Japanese, kept and coming.
 	fonts *fontState
 	// language is the language the app chose to show (mygo.App.ChosenLocale),
@@ -401,14 +408,37 @@ func (a *AppState) splitColumn(name string) {
 	a.selectMounted()
 }
 
-// emptyPage reports whether the page holds nothing: one empty block.
+// emptyPage reports whether the page truly holds nothing: zero blocks or
+// a single empty paragraph with no inline objects (so fresh image-only or
+// formula/code sheets are preserved).
 func (a *AppState) emptyPage(page workspace.PageID) bool {
 	session, ok := a.sessions[page]
 	if !ok {
 		return false
 	}
 	snap := session.text()
-	return snap != nil && snap.Len() <= 2 && storage.Summarize(snap.Root()).Words == 0
+	if snap == nil {
+		return !session.saved && session.summary.Words == 0 && session.summary.Title == "" && session.summary.Excerpt == ""
+	}
+	root := snap.Root()
+	if root == nil || root.NumSlots() == 0 {
+		return true
+	}
+	children := root.Slot(0).Children()
+	if len(children) == 0 {
+		return true
+	}
+	if len(children) > 1 {
+		return false
+	}
+	only := children[0]
+	if only == nil || only.Kind() != profile.Paragraph {
+		return false
+	}
+	if only.NumSlots() == 0 {
+		return true
+	}
+	return only.Slot(0).Len() == 0 && strings.TrimSpace(only.Text()) == ""
 }
 
 func (a *AppState) refreshShell() {
@@ -440,6 +470,7 @@ func (a *AppState) refreshSettingsData() {
 	a.Settings.Reserved = a.reservedKey
 	a.Settings.Fonts, a.Settings.Font = a.fonts.rows(), a.fontAct
 	a.Settings.SystemFonts = a.fonts.families()
+	a.bindNotebookSettings()
 	a.Settings.Languages, a.Settings.Language, a.Settings.SetLanguage = mygo.App.Languages(), a.language, a.chooseLanguage
 	a.bindUpdaterSettings()
 	a.Settings.Apply = func(change appsettings.Change) {

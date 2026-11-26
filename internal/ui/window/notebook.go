@@ -276,6 +276,26 @@ func storageView(view workspace.ViewState) storage.ViewState {
 	}
 }
 
+// FlushPending writes all unsaved edits, settings, and layout to disk now
+// without closing the notebook.
+func (a *AppState) FlushPending() error {
+	if a == nil || a.notebook == nil || a.notebook.closed {
+		return nil
+	}
+	a.fileUnfiled()
+	for _, session := range a.sessions {
+		a.savePage(session)
+	}
+	a.saveSettings()
+	a.saveWritten()
+	a.captureViews()
+	a.saveLayout()
+	if a.notebook.saver == nil {
+		return nil
+	}
+	return a.notebook.saver.Flush()
+}
+
 // Close saves everything still pending and lets go of the notebook. It is
 // safe to call more than once.
 func (a *AppState) Close() error {

@@ -10,8 +10,8 @@ import (
 	"github.com/caelyreth/neverland/internal/app/fonts"
 	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/caelyreth/neverland/internal/ui/onboarding"
-
 	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -29,10 +29,7 @@ func Run() error {
 	if path := keepLog(userData); path != "" {
 		log.Printf("Neverland %s started, logging to %s", mygo.App.Version(), path)
 	}
-	root, chosen, err := notebookRoot(userData)
-	if err != nil {
-		return err
-	}
+	root, chosen, locErr := notebookRoot(userData)
 	// The app opens on the notebook once its folder is chosen: at once on
 	// every launch after the first, and on the first as its walkthrough
 	// ends. Whatever is pending is written before the app goes, and once
@@ -42,14 +39,33 @@ func Run() error {
 		if app == nil {
 			return
 		}
+		app.closing.Store(true)
 		if err := app.Close(); err != nil {
 			log.Printf("saving the notebook: %v", err)
 		}
 	}
 	defer closeApp()
+	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
+		if e.SessionEnding || app == nil || app.quitConfirmed {
+			return
+		}
+		if err := app.FlushPending(); err != nil {
+			e.PreventDefault()
+			if app.Notices != nil && app.notebook != nil {
+				app.Notices.Post(saveFailure(app.notebook.saver, err, app.Notices))
+			}
+			app.confirmQuitWithUnsaved(err)
+		}
+	})
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) { closeApp() })
 	var lost *onboarding.Lost
-	if chosen {
+	switch {
+	case locErr != nil:
+		lost = &onboarding.Lost{
+			Root:   filepath.Join(userData, "notebook-location.json"),
+			Reason: locErr.Error(),
+		}
+	case chosen:
 		if app, lost = openChosen(root, userData); app != nil {
 			mygo.Theme.SetSource(themeSource(app.Product.Appearance.Appearance))
 		}
@@ -92,8 +108,9 @@ func appFolders(goos string) {
 
 // notebookRoot is the notebook's folder and whether it has been chosen:
 // NEVERLAND_HOME's, or the one recorded on the first launch; else the
-// folder the walkthrough offers, not chosen yet. A record that cannot be
-// read is set up again.
+// folder the walkthrough offers, not chosen yet. A corrupt or unreadable
+// location record reports an error so an existing user is not silently
+// dropped into fresh onboarding.
 func notebookRoot(userData string) (string, bool, error) {
 	if os.Getenv(storage.HomeVariable) != "" {
 		root, err := storage.Root("", runtime.GOOS)
@@ -102,6 +119,8 @@ func notebookRoot(userData string) (string, bool, error) {
 	root, ok, err := storage.ChosenRoot(userData)
 	if err != nil {
 		log.Printf("reading where the notebook is: %v", err)
+		fallback, _ := defaultRoot()
+		return fallback, false, err
 	}
 	if ok {
 		return root, true, nil
@@ -144,8 +163,19 @@ func openApp(root, userData string) (*AppState, error) {
 		_ = store.Close()
 		return nil, err
 	}
+	app.userDataDir = userData
 	if dir, err := fonts.Dir(userData); err == nil {
 		app.useFonts(openFonts(dir))
+	} else {
+		log.Printf("fonts folder: %v", err)
+		if app.Notices != nil {
+			app.Notices.Post(Notice{
+				ID:          "fonts.dir",
+				Kind:        NoticeWarning,
+				Title:       locales.FontsFolderUnavailable(),
+				Description: err.Error(),
+			})
+		}
 	}
 	app.useUpdater(userData)
 	return app, nil
@@ -155,6 +185,7 @@ func openApp(root, userData string) (*AppState, error) {
 // system from then on.
 func (a *AppState) start() {
 	a.language = mygo.App.ChosenLocale()
+	mygo.Theme.SetSource(themeSource(a.Product.Appearance.Appearance))
 	a.followSystem()
 	mygo.App.OnLocaleChanged(func(string) { a.localeChanged() })
 	mygo.App.SetMenu(a.MainMenu())
@@ -234,13 +265,20 @@ func (a *AppState) redraw() {
 func (a *AppState) wake() { mygo.RunOnMain(a.redraw) }
 
 // onUI runs f on the UI thread and redraws the windows open then, at once
-// without a window, as in tests.
+// without a window, as in tests. Skips scheduling once shutdown has begun
+// so background workers closing on quit cannot deadlock against OnWillQuit.
 func (a *AppState) onUI(f func()) {
+	if a == nil || a.closing.Load() {
+		return
+	}
 	if a.mainWindow == nil {
 		f()
 		return
 	}
 	mygo.RunOnMain(func() {
+		if a.closing.Load() {
+			return
+		}
 		f()
 		a.redraw()
 	})

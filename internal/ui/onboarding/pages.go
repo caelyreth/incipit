@@ -438,13 +438,17 @@ func (s *State) foot(c *ui.Context, semantic theme.Theme, m metrics, animate boo
 		ui.Box(c).Grow(1)
 		// The way on comes up with the first page counted, and as its words
 		// change, each button grows or shrinks to them.
-		grow(components.Button{Key: "back", Label: locales.Back(), Style: components.SubtleButton, Animate: animate,
+		grow(components.Button{Key: "back", Label: locales.Back(), Style: components.SubtleButton, Disabled: s.finishing, Animate: animate,
 			Shortcut: escapeKey, Action: func() { s.turn(-1, s.clock) }}.View(c, semantic))
 		label := locales.OnboardingContinue()
 		if s.at == pageDone {
-			label = locales.OnboardingStart()
+			if s.finishing {
+				label = locales.OnboardingOpening()
+			} else {
+				label = locales.OnboardingStart()
+			}
 		}
-		grow(components.Button{Key: "continue", Label: label, Style: components.PrimaryButton, Animate: animate,
+		grow(components.Button{Key: "continue", Label: label, Style: components.PrimaryButton, Disabled: s.finishing, Animate: animate,
 			Shortcut: returnKey, Action: func() { s.next(s.clock) }}.View(c, semantic))
 	})
 }

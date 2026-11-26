@@ -6,6 +6,7 @@ import (
 
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
 	"github.com/caelyreth/neverland/internal/app/storage"
+	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/onboarding"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
@@ -41,11 +42,68 @@ func welcome(defaultRoot, userData string, lost *onboarding.Lost, opened func(*A
 					Parent: window, Title: locales.OnboardingNotebookChoose(), DefaultPath: filepath.Dir(current),
 					Directory: true, CreateDirectories: true, ButtonLabel: locales.ChooseFolder(),
 				})
-				if err != nil || len(paths) == 0 {
+				if err != nil {
+					_, _ = mygo.Dialog.Message(mygo.MessageOptions{
+						Parent:  window,
+						Type:    mygo.MessageError,
+						Title:   locales.CouldntOpenDialog(),
+						Message: describeNotice(err),
+					})
+					return
+				}
+				if len(paths) == 0 {
 					return
 				}
 				mygo.RunOnMain(func() {
 					chosen(paths[0])
+					window.Invalidate()
+				})
+			}()
+		},
+		Backups: func(root string) []onboarding.Backup {
+			raw, err := storage.ListBackups(root)
+			if err != nil || len(raw) == 0 {
+				return nil
+			}
+			out := make([]onboarding.Backup, 0, len(raw))
+			for _, b := range raw {
+				out = append(out, onboarding.Backup{
+					Path: b.Path,
+					Date: formatBackupTime(b.Taken),
+					Size: components.Bytes(b.Size),
+				})
+			}
+			return out
+		},
+		RestoreBackup: func(root string, backup onboarding.Backup, done func(bool, error)) {
+			go func() {
+				res, err := mygo.Dialog.Message(mygo.MessageOptions{
+					Parent:             window,
+					Type:               mygo.MessageWarning,
+					Title:              locales.RestoreBackupConfirmTitle(),
+					Message:            locales.RestoreBackupConfirmMessage(backup.Date, backup.Size),
+					Buttons:            []string{locales.Cancel(), locales.RestoreBackupConfirmAction()},
+					DefaultButton:      0,
+					CancelButton:       0,
+					DestructiveButtons: []int{1},
+				})
+				if err != nil {
+					mygo.RunOnMain(func() {
+						done(false, err)
+						window.Invalidate()
+					})
+					return
+				}
+				if res.Button != 1 {
+					mygo.RunOnMain(func() {
+						done(false, nil)
+						window.Invalidate()
+					})
+					return
+				}
+				restoreErr := storage.RestoreBackup(root, backup.Path)
+				mygo.RunOnMain(func() {
+					done(restoreErr == nil, restoreErr)
 					window.Invalidate()
 				})
 			}()

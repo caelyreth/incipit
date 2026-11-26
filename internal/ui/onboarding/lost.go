@@ -19,22 +19,55 @@ type Lost struct {
 
 // Lost has the walkthrough begin with the notebook lost: nothing is made
 // in its place until the person says what to do. They can look again,
-// find it elsewhere, either of which opens it as it is, or begin anew,
-// which goes on to the cover and the pages after it.
+// find it elsewhere, restore a verified backup, any of which opens it as it is,
+// or begin anew, which goes on to the cover and the pages after it.
 func (s *State) Lost(lost Lost) {
 	s.lost = &lost
 	s.at, s.from = pageLost, pageLost
+	s.refreshLostBackups()
+}
+
+func (s *State) refreshLostBackups() {
+	if s.lost == nil || s.Host.Backups == nil {
+		s.lostBackups = nil
+		return
+	}
+	s.lostBackups = s.Host.Backups(s.lost.Root)
 }
 
 // lookAgain opens the lost notebook if it is there now, as a drive
 // connected again would have it.
 func (s *State) lookAgain() {
+	if s.finishing {
+		return
+	}
 	s.lostNote = ""
 	if s.Host.Holds == nil || !s.Host.Holds(s.lost.Root) {
 		s.lostNote = locales.OnboardingLostStill()
+		s.refreshLostBackups()
 		return
 	}
 	s.reopen(s.lost.Root)
+}
+
+func (s *State) restoreLatestBackup() {
+	if s.finishing || s.lost == nil || s.Host.RestoreBackup == nil || len(s.lostBackups) == 0 {
+		return
+	}
+	s.finishing = true
+	s.lostNote = ""
+	root := s.lost.Root
+	backup := s.lostBackups[0]
+	s.Host.RestoreBackup(root, backup, func(restored bool, err error) {
+		s.finishing = false
+		if err != nil {
+			s.lost.Reason = err.Error()
+			return
+		}
+		if restored {
+			s.reopen(root)
+		}
+	})
 }
 
 // findElsewhere asks for the folder the notebook went to, and opens it
@@ -81,12 +114,16 @@ func (s *State) lostView(c *ui.Context, semantic theme.Theme, m metrics, animate
 			s.enter(c, s.lostFolder(c, semantic, m, lost), 3, animate)
 			s.enter(c, ui.Row(c).Gap(10*m.k).Padding(12*m.k, 0, 0, 0).AlignItems(ui.Center).Children(func() {
 				components.Button{Key: "look-again", Label: locales.OnboardingLostLookAgain(), Style: components.PrimaryButton,
-					Animate: animate, Shortcut: returnKey, Action: s.lookAgain}.View(c, semantic)
+					Disabled: s.finishing, Animate: animate, Shortcut: returnKey, Action: s.lookAgain}.View(c, semantic)
 				components.Button{Key: "find-elsewhere", Label: locales.ChooseFolderEllipsis(), Style: components.OutlinedButton,
-					Animate: animate, Action: s.findElsewhere}.View(c, semantic)
+					Disabled: s.finishing, Animate: animate, Action: s.findElsewhere}.View(c, semantic)
+				if len(s.lostBackups) > 0 && s.Host.RestoreBackup != nil {
+					components.Button{Key: "restore-backup", Label: locales.RestoreBackupButton(), Style: components.OutlinedButton,
+						Disabled: s.finishing, Animate: animate, Action: s.restoreLatestBackup}.View(c, semantic)
+				}
 				ui.Box(c).Grow(1)
 				components.Button{Key: "begin-anew", Label: locales.OnboardingLostNew(), Style: components.SubtleButton,
-					Animate: animate, Action: func() { s.turn(1, s.clock) }}.View(c, semantic)
+					Disabled: s.finishing, Animate: animate, Action: func() { s.turn(1, s.clock) }}.View(c, semantic)
 			}), 4, animate)
 		})
 	})

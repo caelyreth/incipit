@@ -51,16 +51,24 @@ type State struct {
 
 	// Updates holds the current updater state and callbacks wired to the
 	// background updater service.
-	Updates                  appupdater.Snapshot
-	UpdateCheck              func()
-	UpdateDownload           func()
-	UpdateCancel             func()
-	UpdateSkip               func()
-	UpdateRestart            func()
-	UpdateSetAutoChecks      func(bool)
-	UpdateSetAutoDownloads   func(bool)
-	UpdateSetChannel         func(string)
-	UpdateOpenURL            func(string)
+	Updates                appupdater.Snapshot
+	UpdateCheck            func()
+	UpdateDownload         func()
+	UpdateCancel           func()
+	UpdateSkip             func()
+	UpdateRestart          func()
+	UpdateSetAutoChecks    func(bool)
+	UpdateSetAutoDownloads func(bool)
+	UpdateSetChannel       func(string)
+	UpdateOpenURL          func(string)
+
+	// Notebook holds the active notebook location, verified backups, and
+	// user actions for revealing, relocating, or restoring a backup.
+	NotebookRoot   string
+	Backups        []BackupOption
+	RevealNotebook func()
+	ChangeNotebook func()
+	RestoreBackup  func(BackupOption)
 
 	// In any section, the command whose shortcut is being recorded and the
 	// row or sentence it was started from, and a recorded shortcut another
@@ -73,8 +81,16 @@ type State struct {
 	// recorders is what each open or closing recorder shows, by host.
 	recorders map[string]recorderView
 	// reported is the recording last told to Recording.
-	reported   bool
-	fontPicker fontPickerState
+	reported    bool
+	fontPicker  fontPickerState
+	backupsOpen bool
+}
+
+// BackupOption describes one verified notebook backup selectable in Settings.
+type BackupOption struct {
+	Path string
+	Date string
+	Size string
 }
 
 type keyConflict struct {

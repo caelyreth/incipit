@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"log"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/text/query"
 	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/caelyreth/neverland/locales"
 )
 
 // indexFolder is where the notebook's search index is kept, beside the
@@ -123,19 +125,29 @@ type smartFound struct {
 }
 
 // openFinder opens the notebook's index beside the store, or one in memory
-// for a notebook held in memory.
+// for a notebook held in memory. Corrupt search caches are rebuilt rather
+// than blocking the notebook from opening.
 func (a *AppState) openFinder(store *storage.Store) error {
 	var x *search.Index
 	var err error
+	rebuilt := false
 	if store == nil {
 		x, err = search.Memory()
 	} else {
-		x, _, err = search.Open(filepath.Join(store.Root(), indexFolder))
+		dir := filepath.Join(store.Root(), indexFolder)
+		_, statErr := os.Stat(dir)
+		existed := statErr == nil
+		var fresh bool
+		x, fresh, err = search.Open(dir)
+		if err != nil {
+			_ = os.RemoveAll(dir)
+			x, fresh, err = search.Open(dir)
+		}
+		if err == nil && existed && fresh {
+			rebuilt = true
+		}
 	}
-	if err != nil {
-		return err
-	}
-	f := &finder{index: x, sent: map[library.SheetID]uint64{}, texts: map[library.SheetID]textState{}, smart: map[string]*smartFound{}}
+	f := &finder{sent: map[library.SheetID]uint64{}, texts: map[library.SheetID]textState{}, smart: map[string]*smartFound{}}
 	changed := func() {
 		if wake := f.wake.Load(); wake != nil {
 			(*wake)()
@@ -143,11 +155,61 @@ func (a *AppState) openFinder(store *storage.Store) error {
 	}
 	f.lines = newLines(changed)
 	failed := func(err error) { log.Printf("search index: %v", err) }
-	f.indexer, err = search.NewIndexer(x, changed, failed)
-	if err != nil {
-		x.Close()
-		return err
+
+	if err == nil {
+		f.indexer, err = search.NewIndexer(x, changed, failed)
+		if err != nil {
+			_ = x.Close()
+			x = nil
+			if store != nil {
+				dir := filepath.Join(store.Root(), indexFolder)
+				_ = os.RemoveAll(dir)
+				if nx, _, oerr := search.Open(dir); oerr == nil {
+					if ni, nerr := search.NewIndexer(nx, changed, failed); nerr == nil {
+						x, f.indexer, err, rebuilt = nx, ni, nil, true
+					} else {
+						_ = nx.Close()
+						err = nerr
+					}
+				} else {
+					err = oerr
+				}
+			}
+		}
 	}
+	if err != nil {
+		if store == nil {
+			return err
+		}
+		log.Printf("search index: falling back to in-memory index after error: %v", err)
+		mem, merr := search.Memory()
+		if merr != nil {
+			return merr
+		}
+		mi, ierr := search.NewIndexer(mem, changed, failed)
+		if ierr != nil {
+			_ = mem.Close()
+			return ierr
+		}
+		x, f.indexer = mem, mi
+		if a.Notices != nil {
+			a.Notices.Post(Notice{
+				ID:          "search.unavailable",
+				Kind:        NoticeWarning,
+				Sticky:      true,
+				Title:       locales.SearchIndexUnavailable(),
+				Description: err.Error(),
+			})
+		}
+	} else if rebuilt && a.Notices != nil {
+		a.Notices.Post(Notice{
+			ID:          "search.rebuilt",
+			Kind:        NoticeWarning,
+			Title:       locales.SearchIndexRebuilt(),
+			Description: locales.SearchIndexRebuiltDescription(),
+		})
+	}
+	f.index = x
 	a.finder = f
 	a.reindex()
 	return nil

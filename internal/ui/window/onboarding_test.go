@@ -106,3 +106,15 @@ func TestOpenChosenLost(t *testing.T) {
 	}
 	app.Close()
 }
+
+func TestNotebookRootCorruptLocationReturnsError(t *testing.T) {
+	t.Setenv(storage.HomeVariable, "")
+	userData := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userData, "notebook-location.json"), []byte("{not-json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, chosen, err := notebookRoot(userData)
+	if err == nil || chosen {
+		t.Fatalf("corrupt location returned chosen=%v, err=%v; want chosen=false and error", chosen, err)
+	}
+}

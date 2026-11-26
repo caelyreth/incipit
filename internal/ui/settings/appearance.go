@@ -21,6 +21,7 @@ type sectionInfo struct {
 const (
 	interfaceKey   = "interface"
 	environmentKey = "environment"
+	notebookKey    = "notebook"
 )
 
 // appearanceSections are the Appearance sections, with what each is found
@@ -30,16 +31,23 @@ func (s *State) appearanceSections() []sectionInfo {
 	for _, setting := range s.Data.Appearance {
 		environment += " " + setting.Label + " " + setting.Description
 	}
+	notebookWords := locales.Notebook() + " " + locales.NotebookLocation() + " " +
+		locales.NotebookLocationDescription() + " " + locales.NotebookBackups() + " " +
+		locales.RestoreBackupEllipsis() + " " + locales.ShowInFinder() + " " + locales.ChooseFolderEllipsis()
 	return []sectionInfo{
 		s.interfaceInfo(),
 		{environmentKey, locales.WritingEnvironment(), locales.WritingEnvironmentDescription(), environment},
 		s.typefaceInfo(),
+		{notebookKey, locales.Notebook(), locales.NotebookLocationDescription(), notebookWords},
 	}
 }
 
 // appearanceSection draws the Appearance section sec.
 func (s *State) appearanceSection(c *ui.Context, semantic theme.Theme, sec Section) {
 	switch sec.Key {
+	case notebookKey:
+		s.notebookSection(c, semantic, sec)
+		return
 	case interfaceKey:
 		s.section(c, semantic, sec, func() {
 			components.SettingRow{

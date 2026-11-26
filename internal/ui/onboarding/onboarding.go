@@ -37,6 +37,13 @@ type Platform struct {
 	Mac bool
 }
 
+// Backup describes a verified notebook backup available for recovery.
+type Backup struct {
+	Path string
+	Date string
+	Size string
+}
+
 // Host is what the walkthrough asks of the app around it.
 type Host struct {
 	// Holds tells whether a folder holds a notebook already.
@@ -44,6 +51,11 @@ type Host struct {
 	// ChooseFolder asks for another folder, starting at current, and
 	// calls chosen with it on the UI thread, or not at all.
 	ChooseFolder func(current string, chosen func(string))
+	// Backups lists verified backups in root, newest first.
+	Backups func(root string) []Backup
+	// RestoreBackup confirms and restores backup inside root, calling
+	// done on the UI thread with whether restoration succeeded and any error.
+	RestoreBackup func(root string, backup Backup, done func(restored bool, err error))
 	// SystemDark tells whether the system's appearance is dark, which the
 	// System theme follows.
 	SystemDark func() bool
@@ -92,9 +104,12 @@ type State struct {
 	mark   components.BrandMark
 	placed bool
 	// lost is the notebook recorded that is not there, if it is not, and
-	// lostNote what looking for it last found.
-	lost     *Lost
-	lostNote string
+	// lostNote what looking for it last found, with any verified backups
+	// found alongside it.
+	lost        *Lost
+	lostNote    string
+	lostBackups []Backup
+	finishing   bool
 	// trial is the field's card the menus are tried on, made as the Mac's
 	// page first shows.
 	trial *shell.Trial
@@ -138,6 +153,9 @@ func (s *State) index(p page) int { return max(0, slices.Index(s.pages(), p)) }
 
 // turn shows the page step pages on, back for a negative step.
 func (s *State) turn(step int, now time.Time) {
+	if s.finishing {
+		return
+	}
 	pages := s.pages()
 	next := min(max(s.index(s.at)+step, 0), len(pages)-1)
 	if pages[next] == s.at {
@@ -148,6 +166,9 @@ func (s *State) turn(step int, now time.Time) {
 
 // next goes on, or finishes from the last page.
 func (s *State) next(now time.Time) {
+	if s.finishing {
+		return
+	}
 	if s.at == pageDone {
 		s.finish()
 		return
@@ -157,10 +178,13 @@ func (s *State) next(now time.Time) {
 
 // finish hands the result to the host; a failure stays on the page.
 func (s *State) finish() {
-	if s.Host.Finish == nil {
+	if s.Host.Finish == nil || s.finishing {
 		return
 	}
-	if err := s.Host.Finish(s.Result()); err != nil {
+	s.finishing = true
+	err := s.Host.Finish(s.Result())
+	s.finishing = false
+	if err != nil {
 		s.failure = err.Error()
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -47,5 +48,47 @@ func TestWordsFindSectionsAndRows(t *testing.T) {
 	tester.Frame()
 	if !tester.HasText("Close sheet") || tester.HasText("Toggle Typewriter mode") {
 		t.Fatalf("texts = %#v", tester.Texts())
+	}
+}
+
+func TestNotebookSectionAndBackupsPopover(t *testing.T) {
+	state := New()
+	state.Animate = false
+	state.Data = appsettings.DefaultState().Data()
+	state.NotebookRoot = "/Users/example/Documents/Neverland"
+	state.Backups = []BackupOption{
+		{Path: "/tmp/b1.db", Date: "Nov 26, 2026, 9:00 AM", Size: "42 KB"},
+	}
+	var revealed, changed bool
+	var restored BackupOption
+	state.RevealNotebook = func() { revealed = true }
+	state.ChangeNotebook = func() { changed = true }
+	state.RestoreBackup = func(opt BackupOption) { restored = opt }
+
+	tester := ui.NewTester(state.cards(appsettings.Appearance), 640, 2000)
+	tester.Frame()
+	for _, want := range []string{locales.NotebookLocation(), state.NotebookRoot, locales.NotebookBackups(), locales.NotebookBackupsCount(1)} {
+		if !tester.HasText(want) {
+			t.Fatalf("missing %q in settings texts: %#v", want, tester.Texts())
+		}
+	}
+	if err := tester.Click(locales.ShowInFinder()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tester.Click(locales.ChooseFolderEllipsis()); err != nil {
+		t.Fatal(err)
+	}
+	if !revealed || !changed {
+		t.Fatalf("revealed=%v changed=%v, want both true", revealed, changed)
+	}
+	if err := tester.Click(locales.RestoreBackupEllipsis()); err != nil {
+		t.Fatal(err)
+	}
+	tester.Frame()
+	if err := tester.Click("Nov 26, 2026, 9:00 AM"); err != nil {
+		t.Fatal(err)
+	}
+	if restored.Path != "/tmp/b1.db" {
+		t.Fatalf("restored = %+v, want /tmp/b1.db", restored)
 	}
 }
