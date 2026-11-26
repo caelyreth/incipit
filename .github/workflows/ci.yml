@@ -1,0 +1,53 @@
+name: ci
+
+on:
+  push:
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - "locales/*.json"
+      - "assets/profile.icon/Assets/profile.svg"
+      - "internal/text/wordseg/cjk_dictionary.bin"
+      - "internal/ui/theme/fonts/**"
+      - "internal/ui/components/icons/*.svg"
+      - "internal/ui/components/stamp.kage"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  go:
+    name: go
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: setup go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: build
+        run: |
+          go build ./...
+          GOOS=darwin go build ./...
+          GOOS=windows go build ./...
+
+      - name: vet
+        run: |
+          go vet ./...
+          GOOS=darwin go vet ./...
+          GOOS=windows go vet ./...
+
+      - name: test
+        run: go test -count=1 ./...
