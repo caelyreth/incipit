@@ -12904,3 +12904,311 @@ func UpdatesUnavailablePackage() string { return In(i18n.Locale()).UpdatesUnavai
 func (msgs Messages) UpdatesUnavailablePackage() string {
 	return Catalog.Format(msgs.locale, "updatesUnavailablePackage", nil)
 }
+
+// UpdateInstallFailed says "Previous update failed to replace the app"
+// in the language the app shows.
+func UpdateInstallFailed() string { return In(i18n.Locale()).UpdateInstallFailed() }
+
+// UpdateInstallFailed says "Previous update failed to replace the app"
+// in the language of msgs.
+func (msgs Messages) UpdateInstallFailed() string {
+	return Catalog.Format(msgs.locale, "updateInstallFailed", nil)
+}
+
+// RestoreBackupButton says "Restore Latest Backup…"
+// in the language the app shows.
+func RestoreBackupButton() string { return In(i18n.Locale()).RestoreBackupButton() }
+
+// RestoreBackupButton says "Restore Latest Backup…"
+// in the language of msgs.
+func (msgs Messages) RestoreBackupButton() string {
+	return Catalog.Format(msgs.locale, "restoreBackupButton", nil)
+}
+
+// RestoreBackupEllipsis says "Restore Backup…"
+// in the language the app shows.
+func RestoreBackupEllipsis() string { return In(i18n.Locale()).RestoreBackupEllipsis() }
+
+// RestoreBackupEllipsis says "Restore Backup…"
+// in the language of msgs.
+func (msgs Messages) RestoreBackupEllipsis() string {
+	return Catalog.Format(msgs.locale, "restoreBackupEllipsis", nil)
+}
+
+// RestoreBackupConfirmTitle says "Restore from backup?"
+// in the language the app shows.
+func RestoreBackupConfirmTitle() string { return In(i18n.Locale()).RestoreBackupConfirmTitle() }
+
+// RestoreBackupConfirmTitle says "Restore from backup?"
+// in the language of msgs.
+func (msgs Messages) RestoreBackupConfirmTitle() string {
+	return Catalog.Format(msgs.locale, "restoreBackupConfirmTitle", nil)
+}
+
+// RestoreBackupConfirmMessage says "Restore the verified backup from {date} ({size})? The current database is kept in Recovery."
+// in the language the app shows.
+func RestoreBackupConfirmMessage(date string, size string) string {
+	return In(i18n.Locale()).RestoreBackupConfirmMessage(date, size)
+}
+
+// RestoreBackupConfirmMessage says "Restore the verified backup from {date} ({size})? The current database is kept in Recovery."
+// in the language of msgs.
+func (msgs Messages) RestoreBackupConfirmMessage(date string, size string) string {
+	return Catalog.Format(msgs.locale, "restoreBackupConfirmMessage", map[string]any{"date": date, "size": size})
+}
+
+// RestoreBackupConfirmAction says "Restore Backup"
+// in the language the app shows.
+func RestoreBackupConfirmAction() string { return In(i18n.Locale()).RestoreBackupConfirmAction() }
+
+// RestoreBackupConfirmAction says "Restore Backup"
+// in the language of msgs.
+func (msgs Messages) RestoreBackupConfirmAction() string {
+	return Catalog.Format(msgs.locale, "restoreBackupConfirmAction", nil)
+}
+
+// RestoredFromSelectedBackup says "Restored backup from {date}"
+// in the language the app shows.
+func RestoredFromSelectedBackup(date string) string {
+	return In(i18n.Locale()).RestoredFromSelectedBackup(date)
+}
+
+// RestoredFromSelectedBackup says "Restored backup from {date}"
+// in the language of msgs.
+func (msgs Messages) RestoredFromSelectedBackup(date string) string {
+	return Catalog.Format(msgs.locale, "restoredFromSelectedBackup", map[string]any{"date": date})
+}
+
+// CouldntRestoreBackup says "Couldn’t restore backup"
+// in the language the app shows.
+func CouldntRestoreBackup() string { return In(i18n.Locale()).CouldntRestoreBackup() }
+
+// CouldntRestoreBackup says "Couldn’t restore backup"
+// in the language of msgs.
+func (msgs Messages) CouldntRestoreBackup() string {
+	return Catalog.Format(msgs.locale, "couldntRestoreBackup", nil)
+}
+
+// NotebookLocation says "Notebook Folder"
+// in the language the app shows.
+func NotebookLocation() string { return In(i18n.Locale()).NotebookLocation() }
+
+// NotebookLocation says "Notebook Folder"
+// in the language of msgs.
+func (msgs Messages) NotebookLocation() string {
+	return Catalog.Format(msgs.locale, "notebookLocation", nil)
+}
+
+// NotebookLocationDescription says "Where your sheets, pictures, and backups live."
+// in the language the app shows.
+func NotebookLocationDescription() string { return In(i18n.Locale()).NotebookLocationDescription() }
+
+// NotebookLocationDescription says "Where your sheets, pictures, and backups live."
+// in the language of msgs.
+func (msgs Messages) NotebookLocationDescription() string {
+	return Catalog.Format(msgs.locale, "notebookLocationDescription", nil)
+}
+
+// NotebookBackups says "Automatic Backups"
+// in the language the app shows.
+func NotebookBackups() string { return In(i18n.Locale()).NotebookBackups() }
+
+// NotebookBackups says "Automatic Backups"
+// in the language of msgs.
+func (msgs Messages) NotebookBackups() string {
+	return Catalog.Format(msgs.locale, "notebookBackups", nil)
+}
+
+// NotebookBackupsCount says "{count, plural, one {# verified backup kept locally.} other {# verified backups kept locally.}}"
+// in the language the app shows.
+func NotebookBackupsCount(count int) string { return In(i18n.Locale()).NotebookBackupsCount(count) }
+
+// NotebookBackupsCount says "{count, plural, one {# verified backup kept locally.} other {# verified backups kept locally.}}"
+// in the language of msgs.
+func (msgs Messages) NotebookBackupsCount(count int) string {
+	return Catalog.Format(msgs.locale, "notebookBackupsCount", map[string]any{"count": count})
+}
+
+// NotebookBackupsNone says "No automatic backups yet."
+// in the language the app shows.
+func NotebookBackupsNone() string { return In(i18n.Locale()).NotebookBackupsNone() }
+
+// NotebookBackupsNone says "No automatic backups yet."
+// in the language of msgs.
+func (msgs Messages) NotebookBackupsNone() string {
+	return Catalog.Format(msgs.locale, "notebookBackupsNone", nil)
+}
+
+// NotebookChangedTitle says "Notebook folder updated"
+// in the language the app shows.
+func NotebookChangedTitle() string { return In(i18n.Locale()).NotebookChangedTitle() }
+
+// NotebookChangedTitle says "Notebook folder updated"
+// in the language of msgs.
+func (msgs Messages) NotebookChangedTitle() string {
+	return Catalog.Format(msgs.locale, "notebookChangedTitle", nil)
+}
+
+// NotebookChangedDescription says "Relaunch Neverland to open the notebook at the new location."
+// in the language the app shows.
+func NotebookChangedDescription() string { return In(i18n.Locale()).NotebookChangedDescription() }
+
+// NotebookChangedDescription says "Relaunch Neverland to open the notebook at the new location."
+// in the language of msgs.
+func (msgs Messages) NotebookChangedDescription() string {
+	return Catalog.Format(msgs.locale, "notebookChangedDescription", nil)
+}
+
+// UnsavedOnQuitTitle says "Couldn’t save your notebook"
+// in the language the app shows.
+func UnsavedOnQuitTitle() string { return In(i18n.Locale()).UnsavedOnQuitTitle() }
+
+// UnsavedOnQuitTitle says "Couldn’t save your notebook"
+// in the language of msgs.
+func (msgs Messages) UnsavedOnQuitTitle() string {
+	return Catalog.Format(msgs.locale, "unsavedOnQuitTitle", nil)
+}
+
+// UnsavedOnQuitMessage says "Pending edits could not be written ({reason}). Quitting now will discard them."
+// in the language the app shows.
+func UnsavedOnQuitMessage(reason string) string {
+	return In(i18n.Locale()).UnsavedOnQuitMessage(reason)
+}
+
+// UnsavedOnQuitMessage says "Pending edits could not be written ({reason}). Quitting now will discard them."
+// in the language of msgs.
+func (msgs Messages) UnsavedOnQuitMessage(reason string) string {
+	return Catalog.Format(msgs.locale, "unsavedOnQuitMessage", map[string]any{"reason": reason})
+}
+
+// KeepOpen says "Keep Open"
+// in the language the app shows.
+func KeepOpen() string { return In(i18n.Locale()).KeepOpen() }
+
+// KeepOpen says "Keep Open"
+// in the language of msgs.
+func (msgs Messages) KeepOpen() string {
+	return Catalog.Format(msgs.locale, "keepOpen", nil)
+}
+
+// QuitWithoutSaving says "Quit Without Saving"
+// in the language the app shows.
+func QuitWithoutSaving() string { return In(i18n.Locale()).QuitWithoutSaving() }
+
+// QuitWithoutSaving says "Quit Without Saving"
+// in the language of msgs.
+func (msgs Messages) QuitWithoutSaving() string {
+	return Catalog.Format(msgs.locale, "quitWithoutSaving", nil)
+}
+
+// SearchIndexRebuilt says "Search index repaired"
+// in the language the app shows.
+func SearchIndexRebuilt() string { return In(i18n.Locale()).SearchIndexRebuilt() }
+
+// SearchIndexRebuilt says "Search index repaired"
+// in the language of msgs.
+func (msgs Messages) SearchIndexRebuilt() string {
+	return Catalog.Format(msgs.locale, "searchIndexRebuilt", nil)
+}
+
+// SearchIndexRebuiltDescription says "The local search cache was damaged and rebuilt cleanly."
+// in the language the app shows.
+func SearchIndexRebuiltDescription() string { return In(i18n.Locale()).SearchIndexRebuiltDescription() }
+
+// SearchIndexRebuiltDescription says "The local search cache was damaged and rebuilt cleanly."
+// in the language of msgs.
+func (msgs Messages) SearchIndexRebuiltDescription() string {
+	return Catalog.Format(msgs.locale, "searchIndexRebuiltDescription", nil)
+}
+
+// SearchIndexUnavailable says "Search index unavailable"
+// in the language the app shows.
+func SearchIndexUnavailable() string { return In(i18n.Locale()).SearchIndexUnavailable() }
+
+// SearchIndexUnavailable says "Search index unavailable"
+// in the language of msgs.
+func (msgs Messages) SearchIndexUnavailable() string {
+	return Catalog.Format(msgs.locale, "searchIndexUnavailable", nil)
+}
+
+// FontsFolderUnavailable says "Downloaded fonts folder unavailable"
+// in the language the app shows.
+func FontsFolderUnavailable() string { return In(i18n.Locale()).FontsFolderUnavailable() }
+
+// FontsFolderUnavailable says "Downloaded fonts folder unavailable"
+// in the language of msgs.
+func (msgs Messages) FontsFolderUnavailable() string {
+	return Catalog.Format(msgs.locale, "fontsFolderUnavailable", nil)
+}
+
+// CouldntOpenDialog says "Couldn’t open file picker"
+// in the language the app shows.
+func CouldntOpenDialog() string { return In(i18n.Locale()).CouldntOpenDialog() }
+
+// CouldntOpenDialog says "Couldn’t open file picker"
+// in the language of msgs.
+func (msgs Messages) CouldntOpenDialog() string {
+	return Catalog.Format(msgs.locale, "couldntOpenDialog", nil)
+}
+
+// ExportInProgressTitle says "Export in progress"
+// in the language the app shows.
+func ExportInProgressTitle() string { return In(i18n.Locale()).ExportInProgressTitle() }
+
+// ExportInProgressTitle says "Export in progress"
+// in the language of msgs.
+func (msgs Messages) ExportInProgressTitle() string {
+	return Catalog.Format(msgs.locale, "exportInProgressTitle", nil)
+}
+
+// ExportInProgressMessage says "Wait for the current export to finish before closing."
+// in the language the app shows.
+func ExportInProgressMessage() string { return In(i18n.Locale()).ExportInProgressMessage() }
+
+// ExportInProgressMessage says "Wait for the current export to finish before closing."
+// in the language of msgs.
+func (msgs Messages) ExportInProgressMessage() string {
+	return Catalog.Format(msgs.locale, "exportInProgressMessage", nil)
+}
+
+// SettingsVersionNewer says "Saved settings are from a newer version"
+// in the language the app shows.
+func SettingsVersionNewer() string { return In(i18n.Locale()).SettingsVersionNewer() }
+
+// SettingsVersionNewer says "Saved settings are from a newer version"
+// in the language of msgs.
+func (msgs Messages) SettingsVersionNewer() string {
+	return Catalog.Format(msgs.locale, "settingsVersionNewer", nil)
+}
+
+// SettingsVersionNewerDescription says "Using defaults for this session without overwriting your saved preferences."
+// in the language the app shows.
+func SettingsVersionNewerDescription() string {
+	return In(i18n.Locale()).SettingsVersionNewerDescription()
+}
+
+// SettingsVersionNewerDescription says "Using defaults for this session without overwriting your saved preferences."
+// in the language of msgs.
+func (msgs Messages) SettingsVersionNewerDescription() string {
+	return Catalog.Format(msgs.locale, "settingsVersionNewerDescription", nil)
+}
+
+// OnboardingOpening says "Opening…"
+// in the language the app shows.
+func OnboardingOpening() string { return In(i18n.Locale()).OnboardingOpening() }
+
+// OnboardingOpening says "Opening…"
+// in the language of msgs.
+func (msgs Messages) OnboardingOpening() string {
+	return Catalog.Format(msgs.locale, "onboardingOpening", nil)
+}
+
+// CommandCloseWindow says "Close Window"
+// in the language the app shows.
+func CommandCloseWindow() string { return In(i18n.Locale()).CommandCloseWindow() }
+
+// CommandCloseWindow says "Close Window"
+// in the language of msgs.
+func (msgs Messages) CommandCloseWindow() string {
+	return Catalog.Format(msgs.locale, "commandCloseWindow", nil)
+}
