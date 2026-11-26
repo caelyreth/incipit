@@ -4,8 +4,6 @@ import (
 	_ "embed"
 	"encoding/xml"
 	"fmt"
-	"image"
-	"image/draw"
 	"math"
 	"strconv"
 	"strings"
@@ -14,16 +12,14 @@ import (
 	"github.com/caelyreth/neverland/assets"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/shader"
-	"golang.org/x/image/vector"
 )
 
 // The brand mark is the profile of the application icon, drawn from its
 // own vector (assets.Profile) rather than a picture of it, so it is crisp
-// at any size and takes any ink. It is rasterized once at the size it is
-// shown, in the display's pixels, into a coverage bitmap of one piece: so
-// large a shape filled as a path each frame is cut into tiles whose edges
-// can show as seams, and costs its curves every frame. Each frame then
-// draws one quad, inked by the stamp shader.
+// at any size and takes any ink. Its shapes are filled once into a kept
+// canvas at about the pixels it is shown at, rather than as paths each
+// frame, which would cost their curves every frame; each frame draws one
+// quad of it, inked by the stamp shader.
 
 // brandShape is one filled path of the mark: its data and its fill rule.
 type brandShape struct {
@@ -62,12 +58,18 @@ func BrandAspect() float32 {
 	return art.w / art.h
 }
 
-// BrandMark is the mark as a view keeps it: its coverage, rasterized at
-// the pixels it was last shown at.
+// BrandMark is the mark as a view keeps it: a canvas its shapes were
+// filled into, at a pixel width stepped up from the one shown (brandStep),
+// so the stamp scales it a little down between steps and a window being
+// resized fills it again only as it crosses a step.
 type BrandMark struct {
-	bitmap *ui.Bitmap
+	canvas *ui.Canvas
 	w      int
 }
+
+// brandStep is the pixel widths the mark's canvas is filled at: multiples
+// of it.
+const brandStep = 64
 
 // Paint draws the mark centered in box in ink. drawn, from 0 to 1, is how
 // far it has spread onto the page, as ink soaks into paper; 1 is the mark
@@ -79,85 +81,37 @@ func (b *BrandMark) Paint(p *ui.Painter, box ui.Rect, ink ui.Color, drawn float3
 	}
 	s := min(box.W/art.w, box.H/art.h)
 	at := ui.Rect{X: box.X + (box.W-art.w*s)/2, Y: box.Y + (box.H-art.h*s)/2, W: art.w * s, H: art.h * s}
-	w := max(1, int(math.Ceil(float64(at.W*p.Scale()))))
-	if b.bitmap == nil || b.w != w {
-		b.bitmap, b.w = ui.NewBitmap(rasterizeBrand(art, w)), w
+	w := brandStep * max(1, int(math.Ceil(float64(at.W*p.Scale())/brandStep)))
+	if b.canvas == nil || b.w != w {
+		b.fill(p, art, w)
 	}
 	st := stamp()
 	v := st.s.NewValues()
 	v.Color(st.ink, ink)
 	v.Float(st.drawn, min(drawn, 1))
-	st.s.Draw(p, at, shader.Options{Values: v, Images: [4]*ui.Bitmap{b.bitmap}})
+	st.s.Draw(p, at, shader.Options{Values: v, Images: [4]*ui.Bitmap{b.canvas.Bitmap()}})
 }
 
-// rasterizeBrand draws the mark's coverage w pixels across, white with
-// the coverage as its alpha. A shape filled even-odd is its subpaths each
-// rasterized alone and laid over one another exclusively, as the rule
-// takes them; the rasterizer's own fill is non-zero.
-func rasterizeBrand(art brandArt, w int) *image.NRGBA {
+// fill fills the mark's shapes, in white, into a canvas w pixels across,
+// read at its pixels from its corner, with no transform, so the masks lie
+// on its pixel grid; the stamp inks it.
+func (b *BrandMark) fill(p *ui.Painter, art brandArt, w int) {
 	k := float32(w) / art.w
 	h := max(1, int(math.Ceil(float64(art.h*k))))
-	cover := image.NewAlpha(image.Rect(0, 0, w, h))
-	layer := image.NewAlpha(cover.Rect)
-	for _, shape := range art.shapes {
-		subpaths := []string{shape.data}
-		if shape.evenOdd {
-			subpaths = splitSubpaths(shape.data)
-		}
-		var odd *image.Alpha
-		if shape.evenOdd {
-			odd = image.NewAlpha(cover.Rect)
-		}
-		for _, sub := range subpaths {
-			r := vector.NewRasterizer(w, h)
-			if walkPathData(sub, k, rasterPath{r}) != nil {
+	b.canvas, b.w = ui.NewCanvas(w, h), w
+	b.canvas.Draw(p, func(cp *ui.Painter) {
+		for _, shape := range art.shapes {
+			var path ui.Path
+			if walkPathData(shape.data, k, uiPath{&path}) != nil {
 				continue
 			}
-			clear(layer.Pix)
-			r.Draw(layer, layer.Rect, image.Opaque, image.Point{})
-			if odd != nil {
-				for i, a := range layer.Pix {
-					x, y := int(odd.Pix[i]), int(a)
-					odd.Pix[i] = uint8(x + y - 2*x*y/255)
-				}
-				continue
+			if shape.evenOdd {
+				path.FillRule(ui.EvenOdd)
 			}
-			draw.Draw(cover, cover.Rect, layer, image.Point{}, draw.Over)
+			cp.FillPath(&path, ui.RGB(255, 255, 255))
 		}
-		if odd != nil {
-			draw.Draw(cover, cover.Rect, odd, image.Point{}, draw.Over)
-		}
-	}
-	out := image.NewNRGBA(cover.Rect)
-	for i, a := range cover.Pix {
-		out.Pix[4*i], out.Pix[4*i+1], out.Pix[4*i+2], out.Pix[4*i+3] = 255, 255, 255, a
-	}
-	return out
+	})
 }
-
-// splitSubpaths cuts path data at each move, absolute ones alone, which
-// is all the mark's data has.
-func splitSubpaths(d string) []string {
-	var out []string
-	for at := 0; at < len(d); {
-		next := strings.IndexByte(d[at+1:], 'M')
-		if next < 0 {
-			out = append(out, d[at:])
-			break
-		}
-		out = append(out, d[at:at+1+next])
-		at += 1 + next
-	}
-	return out
-}
-
-// rasterPath is a vector.Rasterizer as a pathSink.
-type rasterPath struct{ r *vector.Rasterizer }
-
-func (v rasterPath) MoveTo(x, y float32)             { v.r.MoveTo(x, y) }
-func (v rasterPath) LineTo(x, y float32)             { v.r.LineTo(x, y) }
-func (v rasterPath) CubeTo(a, b, c, d, x, y float32) { v.r.CubeTo(a, b, c, d, x, y) }
-func (v rasterPath) Close()                          { v.r.ClosePath() }
 
 // parseBrand reads the mark's SVG: its view box and its paths, which use
 // absolute moves, lines and cubic curves alone.
