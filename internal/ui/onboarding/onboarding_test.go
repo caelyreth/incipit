@@ -353,4 +353,26 @@ func TestLostNotebookOffersRestoreBackupAndGuardsFinish(t *testing.T) {
 	if len(w.finished) != 1 {
 		t.Fatalf("duplicate finish fired: %+v", w.finished)
 	}
+
+	// FinishAsync holds s.finishing true until completion callback runs.
+	asyncDone := make(chan func(error), 1)
+	asyncState := New(filepath.Join(t.TempDir(), "Notes"), Platform{Mac: true}, Host{
+		Holds:       func(string) bool { return false },
+		FinishAsync: func(_ Result, done func(error)) { asyncDone <- done },
+	})
+	asyncState.at = pageDone
+	asyncState.finish()
+	if !asyncState.finishing {
+		t.Fatal("expected finishing=true while FinishAsync is in flight")
+	}
+	asyncState.finish()
+	select {
+	case cb := <-asyncDone:
+		cb(errors.New("open failed"))
+	default:
+		t.Fatal("FinishAsync was not called")
+	}
+	if asyncState.finishing || asyncState.failure != "open failed" {
+		t.Fatalf("after async callback: finishing=%v failure=%q", asyncState.finishing, asyncState.failure)
+	}
 }

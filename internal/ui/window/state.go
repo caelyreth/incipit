@@ -109,7 +109,18 @@ type AppState struct {
 	// showed.
 	chrome chromeKey
 	// settingsDirty waits for the next write of the settings record.
-	settingsDirty bool
+	// settingsLocked is set when a newer schema version was read so
+	// defaults or session changes never overwrite future preferences.
+	settingsDirty  bool
+	settingsLocked bool
+	// pendingRoot holds a relocated folder awaiting restart.
+	pendingRoot string
+	// backupsCached caches verified backups for Settings without blocking
+	// every refreshSettingsData pass.
+	backupsCached  []settings.BackupOption
+	backupsRoot    string
+	backupsSeq     uint64
+	settingsShown  bool
 	// shownPictures decodes the notebook's pictures for every page, and
 	// cardPictures them small for the cards in the field.
 	shownPictures, cardPictures *page.Pictures
@@ -184,6 +195,7 @@ func (a *AppState) loadSettings(store *storage.Store) error {
 	if err := a.Product.Decode(data); err != nil {
 		a.Product = appsettings.DefaultState()
 		if errors.Is(err, appsettings.ErrNewerVersion) {
+			a.settingsLocked = true
 			a.Notices.Post(Notice{
 				ID:          "settings.load",
 				Kind:        NoticeWarning,
@@ -511,7 +523,7 @@ func (a *AppState) refreshSettingsData() {
 // settingsChanged queues the settings record; the saver writes it after
 // its settle delay, beside the workspace layout.
 func (a *AppState) settingsChanged() {
-	if a == nil || a.notebook == nil || a.notebook.closed {
+	if a == nil || a.notebook == nil || a.notebook.closed || a.settingsLocked {
 		return
 	}
 	a.settingsDirty = true
@@ -519,7 +531,7 @@ func (a *AppState) settingsChanged() {
 }
 
 func (a *AppState) saveSettings() {
-	if a == nil || !a.settingsDirty || a.notebook == nil || a.notebook.closed {
+	if a == nil || !a.settingsDirty || a.settingsLocked || a.notebook == nil || a.notebook.closed {
 		return
 	}
 	data, err := a.Product.Encode()
@@ -648,6 +660,15 @@ func (a *AppState) View(c *ui.Context) {
 	a.refreshEditorChrome()
 	semantic, _ := a.colors.At(a.Shell.Settings, c.Now())
 	animate := components.MotionEnabled(c, a.Shell.Appearance.Motion)
+	inSettings := a.Shell.InSettings() && !a.Shell.OnDesk()
+	if inSettings && !a.settingsShown {
+		a.settingsShown = true
+		if a.notebook != nil && a.notebook.store != nil {
+			a.refreshBackupsAsync(a.notebook.store.Root())
+		}
+	} else if !inSettings {
+		a.settingsShown = false
+	}
 	a.pressedCommands(c)
 	a.Shell.View(c)
 	// The menu follows the scene in front and what it holds.

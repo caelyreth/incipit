@@ -2,6 +2,7 @@ package window
 
 import (
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/caelyreth/neverland/internal/app/storage"
@@ -39,6 +40,40 @@ func backupOptions(root string) []settings.BackupOption {
 	return out
 }
 
+// refreshBackups synchronously scans verified backups under root and updates
+// the cached Settings backup list.
+func (a *AppState) refreshBackups(root string) {
+	if a == nil || root == "" {
+		return
+	}
+	opts := backupOptions(root)
+	a.backupsSeq++
+	a.backupsRoot = root
+	a.backupsCached = opts
+	a.Settings.Backups = opts
+}
+
+// refreshBackupsAsync scans verified backups off the UI thread so opening
+// Settings or toggling preferences never stalls on SQLite integrity checks.
+func (a *AppState) refreshBackupsAsync(root string) {
+	if a == nil || root == "" || a.closing.Load() {
+		return
+	}
+	a.backupsSeq++
+	seq := a.backupsSeq
+	go func() {
+		opts := backupOptions(root)
+		a.onUI(func() {
+			if a.backupsSeq != seq {
+				return
+			}
+			a.backupsRoot = root
+			a.backupsCached = opts
+			a.Settings.Backups = opts
+		})
+	}()
+}
+
 // bindNotebookSettings wires notebook location and backup recovery controls
 // into Settings.
 func (a *AppState) bindNotebookSettings() {
@@ -47,8 +82,16 @@ func (a *AppState) bindNotebookSettings() {
 	}
 	root := a.notebook.store.Root()
 	a.Settings.NotebookRoot = root
-	a.Settings.Backups = backupOptions(root)
+	a.Settings.PendingRoot = a.pendingRoot
+	a.Settings.Backups = a.backupsCached
+	if a.backupsRoot != root {
+		a.refreshBackupsAsync(root)
+	}
 	a.Settings.RevealNotebook = func() {
+		if a.pendingRoot != "" {
+			mygo.Shell.ShowItemInFolder(a.pendingRoot)
+			return
+		}
 		if a.notebook != nil && a.notebook.store != nil {
 			mygo.Shell.ShowItemInFolder(a.notebook.store.Root())
 		}
@@ -89,7 +132,8 @@ func (a *AppState) changeNotebookFolder() {
 			return
 		}
 		a.onUI(func() {
-			a.Settings.NotebookRoot = next
+			a.pendingRoot = next
+			a.Settings.PendingRoot = next
 			a.Notices.Post(Notice{
 				ID:          locationNotice,
 				Kind:        NoticeInfo,
@@ -103,8 +147,27 @@ func (a *AppState) changeNotebookFolder() {
 	}()
 }
 
+// performBackupRestore flushes pending edits, closes the open notebook store,
+// and restores the chosen backup archive over root. If FlushPending fails,
+// the notebook remains open and untouched so the caller can abort cleanly.
+func (a *AppState) performBackupRestore(root, backupPath string) error {
+	if err := a.FlushPending(); err != nil {
+		return err
+	}
+	a.closing.Store(true)
+	a.quitConfirmed = true
+	if err := a.Close(); err != nil {
+		return err
+	}
+	return storage.RestoreBackup(root, backupPath)
+}
+
 func (a *AppState) restoreNotebookBackup(option settings.BackupOption) {
 	if a == nil || a.notebook == nil || a.notebook.store == nil || option.Path == "" {
+		return
+	}
+	if a.exportingBusy() {
+		a.warnExportBusy(a.exportWindow)
 		return
 	}
 	root := a.notebook.store.Root()
@@ -127,25 +190,22 @@ func (a *AppState) restoreNotebookBackup(option settings.BackupOption) {
 		if res.Button != 1 {
 			return
 		}
-		a.onUI(func() {
-			a.quitConfirmed = true
-			if err := a.Close(); err != nil {
-				_, _ = mygo.Dialog.Message(mygo.MessageOptions{
-					Parent:  win,
-					Type:    mygo.MessageError,
-					Title:   locales.CouldntRestoreBackup(),
-					Message: describeNotice(err),
-				})
-				mygo.App.Relaunch()
+		mygo.RunOnMain(func() {
+			if a.exportingBusy() {
+				a.warnExportBusy(a.exportWindow)
 				return
 			}
-			if err := storage.RestoreBackup(root, option.Path); err != nil {
+			restoreErr := a.performBackupRestore(root, option.Path)
+			if restoreErr != nil {
 				_, _ = mygo.Dialog.Message(mygo.MessageOptions{
 					Parent:  win,
 					Type:    mygo.MessageError,
 					Title:   locales.CouldntRestoreBackup(),
-					Message: describeNotice(err),
+					Message: describeNotice(restoreErr),
 				})
+				if !a.closing.Load() {
+					return
+				}
 			}
 			mygo.App.Relaunch()
 		})
@@ -177,6 +237,9 @@ func (a *AppState) confirmQuitWithUnsaved(err error) {
 			if dialogErr == nil && res.Button == 1 {
 				a.quitConfirmed = true
 				mygo.App.Quit()
+				if runtime.GOOS != "darwin" && win != nil && !win.IsDestroyed() {
+					win.Close()
+				}
 			}
 		})
 	}()

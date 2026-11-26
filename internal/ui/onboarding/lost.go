@@ -89,13 +89,10 @@ func (s *State) findElsewhere() {
 // reopen opens the notebook found in root as it is: its own settings
 // stand, so nothing chosen goes with it.
 func (s *State) reopen(root string) {
-	if s.Host.Finish == nil {
-		return
-	}
-	if err := s.Host.Finish(Result{Root: root}); err != nil {
+	s.runFinish(Result{Root: root}, func(err error) {
 		s.lostNote = ""
 		s.lost.Reason = err.Error()
-	}
+	})
 }
 
 // lostView says the notebook is not where it was, where that was, and

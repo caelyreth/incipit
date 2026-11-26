@@ -1,6 +1,7 @@
 package window
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -10,6 +11,28 @@ import (
 	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/egoist/mygo"
 )
+
+func TestLostFromLocationErrorPointsToFolderNotJSON(t *testing.T) {
+	t.Setenv(storage.HomeVariable, "")
+	userData := t.TempDir()
+	if err := os.WriteFile(filepath.Join(userData, "notebook-location.json"), []byte("{not-json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	root, chosen, err := notebookRoot(userData)
+	if err == nil || chosen {
+		t.Fatalf("corrupt location returned chosen=%v, err=%v; want chosen=false and error", chosen, err)
+	}
+	if root == "" {
+		root = userData
+	}
+	lost := lostFromLocationError(root, errors.New("corrupt record"))
+	if filepath.Base(lost.Root) == "notebook-location.json" || lost.Root != root {
+		t.Fatalf("lost.Root = %q, want folder %q", lost.Root, root)
+	}
+	if lost.Reason != "Corrupt record" {
+		t.Fatalf("lost.Reason = %q, want Corrupt record", lost.Reason)
+	}
+}
 
 // TestNotebookRootFirstLaunch offers the default folder, not chosen, until
 // a folder is recorded, and takes NEVERLAND_HOME as chosen.

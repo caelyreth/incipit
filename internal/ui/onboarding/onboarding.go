@@ -62,8 +62,10 @@ type Host struct {
 	// Appearance moves the window's own chrome to a theme chosen.
 	Appearance func(appsettings.ThemeChoice)
 	// Finish opens the notebook as set up; it returns why it could not,
-	// and the walkthrough stays.
-	Finish func(Result) error
+	// and the walkthrough stays. FinishAsync, when set, runs off the UI
+	// thread and calls done on the UI thread when finished.
+	Finish      func(Result) error
+	FinishAsync func(Result, func(error))
 }
 
 // page is one page of the walkthrough.
@@ -176,17 +178,31 @@ func (s *State) next(now time.Time) {
 	s.turn(1, now)
 }
 
-// finish hands the result to the host; a failure stays on the page.
-func (s *State) finish() {
-	if s.Host.Finish == nil || s.finishing {
+// runFinish runs FinishAsync (if set) or Finish, holding s.finishing true
+// until completion so "Opening..." can render and duplicate submits are blocked.
+func (s *State) runFinish(result Result, onErr func(error)) {
+	if s.finishing || (s.Host.Finish == nil && s.Host.FinishAsync == nil) {
 		return
 	}
 	s.finishing = true
-	err := s.Host.Finish(s.Result())
-	s.finishing = false
-	if err != nil {
-		s.failure = err.Error()
+	done := func(err error) {
+		s.finishing = false
+		if err != nil && onErr != nil {
+			onErr(err)
+		}
 	}
+	if s.Host.FinishAsync != nil {
+		s.Host.FinishAsync(result, done)
+		return
+	}
+	done(s.Host.Finish(result))
+}
+
+// finish hands the result to the host; a failure stays on the page.
+func (s *State) finish() {
+	s.runFinish(s.Result(), func(err error) {
+		s.failure = err.Error()
+	})
 }
 
 // choose applies change to the settings shown and keeps it, in place of

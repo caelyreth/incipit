@@ -251,7 +251,7 @@ func (s *State) updateSubline(c *ui.Context, semantic theme.Theme, snap appupdat
 		line = locales.UpdatesReadyDescription()
 	case appupdater.StatusError:
 		if snap.Err != nil {
-			line = snap.Err.Error()
+			line = describeUpdateError(snap.Err)
 		} else {
 			line = locales.UpdatesCheckErrorTitle()
 		}
@@ -308,20 +308,22 @@ func (s *State) updateActions(
 				Animate: animate,
 				Action:  callAction(s.UpdateSkip),
 			}.View(c, semantic)
-			if snap.ManualOnly() && snap.Available != nil && len(snap.Available.Sources) > 0 {
-				url := snap.Available.Sources[0]
-				components.Button{
-					Key:     "update-manual",
-					Label:   locales.UpdatesButtonDownloadManually(),
-					Style:   components.PrimaryButton,
-					Size:    components.CompactButton,
-					Animate: animate,
-					Action: func() {
-						if s.UpdateOpenURL != nil {
-							s.UpdateOpenURL(url)
-						}
-					},
-				}.View(c, semantic)
+			if snap.ManualOnly() {
+				if snap.Available != nil && len(snap.Available.Sources) > 0 {
+					url := snap.Available.Sources[0]
+					components.Button{
+						Key:     "update-manual",
+						Label:   locales.UpdatesButtonDownloadManually(),
+						Style:   components.PrimaryButton,
+						Size:    components.CompactButton,
+						Animate: animate,
+						Action: func() {
+							if s.UpdateOpenURL != nil {
+								s.UpdateOpenURL(url)
+							}
+						},
+					}.View(c, semantic)
+				}
 			} else {
 				components.Button{
 					Key:     "update-download",
@@ -687,4 +689,15 @@ func callAction(fn func()) func() {
 		return func() {}
 	}
 	return fn
+}
+
+func describeUpdateError(err error) string {
+	if err == nil {
+		return ""
+	}
+	text := []rune(err.Error())
+	if len(text) > 0 && text[0] >= 'a' && text[0] <= 'z' {
+		text[0] -= 'a' - 'A'
+	}
+	return string(text)
 }

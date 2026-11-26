@@ -350,16 +350,9 @@ func (a *AppState) openExportWindow() {
 		BackgroundColor: colorHex(a.Shell.Settings.Semantic().Surface.Background),
 	})
 	window.OnClose(func(e *mygo.CloseEvent) {
-		if job := a.exporting; job != nil && job.writing {
+		if a.exportingBusy() {
 			e.PreventDefault()
-			go func() {
-				_, _ = mygo.Dialog.Message(mygo.MessageOptions{
-					Parent:  window,
-					Type:    mygo.MessageInfo,
-					Title:   locales.ExportInProgressTitle(),
-					Message: locales.ExportInProgressMessage(),
-				})
-			}()
+			a.warnExportBusy(window)
 		}
 	})
 	window.OnClosed(func() {
@@ -368,6 +361,35 @@ func (a *AppState) openExportWindow() {
 	})
 	a.exportWindow = window
 	a.syncMenu()
+}
+
+func (a *AppState) exportingBusy() bool {
+	return a != nil && a.exporting != nil && a.exporting.writing
+}
+
+func (a *AppState) warnExportBusy(parent *mygo.Window) {
+	if a == nil {
+		return
+	}
+	if parent == nil {
+		if a.exportWindow != nil && !a.exportWindow.IsDestroyed() {
+			parent = a.exportWindow
+		} else {
+			parent = a.mainWindow
+		}
+	}
+	if a.exportWindow != nil && !a.exportWindow.IsDestroyed() {
+		a.exportWindow.Restore()
+		a.exportWindow.Focus()
+	}
+	go func() {
+		_, _ = mygo.Dialog.Message(mygo.MessageOptions{
+			Parent:  parent,
+			Type:    mygo.MessageInfo,
+			Title:   locales.ExportInProgressTitle(),
+			Message: locales.ExportInProgressMessage(),
+		})
+	}()
 }
 
 // invalidateExport redraws the export window.
@@ -379,7 +401,8 @@ func (a *AppState) invalidateExport() {
 
 // closeExport closes the export window, unless it is writing.
 func (a *AppState) closeExport() {
-	if job := a.exporting; job != nil && job.writing {
+	if a.exportingBusy() {
+		a.warnExportBusy(a.exportWindow)
 		return
 	}
 	if a.exportWindow != nil {

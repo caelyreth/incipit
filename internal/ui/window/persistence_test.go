@@ -122,6 +122,14 @@ func TestNewerSettingsPreservedWithoutOverwritingDisk(t *testing.T) {
 	if lost != nil || reopened == nil {
 		t.Fatalf("openChosen failed: lost=%+v", lost)
 	}
+	if !reopened.settingsLocked {
+		t.Fatal("expected settingsLocked=true after ErrNewerVersion")
+	}
+	// Mutating settings in-session must NOT overwrite newer-version preferences.
+	reopened.Settings.Apply(appsettings.SetOption("notation.reveal", "hidden"))
+	if reopened.settingsDirty {
+		t.Fatal("expected settingsDirty to remain false when settingsLocked is set")
+	}
 	if err := reopened.Close(); err != nil {
 		t.Fatal(err)
 	}

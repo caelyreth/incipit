@@ -50,25 +50,21 @@ func Run() error {
 	}
 	defer closeApp()
 	mygo.App.OnBeforeQuit(func(e *mygo.QuitEvent) {
-		if e.SessionEnding || app == nil || app.quitConfirmed {
+		if e.SessionEnding || app == nil {
 			return
 		}
-		if err := app.FlushPending(); err != nil {
+		if !app.flushForQuit() {
 			e.PreventDefault()
-			if app.Notices != nil && app.notebook != nil {
-				app.Notices.Post(saveFailure(app.notebook.saver, err, app.Notices))
-			}
-			app.confirmQuitWithUnsaved(err)
 		}
 	})
 	mygo.App.OnWillQuit(func(*mygo.QuitEvent) { closeApp() })
 	var lost *onboarding.Lost
 	switch {
 	case locErr != nil:
-		lost = &onboarding.Lost{
-			Root:   filepath.Join(userData, "notebook-location.json"),
-			Reason: locErr.Error(),
+		if root == "" {
+			root = userData
 		}
+		lost = lostFromLocationError(root, locErr)
 	case chosen:
 		if app, lost = openChosen(root, userData); app != nil {
 			mygo.Theme.SetSource(themeSource(app.Product.Appearance.Appearance))
@@ -137,6 +133,13 @@ func notebookRoot(userData string) (string, bool, error) {
 func defaultRoot() (string, error) {
 	base, _ := notebookBase(runtime.GOOS)
 	return storage.Root(base, runtime.GOOS)
+}
+
+func lostFromLocationError(defaultFolder string, locErr error) *onboarding.Lost {
+	return &onboarding.Lost{
+		Root:   defaultFolder,
+		Reason: describeNotice(locErr),
+	}
 }
 
 // openChosen opens the notebook recorded in root, or says why it is lost:
@@ -253,7 +256,40 @@ func (a *AppState) showMain() {
 		a.Settings.StopRecording()
 		window.Invalidate()
 	})
+	window.OnClose(func(e *mygo.CloseEvent) {
+		if a.closing.Load() || a.quitConfirmed {
+			return
+		}
+		if a.exportingBusy() {
+			e.PreventDefault()
+			a.warnExportBusy(a.exportWindow)
+			return
+		}
+		if runtime.GOOS != "darwin" && !a.flushForQuit() {
+			e.PreventDefault()
+		}
+	})
 	a.mainWindow = window
+}
+
+// flushForQuit attempts to persist pending edits and guard against active
+// exports before quitting or closing the main window on non-macOS systems.
+func (a *AppState) flushForQuit() bool {
+	if a == nil || a.quitConfirmed {
+		return true
+	}
+	if a.exportingBusy() {
+		a.warnExportBusy(a.exportWindow)
+		return false
+	}
+	if err := a.FlushPending(); err != nil {
+		if a.Notices != nil && a.notebook != nil {
+			a.Notices.Post(saveFailure(a.notebook.saver, err, a.Notices))
+		}
+		a.confirmQuitWithUnsaved(err)
+		return false
+	}
+	return true
 }
 
 // redraw asks the app's open windows for a frame built anew. Main thread

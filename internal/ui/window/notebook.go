@@ -283,6 +283,7 @@ func (a *AppState) FlushPending() error {
 		return nil
 	}
 	a.fileUnfiled()
+	a.summarize()
 	for _, session := range a.sessions {
 		a.savePage(session)
 	}
@@ -309,6 +310,7 @@ func (a *AppState) Close() error {
 	if a.notebook == nil || a.notebook.closed {
 		return nil
 	}
+	a.summarize()
 	for _, session := range a.sessions {
 		a.savePage(session)
 	}

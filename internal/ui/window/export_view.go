@@ -2,6 +2,7 @@ package window
 
 import (
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -82,7 +83,7 @@ func (a *AppState) exportView(c *ui.Context) {
 // exportKeys answers the window's keys: Escape cancels, Return exports,
 // and the arrows move the preview through the files.
 func (a *AppState) exportKeys(c *ui.Context, job *exportJob) {
-	if c.Shortcut(0, ui.KeyEscape) {
+	if c.Shortcut(0, ui.KeyEscape) || (runtime.GOOS == "darwin" && c.Shortcut(ui.Cmd, ui.KeyPeriod)) {
 		a.closeExport()
 	}
 	if c.Shortcut(0, ui.KeyEnter) {

@@ -9,6 +9,7 @@ import (
 
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
 	appupdater "github.com/caelyreth/neverland/internal/app/updater"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -145,8 +146,16 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 	state.Updates.Available = nil
 	state.Updates.Err = errors.New("signature expired")
 	tester.Frame()
-	if !tester.HasText("Update Failed") || !tester.HasText("signature expired") {
+	if !tester.HasText("Update Failed") || !tester.HasText("Signature expired") {
 		t.Fatalf("missing error state text in %v", tester.Texts())
+	}
+
+	// Manual-only release without Sources must not offer auto-download.
+	state.Updates.Status = appupdater.StatusAvailable
+	state.Updates.Available = &appupdater.Release{Version: "0.3.0", RequiresManualUpdate: true}
+	tester.Frame()
+	if tester.HasText(locales.UpdatesButtonDownload()) || tester.HasText(locales.UpdatesButtonDownloadManually()) {
+		t.Fatalf("manual-only release without sources offered download button: %v", tester.Texts())
 	}
 
 	state.Updates.Status = appupdater.StatusUnavailable

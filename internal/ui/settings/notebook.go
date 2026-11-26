@@ -18,15 +18,25 @@ func (s *State) notebookSection(c *ui.Context, semantic theme.Theme, sec Section
 			Label:       locales.NotebookLocation(),
 			Description: locales.NotebookLocationDescription(),
 			Footer: func() {
-				if s.NotebookRoot == "" {
+				shown := s.NotebookRoot
+				pending := s.PendingRoot != "" && s.PendingRoot != s.NotebookRoot
+				if pending {
+					shown = s.PendingRoot
+				}
+				if shown == "" {
 					return
 				}
-				ui.Text(c, s.NotebookRoot).
-					Font(theme.MonoFontFamily).
-					FontSize(12 * k).
-					LineHeight(1.4).
-					TextColor(semantic.Text.Muted).
-					Selectable()
+				ui.Column(c).WidthPercent(100).Gap(theme.Space02.DIPs(scale)).Children(func() {
+					ui.Text(c, shown).
+						Font(theme.MonoFontFamily).
+						FontSize(12 * k).
+						LineHeight(1.4).
+						TextColor(semantic.Text.Muted).
+						Selectable()
+					if pending {
+						components.Label(c, locales.NotebookChangedDescription(), theme.TextXSmall, semantic.Status.Info.Foreground)
+					}
+				})
 			},
 			Control: func() {
 				ui.Row(c).Gap(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Children(func() {
@@ -35,7 +45,7 @@ func (s *State) notebookSection(c *ui.Context, semantic theme.Theme, sec Section
 						Label:    locales.ShowInFinder(),
 						Style:    components.SubtleButton,
 						Size:     components.MediumButton,
-						Disabled: s.NotebookRoot == "" || s.RevealNotebook == nil,
+						Disabled: (s.NotebookRoot == "" && s.PendingRoot == "") || s.RevealNotebook == nil,
 						Animate:  animate,
 						Action:   s.RevealNotebook,
 					}.View(c, semantic)

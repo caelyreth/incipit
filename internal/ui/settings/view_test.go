@@ -91,4 +91,11 @@ func TestNotebookSectionAndBackupsPopover(t *testing.T) {
 	if restored.Path != "/tmp/b1.db" {
 		t.Fatalf("restored = %+v, want /tmp/b1.db", restored)
 	}
+
+	state.PendingRoot = "/Users/example/Archive/Neverland"
+	pendingTester := ui.NewTester(state.cards(appsettings.Appearance), 640, 2000)
+	pendingTester.Frame()
+	if !pendingTester.HasText(state.PendingRoot) || !pendingTester.HasText(locales.NotebookChangedDescription()) {
+		t.Fatalf("missing pending relocation feedback: %#v", pendingTester.Texts())
+	}
 }

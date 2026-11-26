@@ -115,23 +115,35 @@ func welcome(defaultRoot, userData string, lost *onboarding.Lost, opened func(*A
 			settings.Appearance = theme.Appearance(choice.Resolved(mygo.Theme.IsDark()))
 			_ = window.SetBackgroundColor(colorHex(settings.Semantic().Surface.Background))
 		},
-		Finish: func(result onboarding.Result) error {
-			app, err := openApp(result.Root, userData)
-			if err != nil {
-				return err
-			}
-			if err := storage.ChooseRoot(userData, result.Root); err != nil {
-				_ = app.Close()
-				return err
-			}
-			for _, change := range result.Changes {
-				app.Settings.Apply(change)
-			}
-			second()
-			opened(app)
-			app.start()
-			window.Close()
-			return nil
+		FinishAsync: func(result onboarding.Result, done func(error)) {
+			go func() {
+				app, err := openApp(result.Root, userData)
+				if err != nil {
+					mygo.RunOnMain(func() {
+						done(err)
+						window.Invalidate()
+					})
+					return
+				}
+				if err := storage.ChooseRoot(userData, result.Root); err != nil {
+					_ = app.Close()
+					mygo.RunOnMain(func() {
+						done(err)
+						window.Invalidate()
+					})
+					return
+				}
+				mygo.RunOnMain(func() {
+					done(nil)
+					for _, change := range result.Changes {
+						app.Settings.Apply(change)
+					}
+					second()
+					opened(app)
+					app.start()
+					window.Close()
+				})
+			}()
 		},
 	})
 	if lost != nil {

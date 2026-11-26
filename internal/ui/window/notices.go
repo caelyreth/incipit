@@ -57,6 +57,9 @@ func (a *AppState) tellSaving(told *saving, writer saver) {
 		})
 	default:
 		a.Notices.Dismiss(backupNotice)
+		if a.notebook != nil && a.notebook.store != nil {
+			a.refreshBackupsAsync(a.notebook.store.Root())
+		}
 	}
 	*told = now
 }

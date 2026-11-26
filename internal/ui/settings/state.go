@@ -65,6 +65,7 @@ type State struct {
 	// Notebook holds the active notebook location, verified backups, and
 	// user actions for revealing, relocating, or restoring a backup.
 	NotebookRoot   string
+	PendingRoot    string
 	Backups        []BackupOption
 	RevealNotebook func()
 	ChangeNotebook func()

@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/theme"
@@ -56,7 +57,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 			s.escapeField()
 		case !s.InSettings() && c.Shortcut(ui.Cmd, ui.KeyZ):
 			s.Undo()
-		case !s.InSettings() && c.Shortcut(ui.Cmd|ui.Shift, ui.KeyZ):
+		case !s.InSettings() && (c.Shortcut(ui.Cmd|ui.Shift, ui.KeyZ) || (runtime.GOOS != "darwin" && c.Shortcut(ui.Cmd, ui.KeyY))):
 			s.Redo()
 		case s.field.acting && c.Shortcut(0, ui.KeyUp):
 			s.actionKey(ui.KeyUp)
