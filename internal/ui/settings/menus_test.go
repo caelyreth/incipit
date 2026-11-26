@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
+	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -20,10 +21,13 @@ func TestMenusOnMacOnly(t *testing.T) {
 	tester := ui.NewTester(state.cards(appsettings.Appearance), 600, 1600)
 	tester.Frame()
 	if runtime.GOOS != "darwin" {
-		if tester.HasText("Menus") {
+		if _, offered := tester.Find(locales.Menus()); offered || tester.HasText(locales.MenusDescription()) || tester.HasText(locales.MenusNative()) {
 			t.Fatal("Menus offered off macOS")
 		}
 		return
+	}
+	if _, offered := tester.Find(locales.Menus()); !offered {
+		t.Fatal("Menus missing on macOS")
 	}
 	if err := tester.Click("Neverland"); err != nil {
 		t.Fatal(err)
