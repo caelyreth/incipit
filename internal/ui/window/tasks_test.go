@@ -31,7 +31,7 @@ func TestTasksWrittenCountInTheSheetAndItsGroups(t *testing.T) {
 	if got := app.Sheets(shell.Place{Kind: shell.PlaceAll})[0].Tasks; got != (shell.Tasks{Open: 1}) {
 		t.Fatalf("The sheet should count one open task: %+v.", got)
 	}
-	tester.Key(ui.Super, ui.KeyEnter)
+	tester.Key(ui.Cmd, ui.KeyEnter)
 	tester.Frame()
 	if got := inbox().Tasks; got != (shell.Tasks{Done: 1}) {
 		t.Fatalf("⌘↩ should complete it, the Inbox counting it done: %+v.", got)

@@ -9,6 +9,7 @@ import (
 	"github.com/caelyreth/neverland/internal/app/keymap"
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
 	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -106,7 +107,16 @@ func TestEveryCommandIsInTheMenuBar(t *testing.T) {
 	}
 	app.MainMenu()
 	for _, command := range app.Product.Keymap.Commands() {
-		if command.Scope != keymap.ScopeEditing && app.menuItems[command.ID] == nil {
+		if command.Scope == keymap.ScopeEditing {
+			continue
+		}
+		switch command.ID {
+		case keymap.CheckSpelling, keymap.CheckGrammar, keymap.CorrectSpelling, keymap.PredictSpelling:
+			if !mygo.Spelling.Available() {
+				continue
+			}
+		}
+		if app.menuItems[command.ID] == nil {
 			t.Errorf("%s has no menu item", command.ID)
 		}
 	}

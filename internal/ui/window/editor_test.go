@@ -147,7 +147,7 @@ func TestClickAndArrowsMoveTheCaret(t *testing.T) {
 	tester.Key(0, ui.KeyLeft)
 	tester.Frame()
 	at := head().Pos.Offset
-	tester.Key(ui.Super, ui.KeyLeft)
+	tester.Key(ui.Cmd, ui.KeyLeft)
 	tester.Frame()
 	if head().Pos.Offset != 0 || at == 0 {
 		t.Fatalf("line start: %v (was %d)", head(), at)

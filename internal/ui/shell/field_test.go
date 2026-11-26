@@ -84,41 +84,49 @@ func TestASmartFolderRunsItsQuery(t *testing.T) {
 // Content reaching the top title band still takes clicks while the blank
 // top band around it keeps field scrolling and context menu intact.
 func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
-	state, library, tester := onField(t, 1260, 700)
-	library.groupTree = map[string][]GroupItem{"": {
-		{ID: "1", Name: "Inbox", Inbox: true},
-		// Made before Novel, which the field so stands furthest out.
-		{ID: "i", Name: "Ideas"}, {ID: "l", Name: "Letters"}, {ID: "t", Name: "Trips"},
-		{ID: "2", Name: "Novel"},
-	}}
-	library.extraSheets = 8
-	library.rev++
-	settle(tester)
+	for _, drawn := range []bool{false, true} {
+		t.Run(fmt.Sprintf("drawn=%t", drawn), func(t *testing.T) {
+			state, library, tester := onField(t, 1260, 700)
+			state.Settings.DrawnMenus = drawn
+			library.groupTree = map[string][]GroupItem{"": {
+				{ID: "1", Name: "Inbox", Inbox: true},
+				// Made before Novel, which the field so stands furthest out.
+				{ID: "i", Name: "Ideas"}, {ID: "l", Name: "Letters"}, {ID: "t", Name: "Trips"},
+				{ID: "2", Name: "Novel"},
+			}}
+			library.extraSheets = 8
+			library.rev++
+			// Unfocus the search pill first so opening a drawn context menu does not
+			// collapse ribbons and move Novel out of the <40 top band mid-test.
+			tester.ClickAt(state.laneRoom()+12, 16)
+			settle(tester)
 
-	var novel ui.Rect
-	ok := false
-	for h := 700; h >= 300; h -= 10 {
-		tester.SetSize(1260, h)
-		settle(tester)
-		if novel, ok = tester.Find("Novel"); ok && novel.H > 0 && novel.Y >= 0 && novel.Y < 40 {
-			break
-		}
-	}
-	if !ok || novel.Y < 0 || novel.Y >= 40 {
-		t.Fatalf("Expected Novel head inside top title band (<40), got %v", novel)
-	}
+			var novel ui.Rect
+			ok := false
+			for h := 700; h >= 300; h -= 10 {
+				tester.SetSize(1260, h)
+				settle(tester)
+				if novel, ok = tester.Find("Novel"); ok && novel.H > 0 && novel.Y >= 0 && novel.Y < 40 {
+					break
+				}
+			}
+			if !ok || novel.Y < 0 || novel.Y >= 40 {
+				t.Fatalf("Expected Novel head inside top title band (<40), got %v", novel)
+			}
 
-	tester.RightClickAt(state.laneRoom()+12, 16)
-	tester.Frame()
-	if len(tester.Menu()) == 0 {
-		t.Fatal("Blank top area should still open the field context menu on right click.")
-	}
-	tester.CloseMenu()
-	settle(tester)
-	tester.ClickAt(novel.X+16, novel.Y+novel.H/2)
-	settle(tester)
-	if q := state.FieldQuery(); q != "$in:Novel" {
-		t.Fatalf("Clicking block content in the top band should narrow to Novel, got %q.", q)
+			tester.RightClickAt(state.laneRoom()+12, 16)
+			tester.Frame()
+			if len(tester.Menu()) == 0 {
+				t.Fatal("Blank top area should still open the field context menu on right click.")
+			}
+			tester.CloseMenu()
+			settle(tester)
+			tester.ClickAt(novel.X+16, novel.Y+novel.H/2)
+			settle(tester)
+			if q := state.FieldQuery(); q != "$in:Novel" {
+				t.Fatalf("Clicking block content in the top band should narrow to Novel, got %q.", q)
+			}
+		})
 	}
 }
 
