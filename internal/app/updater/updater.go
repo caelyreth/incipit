@@ -210,25 +210,28 @@ type Service struct {
 	checkInterval    time.Duration
 	progressInterval time.Duration
 
-	mu          sync.Mutex
-	settings    Settings
-	status      Status
-	avail       mygo.UpdateAvailability
-	available   *Release
-	downloaded  int64
-	total       int64
-	lastErr     error
-	lastNotify  time.Time
-	checkActive bool
-	interactive bool
-	checkWait   []chan Snapshot
-	installWait []chan Snapshot
-	cancelOp    context.CancelFunc
-	closed      bool
-	started     bool
-	wakeCh      chan struct{}
-	stopCh      chan struct{}
-	wg          sync.WaitGroup
+	mu                  sync.Mutex
+	settings            Settings
+	status              Status
+	avail               mygo.UpdateAvailability
+	available           *Release
+	downloaded          int64
+	total               int64
+	lastErr             error
+	lastNotify          time.Time
+	consecutiveFailures int
+	nextRetryAt         time.Time
+	checkGen            uint64
+	checkActive         bool
+	interactive         bool
+	checkWait           []chan Snapshot
+	installWait         []chan Snapshot
+	cancelOp            context.CancelFunc
+	closed              bool
+	started             bool
+	wakeCh              chan struct{}
+	stopCh              chan struct{}
+	wg                  sync.WaitGroup
 }
 
 // New constructs a Service from persisted settings and backend availability.
@@ -427,6 +430,12 @@ func (s *Service) check(interactive bool) <-chan Snapshot {
 		return ch
 	}
 
+	if interactive {
+		s.consecutiveFailures = 0
+		s.nextRetryAt = time.Time{}
+	}
+	s.checkGen++
+	gen := s.checkGen
 	s.checkActive = true
 	s.interactive = interactive
 	s.checkWait = append(s.checkWait, ch)
@@ -441,11 +450,11 @@ func (s *Service) check(interactive bool) <-chan Snapshot {
 	s.mu.Unlock()
 
 	s.emitChange(snap)
-	go s.runCheck(ctx, activeChannel, locale)
+	go s.runCheck(ctx, gen, activeChannel, locale)
 	return ch
 }
 
-func (s *Service) runCheck(ctx context.Context, channel, locale string) {
+func (s *Service) runCheck(ctx context.Context, gen uint64, channel, locale string) {
 	defer s.wg.Done()
 	rel, err := s.backend.CheckWith(ctx, mygo.CheckOptions{
 		Channel: channel,
@@ -453,6 +462,10 @@ func (s *Service) runCheck(ctx context.Context, channel, locale string) {
 	})
 
 	s.mu.Lock()
+	if gen != s.checkGen {
+		s.mu.Unlock()
+		return
+	}
 	s.checkActive = false
 	if s.cancelOp != nil {
 		s.cancelOp()
@@ -479,6 +492,8 @@ func (s *Service) runCheck(ctx context.Context, channel, locale string) {
 	case err != nil:
 		s.status = StatusError
 		s.lastErr = err
+		s.consecutiveFailures++
+		s.nextRetryAt = s.now().Add(s.failureBackoffLocked())
 		if interactive {
 			notice = NoticeCheckError
 		}
@@ -487,6 +502,8 @@ func (s *Service) runCheck(ctx context.Context, channel, locale string) {
 		s.downloaded = 0
 		s.total = 0
 		s.lastErr = nil
+		s.consecutiveFailures = 0
+		s.nextRetryAt = time.Time{}
 		s.status = StatusUpToDate
 		s.settings.LastCheck = s.now()
 		_ = saveSettings(s.dir, s.settings)
@@ -494,6 +511,8 @@ func (s *Service) runCheck(ctx context.Context, channel, locale string) {
 			notice = NoticeUpToDate
 		}
 	default:
+		s.consecutiveFailures = 0
+		s.nextRetryAt = time.Time{}
 		s.settings.LastCheck = s.now()
 		_ = saveSettings(s.dir, s.settings)
 		if !interactive && s.settings.SkippedVersion != "" && s.settings.SkippedVersion == rel.Version {
@@ -604,8 +623,13 @@ func (s *Service) runInstall(ctx context.Context, rel *Release) {
 			s.total = total
 		}
 		transitioned := false
-		if s.total > 0 && downloaded >= s.total && s.status == StatusDownloading {
+		switch {
+		case s.total > 0 && downloaded >= s.total && s.status == StatusDownloading:
 			s.status = StatusInstalling
+			transitioned = true
+		case s.total > 0 && downloaded < s.total && s.status == StatusInstalling:
+			// Delta verification/apply fell back to downloading a full archive.
+			s.status = StatusDownloading
 			transitioned = true
 		}
 		now := s.now()
@@ -749,9 +773,22 @@ func (s *Service) SetChannel(channel string) error {
 	}
 	s.settings.Channel = channel
 	s.settings.SkippedVersion = ""
+	s.consecutiveFailures = 0
+	s.nextRetryAt = time.Time{}
 	s.backend.SetChannel(channel)
 	err := saveSettings(s.dir, s.settings)
-	if s.status != StatusDownloading && s.status != StatusInstalling && s.status != StatusReady && s.status != StatusChecking {
+	var cancelOld context.CancelFunc
+	var oldWait []chan Snapshot
+	if s.status == StatusChecking || s.checkActive {
+		s.checkGen++
+		s.checkActive = false
+		s.interactive = false
+		cancelOld = s.cancelOp
+		s.cancelOp = nil
+		oldWait = s.checkWait
+		s.checkWait = nil
+	}
+	if s.status != StatusDownloading && s.status != StatusInstalling && s.status != StatusReady {
 		s.available = nil
 		s.downloaded = 0
 		s.total = 0
@@ -764,6 +801,12 @@ func (s *Service) SetChannel(channel string) error {
 	}
 	snap := s.snapshotLocked()
 	s.mu.Unlock()
+	if cancelOld != nil {
+		cancelOld()
+	}
+	for _, w := range oldWait {
+		w <- snap
+	}
 	s.emitChange(snap)
 	return err
 }
@@ -810,12 +853,34 @@ func (s *Service) wakeScheduler() {
 	}
 }
 
+func (s *Service) failureBackoffLocked() time.Duration {
+	base := 5 * time.Minute
+	if capHalf := s.checkInterval / 16; capHalf > 0 && capHalf < base {
+		base = capHalf
+	}
+	if floor := s.initialDelay * 2; base < floor {
+		base = floor
+	}
+	shift := min(max(s.consecutiveFailures-1, 0), 6)
+	backoff := base << shift
+	if s.checkInterval > 0 && (backoff > s.checkInterval || backoff < base) {
+		backoff = s.checkInterval
+	}
+	return backoff
+}
+
 func (s *Service) nextCheckDelayLocked() (time.Duration, bool) {
 	if !s.settings.AutomaticChecks {
 		return 0, false
 	}
 	if s.backend.Availability() != mygo.UpdateAvailable {
 		return 0, false
+	}
+	if !s.nextRetryAt.IsZero() {
+		if wait := s.nextRetryAt.Sub(s.now()); wait > 0 {
+			return wait, true
+		}
+		return s.initialDelay, true
 	}
 	if s.settings.LastCheck.IsZero() {
 		return s.initialDelay, true

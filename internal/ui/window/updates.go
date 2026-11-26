@@ -20,6 +20,22 @@ func (a *AppState) newUpdaterService(dir string) *appupdater.Service {
 
 func (a *AppState) useUpdater(dir string) {
 	a.setUpdater(a.newUpdaterService(dir))
+	a.reportLastInstallError(mygo.Updater.TakeLastInstallError())
+}
+
+func (a *AppState) reportLastInstallError(err error) {
+	if a == nil || err == nil || a.Notices == nil {
+		return
+	}
+	a.Notices.Post(Notice{
+		ID:          updateNoticeID,
+		Kind:        NoticeError,
+		Sticky:      true,
+		Title:       locales.UpdateInstallFailed(),
+		Description: describeNotice(err),
+		Action:      locales.UpdatesButtonView(),
+		OnAction:    a.openUpdates,
+	})
 }
 
 func (a *AppState) setUpdater(svc *appupdater.Service) {

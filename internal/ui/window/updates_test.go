@@ -182,3 +182,24 @@ func TestUpdaterNoticesRespectActiveViewAndTriggerActions(t *testing.T) {
 		t.Fatalf("missing error toast in %v", tester.Texts())
 	}
 }
+
+func TestPreviousInstallErrorPostsStickyNotice(t *testing.T) {
+	app, err := OpenAppState(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close()
+
+	tester := noticeTester(app.Notices)
+	app.reportLastInstallError(errors.New("permission denied replacing bundle"))
+	tester.Frame()
+	if !tester.HasText(locales.UpdateInstallFailed()) {
+		t.Fatalf("missing update install failure notice in %v", tester.Texts())
+	}
+	if err := tester.Click(locales.UpdatesButtonView()); err != nil {
+		t.Fatalf("clicking action on install failure notice: %v", err)
+	}
+	if !app.Shell.InSettings() {
+		t.Fatal("clicking install failure notice action did not open Settings")
+	}
+}

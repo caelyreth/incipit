@@ -522,3 +522,134 @@ func TestUpgradeBackgroundCheckToInteractiveAndDeduplicate(t *testing.T) {
 		t.Fatalf("noticeUpToDate = %d, want 1 after interactive upgrade", noticeUpToDate)
 	}
 }
+
+func TestDeltaFallbackResetsInstallingToDownloading(t *testing.T) {
+	b := newFakeBackend()
+	step1 := make(chan struct{})
+	step2 := make(chan struct{})
+	finish := make(chan struct{})
+	b.checkFn = func(ctx context.Context, opts mygo.CheckOptions) (*Release, error) {
+		return &Release{
+			Version: "2.0.0",
+			Channel: ChannelStable,
+			Install: func(ctx context.Context, progress func(int64, int64)) error {
+				progress(100, 100) // delta completes -> StatusInstalling
+				close(step1)
+				<-step2
+				progress(50, 500) // fallback to full archive -> must drop back to StatusDownloading
+				<-finish
+				progress(500, 500)
+				return nil
+			},
+		}, nil
+	}
+
+	svc := New(Config{Backend: b, ProgressInterval: time.Millisecond})
+	defer svc.Close()
+	<-svc.CheckNow()
+	done := svc.DownloadAndInstall()
+
+	<-step1
+	if snap := svc.Snapshot(); snap.Status != StatusInstalling {
+		t.Fatalf("after 100/100 status = %v, want StatusInstalling", snap.Status)
+	}
+	close(step2)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		snap := svc.Snapshot()
+		if snap.Status == StatusDownloading && snap.Total == 500 && snap.Downloaded == 50 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if snap := svc.Snapshot(); snap.Status != StatusDownloading || snap.Total != 500 || snap.Downloaded != 50 {
+		t.Fatalf("after delta fallback snapshot = %+v, want StatusDownloading 50/500", snap)
+	}
+	close(finish)
+	res := <-done
+	if res.Status != StatusReady {
+		t.Fatalf("final status = %v, want StatusReady", res.Status)
+	}
+}
+
+func TestSchedulerBackoffOnErrorsAndResetOnManualCheck(t *testing.T) {
+	b := newFakeBackend()
+	b.checkFn = func(ctx context.Context, opts mygo.CheckOptions) (*Release, error) {
+		return nil, errors.New("offline")
+	}
+	now := time.Date(2026, 11, 26, 12, 0, 0, 0, time.UTC)
+	svc := New(Config{
+		Backend:       b,
+		InitialDelay:  10 * time.Second,
+		CheckInterval: 24 * time.Hour,
+		Now:           func() time.Time { return now },
+	})
+	defer svc.Close()
+
+	<-svc.check(false)
+	svc.mu.Lock()
+	d1, ok1 := svc.nextCheckDelayLocked()
+	svc.mu.Unlock()
+	if !ok1 || d1 < 4*time.Minute {
+		t.Fatalf("delay after 1st failure = %v, want >= 4m backoff", d1)
+	}
+
+	now = now.Add(d1 + time.Second)
+	<-svc.check(false)
+	svc.mu.Lock()
+	d2, ok2 := svc.nextCheckDelayLocked()
+	svc.mu.Unlock()
+	if !ok2 || d2 <= d1 {
+		t.Fatalf("delay after 2nd failure = %v, want > %v", d2, d1)
+	}
+
+	// Manual CheckNow clears the failure backoff and succeeds when back online.
+	b.mu.Lock()
+	b.checkFn = func(ctx context.Context, opts mygo.CheckOptions) (*Release, error) { return nil, nil }
+	b.mu.Unlock()
+	res := <-svc.CheckNow()
+	if res.Status != StatusUpToDate {
+		t.Fatalf("manual check status = %v, want StatusUpToDate", res.Status)
+	}
+	svc.mu.Lock()
+	defer svc.mu.Unlock()
+	if svc.consecutiveFailures != 0 || !svc.nextRetryAt.IsZero() {
+		t.Fatalf("backoff not cleared: failures=%d nextRetry=%v", svc.consecutiveFailures, svc.nextRetryAt)
+	}
+}
+
+func TestSetChannelCancelsInFlightCheckAndDropsStaleResult(t *testing.T) {
+	b := newFakeBackend()
+	stableStarted := make(chan struct{})
+	releaseStable := make(chan struct{})
+	b.checkFn = func(ctx context.Context, opts mygo.CheckOptions) (*Release, error) {
+		if opts.Channel == ChannelStable {
+			close(stableStarted)
+			<-releaseStable
+			return &Release{Version: "1.1.0-stable", Channel: ChannelStable}, nil
+		}
+		return &Release{Version: "1.2.0-beta.1", Channel: ChannelBeta}, nil
+	}
+
+	svc := New(Config{Backend: b})
+	defer svc.Close()
+	stableWait := svc.CheckNow()
+	<-stableStarted
+
+	if err := svc.SetChannel(ChannelBeta); err != nil {
+		t.Fatal(err)
+	}
+	<-stableWait
+	betaSnap := <-svc.CheckNow()
+	if betaSnap.Channel != ChannelBeta || betaSnap.Available == nil || betaSnap.Available.Version != "1.2.0-beta.1" {
+		t.Fatalf("beta snapshot = %+v", betaSnap)
+	}
+
+	// Now unblock the stale stable check; it must not overwrite the beta result.
+	close(releaseStable)
+	time.Sleep(25 * time.Millisecond)
+	final := svc.Snapshot()
+	if final.Channel != ChannelBeta || final.Available == nil || final.Available.Version != "1.2.0-beta.1" {
+		t.Fatalf("stale stable check overwrote beta result: %+v", final)
+	}
+}
