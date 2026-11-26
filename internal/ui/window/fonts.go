@@ -29,7 +29,8 @@ type fontState struct {
 	// wanted is the face chosen while it was not kept: it is the choice
 	// once its download is, unless another was chosen meanwhile. It lasts
 	// the run, as the download does.
-	wanted string
+	wanted      string
+	systemFonts []ui.FontFamily
 }
 
 // fontFailure is why a download did not finish, said in the language the
@@ -99,20 +100,39 @@ func (fs *fontState) register(f fonts.Face, data [][]byte) error {
 		return err
 	}
 	fs.registered[f.ID] = true
+	fs.systemFonts = nil
 	return nil
 }
 
-// family is the prose family list: the Latin face of style, then the
-// face of forms in it while kept.
-func (fs *fontState) family(style fonts.Style, forms string) string {
+// families lists all usable font families (app-registered first, then
+// system-installed), cached until another font is registered.
+func (fs *fontState) families() []ui.FontFamily {
+	if fs == nil {
+		return nil
+	}
+	if fs.systemFonts == nil {
+		fs.systemFonts = ui.FontFamilies()
+	}
+	return fs.systemFonts
+}
+
+// family builds the prose family list: user-chosen proseFont (or the
+// system generic family for style when empty or unkept managed Noto),
+// optional kept CJK forms, and system fallback.
+func (fs *fontState) family(style fonts.Style, proseFont, forms string) string {
 	base := theme.ProseFontFamily
 	if style == fonts.Sans {
 		base = theme.ProseSansFamily
 	}
-	if f, ok := fonts.Find(style, forms); ok && fs.kept[f.ID] {
-		return fonts.Family(base, &f)
+	primary := proseFont
+	if f, ok := fonts.LookupFamily(primary); ok && !fs.kept[f.ID] {
+		primary = ""
 	}
-	return fonts.Family(base, nil)
+	var cjk *fonts.Face
+	if f, ok := fonts.Find(style, forms); ok && fs.kept[f.ID] {
+		cjk = &f
+	}
+	return fonts.ResolveFamily(base, primary, cjk)
 }
 
 // rows are the faces as the settings list them.
@@ -145,9 +165,15 @@ func (a *AppState) chooseForms(forms string) {
 	a.Settings.Apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{Kind: appsettings.SetCJKForms, Forms: forms}))
 }
 
-// fontAct does what the settings asked of a face, the system's fonts for
-// an empty id: chosen, a face kept draws its forms at once and one that is
-// not is downloaded, to draw them once kept.
+// chooseProseFont selects the primary prose font family ("" for system
+// default matching Style).
+func (a *AppState) chooseProseFont(family string) {
+	a.Settings.Apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{Kind: appsettings.SetProseFont, Font: family}))
+}
+
+// fontAct does what the settings asked of a downloadable face, the system's
+// fonts for an empty id: chosen, a kept face is applied at once and one
+// that is not kept starts downloading to be applied once ready.
 func (a *AppState) fontAct(id string, act settings.FontAct) {
 	fs := a.fonts
 	if fs == nil {
@@ -162,7 +188,11 @@ func (a *AppState) fontAct(id string, act settings.FontAct) {
 		return
 	case act == settings.FontChoose && fs.kept[id]:
 		fs.wanted = ""
-		a.chooseForms(f.Forms)
+		if f.IsLatin() {
+			a.chooseProseFont(f.Family)
+		} else {
+			a.chooseForms(f.Forms)
+		}
 	case act == settings.FontChoose:
 		fs.wanted = id
 		if fs.coming[id] == nil {
@@ -186,7 +216,11 @@ func (a *AppState) fontAct(id string, act settings.FontAct) {
 			a.fail(locales.CouldntRemoveFont(), err)
 		}
 		fs.kept[id] = false
-		if values := a.Product.Appearance; values.Typeface == f.Style && values.CJKForms == f.Forms {
+		if f.IsLatin() {
+			if a.Product.Appearance.ProseFont == f.Family {
+				a.chooseProseFont("")
+			}
+		} else if values := a.Product.Appearance; values.Typeface == f.Style && values.CJKForms == f.Forms {
 			a.chooseForms("")
 		}
 		a.applyAppearance()
@@ -238,7 +272,11 @@ func (a *AppState) downloadFont(f fonts.Face) {
 				fs.kept[f.ID] = true
 				if fs.wanted == f.ID {
 					fs.wanted = ""
-					a.chooseForms(f.Forms)
+					if f.IsLatin() {
+						a.chooseProseFont(f.Family)
+					} else {
+						a.chooseForms(f.Forms)
+					}
 				}
 				a.applyAppearance()
 			}

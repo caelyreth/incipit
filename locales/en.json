@@ -230,10 +230,52 @@
   "@typeface": {
     "description": "A section of Settings: the fonts the prose is set in."
   },
-  "typefaceDescription": "The style the prose is set in, and the glyph forms of Chinese and Japanese. A face for them downloads once from Google Fonts and stays on this computer.",
-  "typefaceKeywords": "Fonts Faces Style Serif Sans Writing Systems Download Google Fonts Chinese Japanese Han Kanji Noto",
+  "typefaceDescription": "Choose a system or downloaded font for prose, and optional Noto faces from Google Fonts for Latin, Chinese, and Japanese.",
+  "typefaceKeywords": "Fonts Faces Style Serif Sans System Font Picker Writing Systems Download Google Fonts Latin Chinese Japanese Han Kanji Noto",
   "@typefaceKeywords": {
     "description": "Words Settings' search finds the Typeface section by, beside its title and description: add the language's own."
+  },
+  "proseFont": "Font",
+  "@proseFont": {
+    "description": "A setting row label for picking the primary prose font family."
+  },
+  "proseFontDescription": "Any font installed on this computer or downloaded below.",
+  "systemDefault": "System Default",
+  "@systemDefault": {
+    "description": "Option in the font picker representing the platform's default serif or sans-serif font matching Style."
+  },
+  "systemDefaultNote": "Uses system {fallback}",
+  "@systemDefaultNote": {
+    "description": "Subtext under System Default showing the CSS/system fallback name (serif or sans-serif)."
+  },
+  "searchFonts": "Filter fonts…",
+  "@searchFonts": {
+    "description": "Placeholder in the font picker search input."
+  },
+  "noMatchingFonts": "No matching fonts",
+  "@noMatchingFonts": {
+    "description": "Shown in the font picker when no font matches the search query."
+  },
+  "fontBadgeDownloaded": "Downloaded",
+  "@fontBadgeDownloaded": {
+    "description": "Badge in the font picker indicating a managed font downloaded inside the app."
+  },
+  "fontBadgeMono": "Mono",
+  "@fontBadgeMono": {
+    "description": "Short badge in the font picker indicating a monospaced font family."
+  },
+  "typefaceSample": "Sphinx of black quartz, judge my vow.",
+  "@typefaceSample": {
+    "description": "Short sample sentence shown in the Typeface specimen preview."
+  },
+  "latinNoto": "Latin (Noto)",
+  "@latinNoto": {
+    "description": "Header above the optional downloadable Latin Noto font option."
+  },
+  "latinNotoDescription": "Optional high-contrast Noto Serif or Noto Sans for Latin, Greek, and Cyrillic.",
+  "formsLatin": "Noto for Latin",
+  "@formsLatin": {
+    "description": "Label for the downloadable Latin Noto font row."
   },
   "systemFont": "System Font",
   "@systemFont": {
@@ -273,7 +315,7 @@
   "@style": {
     "description": "A setting: whether the prose is set in a serif or a sans-serif face."
   },
-  "styleDescription": "Latin text is set in Noto Serif or Noto Sans, and Chinese and Japanese in its match.",
+  "styleDescription": "System serif or sans-serif default, and which Noto family is paired below.",
   "styleSerif": "Serif",
   "@styleSerif": {
     "description": "A typeface style, with serifs."

@@ -34,10 +34,13 @@ type State struct {
 	// asks to show it.
 	Find    func(words string)
 	Animate bool
-	// Fonts are the downloadable faces for Chinese and Japanese, and Font
-	// does what the Typeface section asks of one.
-	Fonts []FontRow
-	Font  func(id string, act FontAct)
+	// Fonts are the downloadable faces for Latin, Chinese and Japanese, and
+	// Font does what the Typeface section asks of one. SystemFonts lists the
+	// available font families (app-registered and system-installed) for the
+	// prose font picker.
+	Fonts       []FontRow
+	Font        func(id string, act FontAct)
+	SystemFonts []ui.FontFamily
 
 	// Languages are those the app is written in, its own first; Language
 	// is the one chosen, "" while the app follows the system's, and
@@ -70,7 +73,8 @@ type State struct {
 	// recorders is what each open or closing recorder shows, by host.
 	recorders map[string]recorderView
 	// reported is the recording last told to Recording.
-	reported bool
+	reported   bool
+	fontPicker fontPickerState
 }
 
 type keyConflict struct {

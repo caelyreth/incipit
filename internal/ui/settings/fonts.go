@@ -43,16 +43,20 @@ const typefaceKey = "typeface"
 
 // typefaceInfo is the section as it is found.
 func (s *State) typefaceInfo() sectionInfo {
-	words := locales.Typeface() + " " + locales.TypefaceKeywords() + " " + locales.SystemFont()
+	words := locales.Typeface() + " " + locales.TypefaceKeywords() + " " +
+		locales.ProseFont() + " " + locales.LatinNoto() + " " + locales.FormsLatin() + " " +
+		locales.SystemDefault() + " " + locales.SystemFont()
 	for _, f := range fonts.Languages() {
 		words += " " + formsLanguage(f.Forms)
 	}
 	return sectionInfo{typefaceKey, locales.Typeface(), locales.TypefaceDescription(), words}
 }
 
-// formsLanguage names the language whose glyph forms forms names.
+// formsLanguage names the language or script whose forms forms names.
 func formsLanguage(forms string) string {
 	switch forms {
+	case fonts.FormsLatin:
+		return locales.FormsLatin()
 	case "sc":
 		return locales.FormsSc()
 	case "tc":
@@ -73,9 +77,10 @@ func styleName(style fonts.Style) string {
 	return locales.StyleSerif()
 }
 
-// typefaceSection draws the section: the style, the glyph forms of
-// Chinese and Japanese as a list of options, each with its face's state in
-// the style chosen, then the faces held of the other style.
+// typefaceSection draws the section: a live specimen preview, Style, the
+// searchable Prose Font picker, optional downloadable Noto for Latin,
+// optional Chinese & Japanese glyph forms, and downloaded faces of the
+// other style.
 func (s *State) typefaceSection(c *ui.Context, semantic theme.Theme, sec Section) {
 	scale := s.Theme.UIFontSize
 	s.section(c, semantic, sec, func() {
@@ -86,7 +91,10 @@ func (s *State) typefaceSection(c *ui.Context, semantic theme.Theme, sec Section
 				other = append(other, row)
 			}
 		}
+		s.typefacePreview(c, semantic)
 		s.styleRow(c, semantic)
+		s.fontPickerRow(c, semantic)
+		s.latinSection(c, semantic)
 		components.SettingRow{
 			Label:       locales.ChineseAndJapanese(),
 			Description: locales.ChineseAndJapaneseDescription(),
@@ -107,6 +115,64 @@ func (s *State) typefaceSection(c *ui.Context, semantic theme.Theme, sec Section
 			s.heldRow(c, semantic, row, i == len(other)-1)
 		}
 	})
+}
+
+// latinSection shows the downloadable Latin Noto option (Noto Serif or
+// Noto Sans matching the chosen Style).
+func (s *State) latinSection(c *ui.Context, semantic theme.Theme) {
+	values := s.Data.AppearanceValues
+	row := s.row(values.Typeface, fonts.FormsLatin)
+	if row == nil {
+		return
+	}
+	scale := s.Theme.UIFontSize
+	components.SettingRow{
+		Label:       locales.LatinNoto(),
+		Description: locales.LatinNotoDescription(),
+		Last:        true,
+	}.View(c, semantic)
+	ui.Column(c).Key("latin-forms").WidthPercent(100).Padding(0, 0, theme.Space08.DIPs(scale), 0).Children(func() {
+		f := row.Face
+		note := s.faceNote(*row, f.Family)
+		chosen := row.Wanted || (row.Kept && values.ProseFont == f.Family)
+		r := *row
+		o := choiceOption{
+			key:    "option-latin",
+			label:  locales.FormsLatin(),
+			note:   note,
+			chosen: chosen,
+			choose: func() {
+				if s.Font != nil {
+					s.Font(f.ID, FontChoose)
+				}
+			},
+			actions: func() { s.optionActions(c, semantic, r) },
+		}
+		if r.Coming {
+			o.mark = func() { s.progress(c, semantic, r) }
+		}
+		if r.Failed != "" {
+			o.footer = func() { s.failure(c, semantic, r.Failed) }
+		}
+		s.choiceView(c, semantic, o)
+	})
+	ui.Row(c).WidthPercent(100).PaddingStart(theme.Space16.DIPs(scale)).Children(func() {
+		components.HorizontalDivider(c, semantic, components.VariantDivider)
+	})
+}
+
+func (s *State) faceNote(row FontRow, label string) string {
+	f := row.Face
+	switch {
+	case row.Coming:
+		return locales.FontNoteComing(label, components.Megabytes(row.Done), components.Megabytes(row.Total))
+	case row.Kept:
+		return locales.FontNoteKept(label, components.Megabytes(f.Size()))
+	case row.Partial > 0:
+		return locales.FontNotePartial(label, components.Megabytes(row.Partial), components.Megabytes(f.Size()))
+	default:
+		return locales.FontNote(label, components.Megabytes(f.Size()))
+	}
 }
 
 // row is the row of the face of forms in style.
@@ -131,8 +197,8 @@ func (s *State) choose(style fonts.Style, forms string) {
 	s.Font(id, FontChoose)
 }
 
-// styleRow chooses Serif or Sans, for the Latin face at once and for the
-// face of the glyph forms chosen, downloaded first if not kept.
+// styleRow chooses Serif or Sans, updating system fallback and pairing
+// downloadable Noto faces for Latin (when Noto is active) and CJK.
 func (s *State) styleRow(c *ui.Context, semantic theme.Theme) {
 	values := s.Data.AppearanceValues
 	components.SettingRow{
@@ -147,9 +213,14 @@ func (s *State) styleRow(c *ui.Context, semantic theme.Theme) {
 						if style == values.Typeface {
 							return
 						}
+						prevLatin, ok := fonts.Latin(values.Typeface)
+						usingNotoLatin := ok && values.ProseFont == prevLatin.Family
 						s.apply(appsettings.NewAppearanceChange(appsettings.AppearanceChange{
 							Kind: appsettings.SetTypeface, Typeface: style,
 						}))
+						if usingNotoLatin {
+							s.choose(style, fonts.FormsLatin)
+						}
 						if values.CJKForms != "" {
 							s.choose(style, values.CJKForms)
 						}
@@ -167,7 +238,7 @@ func (s *State) styleRow(c *ui.Context, semantic theme.Theme) {
 func (s *State) formsOption(c *ui.Context, semantic theme.Theme, forms string, row *FontRow) {
 	values := s.Data.AppearanceValues
 	// The face chosen while not kept stands for the choice until it is.
-	wanting := slices.ContainsFunc(s.Fonts, func(r FontRow) bool { return r.Wanted })
+	wanting := slices.ContainsFunc(s.Fonts, func(r FontRow) bool { return !r.Face.IsLatin() && r.Wanted })
 	chosen := !wanting && values.CJKForms == forms
 	if row == nil {
 		// The system's fonts draw while the forms chosen have no face kept.
@@ -178,16 +249,7 @@ func (s *State) formsOption(c *ui.Context, semantic theme.Theme, forms string, r
 	if row != nil {
 		f := row.Face
 		label = formsLanguage(f.Forms)
-		switch {
-		case row.Coming:
-			note = locales.FontNoteComing(f.Family, components.Megabytes(row.Done), components.Megabytes(row.Total))
-		case row.Kept:
-			note = locales.FontNoteKept(f.Family, components.Megabytes(f.Size()))
-		case row.Partial > 0:
-			note = locales.FontNotePartial(f.Family, components.Megabytes(row.Partial), components.Megabytes(f.Size()))
-		default:
-			note = locales.FontNote(f.Family, components.Megabytes(f.Size()))
-		}
+		note = s.faceNote(*row, f.Family)
 		chosen = chosen && row.Kept || row.Wanted
 	}
 	o := choiceOption{key: "option-" + forms, label: label, note: note, chosen: chosen,

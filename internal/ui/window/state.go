@@ -439,6 +439,7 @@ func (a *AppState) refreshSettingsData() {
 	a.Settings.Recording = a.setRecording
 	a.Settings.Reserved = a.reservedKey
 	a.Settings.Fonts, a.Settings.Font = a.fonts.rows(), a.fontAct
+	a.Settings.SystemFonts = a.fonts.families()
 	a.Settings.Languages, a.Settings.Language, a.Settings.SetLanguage = mygo.App.Languages(), a.language, a.chooseLanguage
 	a.bindUpdaterSettings()
 	a.Settings.Apply = func(change appsettings.Change) {
@@ -492,7 +493,9 @@ func (a *AppState) saveSettings() {
 // views blend their colors over ThemeTransition, and the native chrome,
 // window backgrounds and traffic lights follow the new scheme.
 func (a *AppState) applyAppearance() {
-	mygo.Theme.SetSource(themeSource(a.Product.Appearance.Appearance))
+	if a.running {
+		mygo.Theme.SetSource(themeSource(a.Product.Appearance.Appearance))
+	}
 	a.readSystem()
 	a.showAppearance()
 }
@@ -586,7 +589,7 @@ func (a *AppState) readSystem() {
 func (a *AppState) appearanceSettings() theme.Settings {
 	values := a.Product.Appearance
 	settings := theme.DefaultSettings()
-	settings.ProseFamily = a.fonts.family(values.Typeface, values.CJKForms)
+	settings.ProseFamily = a.fonts.family(values.Typeface, values.ProseFont, values.CJKForms)
 	settings.UIFontSize = values.UIFontSize
 	settings.ProseFontSize = values.ProseFontSize
 	settings.LineSpacing = values.LineSpacing

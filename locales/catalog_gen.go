@@ -913,30 +913,196 @@ func (msgs Messages) Typeface() string {
 	return Catalog.Format(msgs.locale, "typeface", nil)
 }
 
-// TypefaceDescription says "The style the prose is set in, and the glyph forms of Chinese and Japanese. A face for them downloads once from Googl…"
+// TypefaceDescription says "Choose a system or downloaded font for prose, and optional Noto faces from Google Fonts for Latin, Chinese, and Japan…"
 // in the language the app shows.
 func TypefaceDescription() string { return In(i18n.Locale()).TypefaceDescription() }
 
-// TypefaceDescription says "The style the prose is set in, and the glyph forms of Chinese and Japanese. A face for them downloads once from Googl…"
+// TypefaceDescription says "Choose a system or downloaded font for prose, and optional Noto faces from Google Fonts for Latin, Chinese, and Japan…"
 // in the language of msgs.
 func (msgs Messages) TypefaceDescription() string {
 	return Catalog.Format(msgs.locale, "typefaceDescription", nil)
 }
 
-// TypefaceKeywords says "Fonts Faces Style Serif Sans Writing Systems Download Google Fonts Chinese Japanese Han Kanji Noto"
+// TypefaceKeywords says "Fonts Faces Style Serif Sans System Font Picker Writing Systems Download Google Fonts Latin Chinese Japanese Han Kanj…"
 // in the language the app shows.
 //
 // Words Settings' search finds the Typeface section by, beside its title
 // and description: add the language's own.
 func TypefaceKeywords() string { return In(i18n.Locale()).TypefaceKeywords() }
 
-// TypefaceKeywords says "Fonts Faces Style Serif Sans Writing Systems Download Google Fonts Chinese Japanese Han Kanji Noto"
+// TypefaceKeywords says "Fonts Faces Style Serif Sans System Font Picker Writing Systems Download Google Fonts Latin Chinese Japanese Han Kanj…"
 // in the language of msgs.
 //
 // Words Settings' search finds the Typeface section by, beside its title
 // and description: add the language's own.
 func (msgs Messages) TypefaceKeywords() string {
 	return Catalog.Format(msgs.locale, "typefaceKeywords", nil)
+}
+
+// ProseFont says "Font"
+// in the language the app shows.
+//
+// A setting row label for picking the primary prose font family.
+func ProseFont() string { return In(i18n.Locale()).ProseFont() }
+
+// ProseFont says "Font"
+// in the language of msgs.
+//
+// A setting row label for picking the primary prose font family.
+func (msgs Messages) ProseFont() string {
+	return Catalog.Format(msgs.locale, "proseFont", nil)
+}
+
+// ProseFontDescription says "Any font installed on this computer or downloaded below."
+// in the language the app shows.
+func ProseFontDescription() string { return In(i18n.Locale()).ProseFontDescription() }
+
+// ProseFontDescription says "Any font installed on this computer or downloaded below."
+// in the language of msgs.
+func (msgs Messages) ProseFontDescription() string {
+	return Catalog.Format(msgs.locale, "proseFontDescription", nil)
+}
+
+// SystemDefault says "System Default"
+// in the language the app shows.
+//
+// Option in the font picker representing the platform's default serif or
+// sans-serif font matching Style.
+func SystemDefault() string { return In(i18n.Locale()).SystemDefault() }
+
+// SystemDefault says "System Default"
+// in the language of msgs.
+//
+// Option in the font picker representing the platform's default serif or
+// sans-serif font matching Style.
+func (msgs Messages) SystemDefault() string {
+	return Catalog.Format(msgs.locale, "systemDefault", nil)
+}
+
+// SystemDefaultNote says "Uses system {fallback}"
+// in the language the app shows.
+//
+// Subtext under System Default showing the CSS/system fallback name (serif
+// or sans-serif).
+func SystemDefaultNote(fallback string) string { return In(i18n.Locale()).SystemDefaultNote(fallback) }
+
+// SystemDefaultNote says "Uses system {fallback}"
+// in the language of msgs.
+//
+// Subtext under System Default showing the CSS/system fallback name (serif
+// or sans-serif).
+func (msgs Messages) SystemDefaultNote(fallback string) string {
+	return Catalog.Format(msgs.locale, "systemDefaultNote", map[string]any{"fallback": fallback})
+}
+
+// SearchFonts says "Filter fonts…"
+// in the language the app shows.
+//
+// Placeholder in the font picker search input.
+func SearchFonts() string { return In(i18n.Locale()).SearchFonts() }
+
+// SearchFonts says "Filter fonts…"
+// in the language of msgs.
+//
+// Placeholder in the font picker search input.
+func (msgs Messages) SearchFonts() string {
+	return Catalog.Format(msgs.locale, "searchFonts", nil)
+}
+
+// NoMatchingFonts says "No matching fonts"
+// in the language the app shows.
+//
+// Shown in the font picker when no font matches the search query.
+func NoMatchingFonts() string { return In(i18n.Locale()).NoMatchingFonts() }
+
+// NoMatchingFonts says "No matching fonts"
+// in the language of msgs.
+//
+// Shown in the font picker when no font matches the search query.
+func (msgs Messages) NoMatchingFonts() string {
+	return Catalog.Format(msgs.locale, "noMatchingFonts", nil)
+}
+
+// FontBadgeDownloaded says "Downloaded"
+// in the language the app shows.
+//
+// Badge in the font picker indicating a managed font downloaded inside the
+// app.
+func FontBadgeDownloaded() string { return In(i18n.Locale()).FontBadgeDownloaded() }
+
+// FontBadgeDownloaded says "Downloaded"
+// in the language of msgs.
+//
+// Badge in the font picker indicating a managed font downloaded inside the
+// app.
+func (msgs Messages) FontBadgeDownloaded() string {
+	return Catalog.Format(msgs.locale, "fontBadgeDownloaded", nil)
+}
+
+// FontBadgeMono says "Mono"
+// in the language the app shows.
+//
+// Short badge in the font picker indicating a monospaced font family.
+func FontBadgeMono() string { return In(i18n.Locale()).FontBadgeMono() }
+
+// FontBadgeMono says "Mono"
+// in the language of msgs.
+//
+// Short badge in the font picker indicating a monospaced font family.
+func (msgs Messages) FontBadgeMono() string {
+	return Catalog.Format(msgs.locale, "fontBadgeMono", nil)
+}
+
+// TypefaceSample says "Sphinx of black quartz, judge my vow."
+// in the language the app shows.
+//
+// Short sample sentence shown in the Typeface specimen preview.
+func TypefaceSample() string { return In(i18n.Locale()).TypefaceSample() }
+
+// TypefaceSample says "Sphinx of black quartz, judge my vow."
+// in the language of msgs.
+//
+// Short sample sentence shown in the Typeface specimen preview.
+func (msgs Messages) TypefaceSample() string {
+	return Catalog.Format(msgs.locale, "typefaceSample", nil)
+}
+
+// LatinNoto says "Latin (Noto)"
+// in the language the app shows.
+//
+// Header above the optional downloadable Latin Noto font option.
+func LatinNoto() string { return In(i18n.Locale()).LatinNoto() }
+
+// LatinNoto says "Latin (Noto)"
+// in the language of msgs.
+//
+// Header above the optional downloadable Latin Noto font option.
+func (msgs Messages) LatinNoto() string {
+	return Catalog.Format(msgs.locale, "latinNoto", nil)
+}
+
+// LatinNotoDescription says "Optional high-contrast Noto Serif or Noto Sans for Latin, Greek, and Cyrillic."
+// in the language the app shows.
+func LatinNotoDescription() string { return In(i18n.Locale()).LatinNotoDescription() }
+
+// LatinNotoDescription says "Optional high-contrast Noto Serif or Noto Sans for Latin, Greek, and Cyrillic."
+// in the language of msgs.
+func (msgs Messages) LatinNotoDescription() string {
+	return Catalog.Format(msgs.locale, "latinNotoDescription", nil)
+}
+
+// FormsLatin says "Noto for Latin"
+// in the language the app shows.
+//
+// Label for the downloadable Latin Noto font row.
+func FormsLatin() string { return In(i18n.Locale()).FormsLatin() }
+
+// FormsLatin says "Noto for Latin"
+// in the language of msgs.
+//
+// Label for the downloadable Latin Noto font row.
+func (msgs Messages) FormsLatin() string {
+	return Catalog.Format(msgs.locale, "formsLatin", nil)
 }
 
 // SystemFont says "System Font"
@@ -1085,11 +1251,11 @@ func (msgs Messages) Style() string {
 	return Catalog.Format(msgs.locale, "style", nil)
 }
 
-// StyleDescription says "Latin text is set in Noto Serif or Noto Sans, and Chinese and Japanese in its match."
+// StyleDescription says "System serif or sans-serif default, and which Noto family is paired below."
 // in the language the app shows.
 func StyleDescription() string { return In(i18n.Locale()).StyleDescription() }
 
-// StyleDescription says "Latin text is set in Noto Serif or Noto Sans, and Chinese and Japanese in its match."
+// StyleDescription says "System serif or sans-serif default, and which Noto family is paired below."
 // in the language of msgs.
 func (msgs Messages) StyleDescription() string {
 	return Catalog.Format(msgs.locale, "styleDescription", nil)
