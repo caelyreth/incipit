@@ -3127,5 +3127,209 @@
   "menuSpelling": "Spelling and Grammar",
   "@menuSpelling": {
     "description": "A submenu of Edit in the menu bar, as macOS apps have."
+  },
+  "onboardingTitle": "Welcome to Neverland",
+  "@onboardingTitle": {
+    "description": "The onboarding window's title, shown on first launch."
+  },
+  "onboardingStep": "{step} of {count}",
+  "@onboardingStep": {
+    "description": "Onboarding: which page of the walkthrough is shown, as \"2 of 5\"."
+  },
+  "onboardingWelcomeEyebrow": "A notebook for writing",
+  "@onboardingWelcomeEyebrow": {
+    "description": "Onboarding, first page: a small line above the headline."
+  },
+  "onboardingWelcomeHeadline": "A quiet place to write.",
+  "@onboardingWelcomeHeadline": {
+    "description": "Onboarding, first page: the headline."
+  },
+  "onboardingWelcomeBody": "A few choices before the first page. Each one shows what it changes, and any of them can be changed later in Settings.",
+  "@onboardingWelcomeBody": {
+    "description": "Onboarding, first page: what the walkthrough is."
+  },
+  "onboardingBegin": "Begin",
+  "@onboardingBegin": {
+    "description": "Onboarding, first page: the button that starts the walkthrough."
+  },
+  "onboardingContinue": "Continue",
+  "@onboardingContinue": {
+    "description": "Onboarding: the button that goes to the next page."
+  },
+  "onboardingNotebookEyebrow": "Where it lives",
+  "@onboardingNotebookEyebrow": {
+    "description": "Onboarding, notebook page: a small line above the headline."
+  },
+  "onboardingNotebookHeadline": "Your notebook",
+  "@onboardingNotebookHeadline": {
+    "description": "Onboarding, notebook page: the headline."
+  },
+  "onboardingNotebookBody": "Every sheet you write is kept in one notebook, a folder on this computer. It is yours to back up, sync or move.",
+  "@onboardingNotebookBody": {
+    "description": "Onboarding, notebook page: what the notebook is."
+  },
+  "onboardingNotebookNew": "A new notebook will be made here.",
+  "@onboardingNotebookNew": {
+    "description": "Onboarding, notebook page: the folder chosen holds no notebook yet."
+  },
+  "onboardingNotebookFound": "A notebook is already here. Neverland will open it as it is.",
+  "@onboardingNotebookFound": {
+    "description": "Onboarding, notebook page: the folder chosen already holds a notebook."
+  },
+  "onboardingNotebookDefault": "Use Default",
+  "@onboardingNotebookDefault": {
+    "description": "Onboarding, notebook page: the button that goes back to the default folder."
+  },
+  "onboardingNotebookChoose": "Choose a folder for the notebook",
+  "@onboardingNotebookChoose": {
+    "description": "Onboarding: the title of the folder picker for the notebook."
+  },
+  "onboardingNotebookFailed": "Couldn't open a notebook there",
+  "@onboardingNotebookFailed": {
+    "description": "Onboarding: the notebook could not be opened in the folder chosen; the reason follows."
+  },
+  "onboardingWritingEyebrow": "How it writes",
+  "@onboardingWritingEyebrow": {
+    "description": "Onboarding, writing page: a small line above the headline."
+  },
+  "onboardingWritingHeadline": "Marks and manners",
+  "@onboardingWritingHeadline": {
+    "description": "Onboarding, writing page: the headline."
+  },
+  "onboardingWritingBody": "Neverland formats as you type. Each answer below writes its own line; pick the one that reads right to you.",
+  "@onboardingWritingBody": {
+    "description": "Onboarding, writing page: how to choose."
+  },
+  "onboardingMarks": "Formatting marks",
+  "@onboardingMarks": {
+    "description": "Onboarding, writing page: the choice of whether the asterisks and other signs of formatting show."
+  },
+  "onboardingMarksShown": "Shown",
+  "@onboardingMarksShown": {
+    "description": "Onboarding: the formatting marks show beside the text."
+  },
+  "onboardingMarksShownCaption": "The asterisks stay in sight as you write.",
+  "@onboardingMarksShownCaption": {
+    "description": "Onboarding: explains Shown."
+  },
+  "onboardingMarksHidden": "Hidden",
+  "@onboardingMarksHidden": {
+    "description": "Onboarding: the formatting marks are hidden."
+  },
+  "onboardingMarksHiddenCaption": "Only the formatting shows.",
+  "@onboardingMarksHiddenCaption": {
+    "description": "Onboarding: explains Hidden."
+  },
+  "onboardingPairs": "Brackets and quotes",
+  "@onboardingPairs": {
+    "description": "Onboarding, writing page: the choice of whether typing an opening bracket or quote adds its closer."
+  },
+  "onboardingPairsClosed": "Closed for you",
+  "@onboardingPairsClosed": {
+    "description": "Onboarding: typing ( adds ) after the caret."
+  },
+  "onboardingPairsClosedCaption": "Type an opening bracket and its closer follows.",
+  "@onboardingPairsClosedCaption": {
+    "description": "Onboarding: explains Closed for you."
+  },
+  "onboardingPairsOpen": "Left to you",
+  "@onboardingPairsOpen": {
+    "description": "Onboarding: brackets and quotes are typed one by one."
+  },
+  "onboardingPairsOpenCaption": "Every character as you type it.",
+  "@onboardingPairsOpenCaption": {
+    "description": "Onboarding: explains Left to you."
+  },
+  "onboardingSymbols": "Typographic symbols",
+  "@onboardingSymbols": {
+    "description": "Onboarding, writing page: the choice of whether -- becomes a dash and ... an ellipsis."
+  },
+  "onboardingSymbolsOn": "Typeset",
+  "@onboardingSymbolsOn": {
+    "description": "Onboarding: plain characters become typographic symbols."
+  },
+  "onboardingSymbolsOnCaption": "Two hyphens become a dash, three dots an ellipsis.",
+  "@onboardingSymbolsOnCaption": {
+    "description": "Onboarding: explains Typeset."
+  },
+  "onboardingSymbolsOff": "As typed",
+  "@onboardingSymbolsOff": {
+    "description": "Onboarding: characters stay as typed."
+  },
+  "onboardingSymbolsOffCaption": "Plain characters stay plain.",
+  "@onboardingSymbolsOffCaption": {
+    "description": "Onboarding: explains As typed."
+  },
+  "onboardingLookEyebrow": "How it looks",
+  "@onboardingLookEyebrow": {
+    "description": "Onboarding, appearance page: a small line above the headline."
+  },
+  "onboardingLookHeadline": "The page",
+  "@onboardingLookHeadline": {
+    "description": "Onboarding, appearance page: the headline."
+  },
+  "onboardingLookBody": "Starfield for the night, Daybreak for the day. This window turns as you choose.",
+  "@onboardingLookBody": {
+    "description": "Onboarding, appearance page: the choice of theme and typeface."
+  },
+  "onboardingStarfieldCaption": "Pale ink on night.",
+  "@onboardingStarfieldCaption": {
+    "description": "Onboarding: describes the Starfield theme."
+  },
+  "onboardingDaybreakCaption": "Dark ink on paper.",
+  "@onboardingDaybreakCaption": {
+    "description": "Onboarding: describes the Daybreak theme."
+  },
+  "onboardingSystemCaption": "Follows your computer.",
+  "@onboardingSystemCaption": {
+    "description": "Onboarding: describes the System theme."
+  },
+  "onboardingSerifCaption": "Bookish and warm.",
+  "@onboardingSerifCaption": {
+    "description": "Onboarding: describes the serif typeface."
+  },
+  "onboardingSansCaption": "Plain and open.",
+  "@onboardingSansCaption": {
+    "description": "Onboarding: describes the sans typeface."
+  },
+  "onboardingSample": "The tide turned slowly, and she wrote it down.",
+  "@onboardingSample": {
+    "description": "Onboarding: a line of prose set in each theme and typeface as a sample."
+  },
+  "onboardingMacEyebrow": "On the Mac",
+  "@onboardingMacEyebrow": {
+    "description": "Onboarding, macOS page: a small line above the headline."
+  },
+  "onboardingMacHeadline": "Menus",
+  "@onboardingMacHeadline": {
+    "description": "Onboarding, macOS page: the headline; the choice of context menus."
+  },
+  "onboardingMacBody": "Right-click menus can be the Mac's own, or drawn by Neverland to match the page. Right-click anywhere here to try the ones chosen.",
+  "@onboardingMacBody": {
+    "description": "Onboarding, macOS page: the choice of menus, and how to try one."
+  },
+  "onboardingMenusNativeCaption": "As macOS draws them.",
+  "@onboardingMenusNativeCaption": {
+    "description": "Onboarding: explains the Native menus."
+  },
+  "onboardingMenusNeverlandCaption": "Drawn to match the page.",
+  "@onboardingMenusNeverlandCaption": {
+    "description": "Onboarding: explains Neverland's own menus."
+  },
+  "onboardingDoneEyebrow": "Ready",
+  "@onboardingDoneEyebrow": {
+    "description": "Onboarding, last page: a small line above the headline."
+  },
+  "onboardingDoneHeadline": "The first page is waiting.",
+  "@onboardingDoneHeadline": {
+    "description": "Onboarding, last page: the headline."
+  },
+  "onboardingDoneBody": "Here is what you chose. All of it can be changed later in Settings.",
+  "@onboardingDoneBody": {
+    "description": "Onboarding, last page: introduces the summary of choices."
+  },
+  "onboardingStart": "Start Writing",
+  "@onboardingStart": {
+    "description": "Onboarding, last page: the button that opens the notebook."
   }
 }

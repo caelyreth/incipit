@@ -54,6 +54,8 @@ var notShown = map[string]bool{
 	"Fatalf": true, "Fatal": true, "Panicf": true, "panic": true, "Getenv": true, "Setenv": true, "LookupEnv": true,
 	"MustParseQuery": true, "mustKey": true, "KeyNamed": true, "Parse": true, "ParseChord": true, "NewChord": true,
 	"WithFontID": true, "Font": true, "FontFeatures": true, "Join": true, "Command": true,
+	// A shader's uniform is found by its variable's name.
+	"Uniform": true,
 }
 
 // notShownMethods are the methods whose strings are an identity or a

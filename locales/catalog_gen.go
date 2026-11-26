@@ -11366,3 +11366,731 @@ func MenuSpelling() string { return In(i18n.Locale()).MenuSpelling() }
 func (msgs Messages) MenuSpelling() string {
 	return Catalog.Format(msgs.locale, "menuSpelling", nil)
 }
+
+// OnboardingTitle says "Welcome to Neverland"
+// in the language the app shows.
+//
+// The onboarding window's title, shown on first launch.
+func OnboardingTitle() string { return In(i18n.Locale()).OnboardingTitle() }
+
+// OnboardingTitle says "Welcome to Neverland"
+// in the language of msgs.
+//
+// The onboarding window's title, shown on first launch.
+func (msgs Messages) OnboardingTitle() string {
+	return Catalog.Format(msgs.locale, "onboardingTitle", nil)
+}
+
+// OnboardingStep says "{step} of {count}"
+// in the language the app shows.
+//
+// Onboarding: which page of the walkthrough is shown, as "2 of 5".
+func OnboardingStep(step string, count string) string {
+	return In(i18n.Locale()).OnboardingStep(step, count)
+}
+
+// OnboardingStep says "{step} of {count}"
+// in the language of msgs.
+//
+// Onboarding: which page of the walkthrough is shown, as "2 of 5".
+func (msgs Messages) OnboardingStep(step string, count string) string {
+	return Catalog.Format(msgs.locale, "onboardingStep", map[string]any{"step": step, "count": count})
+}
+
+// OnboardingWelcomeEyebrow says "A notebook for writing"
+// in the language the app shows.
+//
+// Onboarding, first page: a small line above the headline.
+func OnboardingWelcomeEyebrow() string { return In(i18n.Locale()).OnboardingWelcomeEyebrow() }
+
+// OnboardingWelcomeEyebrow says "A notebook for writing"
+// in the language of msgs.
+//
+// Onboarding, first page: a small line above the headline.
+func (msgs Messages) OnboardingWelcomeEyebrow() string {
+	return Catalog.Format(msgs.locale, "onboardingWelcomeEyebrow", nil)
+}
+
+// OnboardingWelcomeHeadline says "A quiet place to write."
+// in the language the app shows.
+//
+// Onboarding, first page: the headline.
+func OnboardingWelcomeHeadline() string { return In(i18n.Locale()).OnboardingWelcomeHeadline() }
+
+// OnboardingWelcomeHeadline says "A quiet place to write."
+// in the language of msgs.
+//
+// Onboarding, first page: the headline.
+func (msgs Messages) OnboardingWelcomeHeadline() string {
+	return Catalog.Format(msgs.locale, "onboardingWelcomeHeadline", nil)
+}
+
+// OnboardingWelcomeBody says "A few choices before the first page. Each one shows what it changes, and any of them can be changed later in Settings."
+// in the language the app shows.
+//
+// Onboarding, first page: what the walkthrough is.
+func OnboardingWelcomeBody() string { return In(i18n.Locale()).OnboardingWelcomeBody() }
+
+// OnboardingWelcomeBody says "A few choices before the first page. Each one shows what it changes, and any of them can be changed later in Settings."
+// in the language of msgs.
+//
+// Onboarding, first page: what the walkthrough is.
+func (msgs Messages) OnboardingWelcomeBody() string {
+	return Catalog.Format(msgs.locale, "onboardingWelcomeBody", nil)
+}
+
+// OnboardingBegin says "Begin"
+// in the language the app shows.
+//
+// Onboarding, first page: the button that starts the walkthrough.
+func OnboardingBegin() string { return In(i18n.Locale()).OnboardingBegin() }
+
+// OnboardingBegin says "Begin"
+// in the language of msgs.
+//
+// Onboarding, first page: the button that starts the walkthrough.
+func (msgs Messages) OnboardingBegin() string {
+	return Catalog.Format(msgs.locale, "onboardingBegin", nil)
+}
+
+// OnboardingContinue says "Continue"
+// in the language the app shows.
+//
+// Onboarding: the button that goes to the next page.
+func OnboardingContinue() string { return In(i18n.Locale()).OnboardingContinue() }
+
+// OnboardingContinue says "Continue"
+// in the language of msgs.
+//
+// Onboarding: the button that goes to the next page.
+func (msgs Messages) OnboardingContinue() string {
+	return Catalog.Format(msgs.locale, "onboardingContinue", nil)
+}
+
+// OnboardingNotebookEyebrow says "Where it lives"
+// in the language the app shows.
+//
+// Onboarding, notebook page: a small line above the headline.
+func OnboardingNotebookEyebrow() string { return In(i18n.Locale()).OnboardingNotebookEyebrow() }
+
+// OnboardingNotebookEyebrow says "Where it lives"
+// in the language of msgs.
+//
+// Onboarding, notebook page: a small line above the headline.
+func (msgs Messages) OnboardingNotebookEyebrow() string {
+	return Catalog.Format(msgs.locale, "onboardingNotebookEyebrow", nil)
+}
+
+// OnboardingNotebookHeadline says "Your notebook"
+// in the language the app shows.
+//
+// Onboarding, notebook page: the headline.
+func OnboardingNotebookHeadline() string { return In(i18n.Locale()).OnboardingNotebookHeadline() }
+
+// OnboardingNotebookHeadline says "Your notebook"
+// in the language of msgs.
+//
+// Onboarding, notebook page: the headline.
+func (msgs Messages) OnboardingNotebookHeadline() string {
+	return Catalog.Format(msgs.locale, "onboardingNotebookHeadline", nil)
+}
+
+// OnboardingNotebookBody says "Every sheet you write is kept in one notebook, a folder on this computer. It is yours to back up, sync or move."
+// in the language the app shows.
+//
+// Onboarding, notebook page: what the notebook is.
+func OnboardingNotebookBody() string { return In(i18n.Locale()).OnboardingNotebookBody() }
+
+// OnboardingNotebookBody says "Every sheet you write is kept in one notebook, a folder on this computer. It is yours to back up, sync or move."
+// in the language of msgs.
+//
+// Onboarding, notebook page: what the notebook is.
+func (msgs Messages) OnboardingNotebookBody() string {
+	return Catalog.Format(msgs.locale, "onboardingNotebookBody", nil)
+}
+
+// OnboardingNotebookNew says "A new notebook will be made here."
+// in the language the app shows.
+//
+// Onboarding, notebook page: the folder chosen holds no notebook yet.
+func OnboardingNotebookNew() string { return In(i18n.Locale()).OnboardingNotebookNew() }
+
+// OnboardingNotebookNew says "A new notebook will be made here."
+// in the language of msgs.
+//
+// Onboarding, notebook page: the folder chosen holds no notebook yet.
+func (msgs Messages) OnboardingNotebookNew() string {
+	return Catalog.Format(msgs.locale, "onboardingNotebookNew", nil)
+}
+
+// OnboardingNotebookFound says "A notebook is already here. Neverland will open it as it is."
+// in the language the app shows.
+//
+// Onboarding, notebook page: the folder chosen already holds a notebook.
+func OnboardingNotebookFound() string { return In(i18n.Locale()).OnboardingNotebookFound() }
+
+// OnboardingNotebookFound says "A notebook is already here. Neverland will open it as it is."
+// in the language of msgs.
+//
+// Onboarding, notebook page: the folder chosen already holds a notebook.
+func (msgs Messages) OnboardingNotebookFound() string {
+	return Catalog.Format(msgs.locale, "onboardingNotebookFound", nil)
+}
+
+// OnboardingNotebookDefault says "Use Default"
+// in the language the app shows.
+//
+// Onboarding, notebook page: the button that goes back to the default
+// folder.
+func OnboardingNotebookDefault() string { return In(i18n.Locale()).OnboardingNotebookDefault() }
+
+// OnboardingNotebookDefault says "Use Default"
+// in the language of msgs.
+//
+// Onboarding, notebook page: the button that goes back to the default
+// folder.
+func (msgs Messages) OnboardingNotebookDefault() string {
+	return Catalog.Format(msgs.locale, "onboardingNotebookDefault", nil)
+}
+
+// OnboardingNotebookChoose says "Choose a folder for the notebook"
+// in the language the app shows.
+//
+// Onboarding: the title of the folder picker for the notebook.
+func OnboardingNotebookChoose() string { return In(i18n.Locale()).OnboardingNotebookChoose() }
+
+// OnboardingNotebookChoose says "Choose a folder for the notebook"
+// in the language of msgs.
+//
+// Onboarding: the title of the folder picker for the notebook.
+func (msgs Messages) OnboardingNotebookChoose() string {
+	return Catalog.Format(msgs.locale, "onboardingNotebookChoose", nil)
+}
+
+// OnboardingNotebookFailed says "Couldn't open a notebook there"
+// in the language the app shows.
+//
+// Onboarding: the notebook could not be opened in the folder chosen; the
+// reason follows.
+func OnboardingNotebookFailed() string { return In(i18n.Locale()).OnboardingNotebookFailed() }
+
+// OnboardingNotebookFailed says "Couldn't open a notebook there"
+// in the language of msgs.
+//
+// Onboarding: the notebook could not be opened in the folder chosen; the
+// reason follows.
+func (msgs Messages) OnboardingNotebookFailed() string {
+	return Catalog.Format(msgs.locale, "onboardingNotebookFailed", nil)
+}
+
+// OnboardingWritingEyebrow says "How it writes"
+// in the language the app shows.
+//
+// Onboarding, writing page: a small line above the headline.
+func OnboardingWritingEyebrow() string { return In(i18n.Locale()).OnboardingWritingEyebrow() }
+
+// OnboardingWritingEyebrow says "How it writes"
+// in the language of msgs.
+//
+// Onboarding, writing page: a small line above the headline.
+func (msgs Messages) OnboardingWritingEyebrow() string {
+	return Catalog.Format(msgs.locale, "onboardingWritingEyebrow", nil)
+}
+
+// OnboardingWritingHeadline says "Marks and manners"
+// in the language the app shows.
+//
+// Onboarding, writing page: the headline.
+func OnboardingWritingHeadline() string { return In(i18n.Locale()).OnboardingWritingHeadline() }
+
+// OnboardingWritingHeadline says "Marks and manners"
+// in the language of msgs.
+//
+// Onboarding, writing page: the headline.
+func (msgs Messages) OnboardingWritingHeadline() string {
+	return Catalog.Format(msgs.locale, "onboardingWritingHeadline", nil)
+}
+
+// OnboardingWritingBody says "Neverland formats as you type. Each answer below writes its own line; pick the one that reads right to you."
+// in the language the app shows.
+//
+// Onboarding, writing page: how to choose.
+func OnboardingWritingBody() string { return In(i18n.Locale()).OnboardingWritingBody() }
+
+// OnboardingWritingBody says "Neverland formats as you type. Each answer below writes its own line; pick the one that reads right to you."
+// in the language of msgs.
+//
+// Onboarding, writing page: how to choose.
+func (msgs Messages) OnboardingWritingBody() string {
+	return Catalog.Format(msgs.locale, "onboardingWritingBody", nil)
+}
+
+// OnboardingMarks says "Formatting marks"
+// in the language the app shows.
+//
+// Onboarding, writing page: the choice of whether the asterisks and other
+// signs of formatting show.
+func OnboardingMarks() string { return In(i18n.Locale()).OnboardingMarks() }
+
+// OnboardingMarks says "Formatting marks"
+// in the language of msgs.
+//
+// Onboarding, writing page: the choice of whether the asterisks and other
+// signs of formatting show.
+func (msgs Messages) OnboardingMarks() string {
+	return Catalog.Format(msgs.locale, "onboardingMarks", nil)
+}
+
+// OnboardingMarksShown says "Shown"
+// in the language the app shows.
+//
+// Onboarding: the formatting marks show beside the text.
+func OnboardingMarksShown() string { return In(i18n.Locale()).OnboardingMarksShown() }
+
+// OnboardingMarksShown says "Shown"
+// in the language of msgs.
+//
+// Onboarding: the formatting marks show beside the text.
+func (msgs Messages) OnboardingMarksShown() string {
+	return Catalog.Format(msgs.locale, "onboardingMarksShown", nil)
+}
+
+// OnboardingMarksShownCaption says "The asterisks stay in sight as you write."
+// in the language the app shows.
+//
+// Onboarding: explains Shown.
+func OnboardingMarksShownCaption() string { return In(i18n.Locale()).OnboardingMarksShownCaption() }
+
+// OnboardingMarksShownCaption says "The asterisks stay in sight as you write."
+// in the language of msgs.
+//
+// Onboarding: explains Shown.
+func (msgs Messages) OnboardingMarksShownCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingMarksShownCaption", nil)
+}
+
+// OnboardingMarksHidden says "Hidden"
+// in the language the app shows.
+//
+// Onboarding: the formatting marks are hidden.
+func OnboardingMarksHidden() string { return In(i18n.Locale()).OnboardingMarksHidden() }
+
+// OnboardingMarksHidden says "Hidden"
+// in the language of msgs.
+//
+// Onboarding: the formatting marks are hidden.
+func (msgs Messages) OnboardingMarksHidden() string {
+	return Catalog.Format(msgs.locale, "onboardingMarksHidden", nil)
+}
+
+// OnboardingMarksHiddenCaption says "Only the formatting shows."
+// in the language the app shows.
+//
+// Onboarding: explains Hidden.
+func OnboardingMarksHiddenCaption() string { return In(i18n.Locale()).OnboardingMarksHiddenCaption() }
+
+// OnboardingMarksHiddenCaption says "Only the formatting shows."
+// in the language of msgs.
+//
+// Onboarding: explains Hidden.
+func (msgs Messages) OnboardingMarksHiddenCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingMarksHiddenCaption", nil)
+}
+
+// OnboardingPairs says "Brackets and quotes"
+// in the language the app shows.
+//
+// Onboarding, writing page: the choice of whether typing an opening bracket
+// or quote adds its closer.
+func OnboardingPairs() string { return In(i18n.Locale()).OnboardingPairs() }
+
+// OnboardingPairs says "Brackets and quotes"
+// in the language of msgs.
+//
+// Onboarding, writing page: the choice of whether typing an opening bracket
+// or quote adds its closer.
+func (msgs Messages) OnboardingPairs() string {
+	return Catalog.Format(msgs.locale, "onboardingPairs", nil)
+}
+
+// OnboardingPairsClosed says "Closed for you"
+// in the language the app shows.
+//
+// Onboarding: typing ( adds ) after the caret.
+func OnboardingPairsClosed() string { return In(i18n.Locale()).OnboardingPairsClosed() }
+
+// OnboardingPairsClosed says "Closed for you"
+// in the language of msgs.
+//
+// Onboarding: typing ( adds ) after the caret.
+func (msgs Messages) OnboardingPairsClosed() string {
+	return Catalog.Format(msgs.locale, "onboardingPairsClosed", nil)
+}
+
+// OnboardingPairsClosedCaption says "Type an opening bracket and its closer follows."
+// in the language the app shows.
+//
+// Onboarding: explains Closed for you.
+func OnboardingPairsClosedCaption() string { return In(i18n.Locale()).OnboardingPairsClosedCaption() }
+
+// OnboardingPairsClosedCaption says "Type an opening bracket and its closer follows."
+// in the language of msgs.
+//
+// Onboarding: explains Closed for you.
+func (msgs Messages) OnboardingPairsClosedCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingPairsClosedCaption", nil)
+}
+
+// OnboardingPairsOpen says "Left to you"
+// in the language the app shows.
+//
+// Onboarding: brackets and quotes are typed one by one.
+func OnboardingPairsOpen() string { return In(i18n.Locale()).OnboardingPairsOpen() }
+
+// OnboardingPairsOpen says "Left to you"
+// in the language of msgs.
+//
+// Onboarding: brackets and quotes are typed one by one.
+func (msgs Messages) OnboardingPairsOpen() string {
+	return Catalog.Format(msgs.locale, "onboardingPairsOpen", nil)
+}
+
+// OnboardingPairsOpenCaption says "Every character as you type it."
+// in the language the app shows.
+//
+// Onboarding: explains Left to you.
+func OnboardingPairsOpenCaption() string { return In(i18n.Locale()).OnboardingPairsOpenCaption() }
+
+// OnboardingPairsOpenCaption says "Every character as you type it."
+// in the language of msgs.
+//
+// Onboarding: explains Left to you.
+func (msgs Messages) OnboardingPairsOpenCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingPairsOpenCaption", nil)
+}
+
+// OnboardingSymbols says "Typographic symbols"
+// in the language the app shows.
+//
+// Onboarding, writing page: the choice of whether -- becomes a dash and ...
+// an ellipsis.
+func OnboardingSymbols() string { return In(i18n.Locale()).OnboardingSymbols() }
+
+// OnboardingSymbols says "Typographic symbols"
+// in the language of msgs.
+//
+// Onboarding, writing page: the choice of whether -- becomes a dash and ...
+// an ellipsis.
+func (msgs Messages) OnboardingSymbols() string {
+	return Catalog.Format(msgs.locale, "onboardingSymbols", nil)
+}
+
+// OnboardingSymbolsOn says "Typeset"
+// in the language the app shows.
+//
+// Onboarding: plain characters become typographic symbols.
+func OnboardingSymbolsOn() string { return In(i18n.Locale()).OnboardingSymbolsOn() }
+
+// OnboardingSymbolsOn says "Typeset"
+// in the language of msgs.
+//
+// Onboarding: plain characters become typographic symbols.
+func (msgs Messages) OnboardingSymbolsOn() string {
+	return Catalog.Format(msgs.locale, "onboardingSymbolsOn", nil)
+}
+
+// OnboardingSymbolsOnCaption says "Two hyphens become a dash, three dots an ellipsis."
+// in the language the app shows.
+//
+// Onboarding: explains Typeset.
+func OnboardingSymbolsOnCaption() string { return In(i18n.Locale()).OnboardingSymbolsOnCaption() }
+
+// OnboardingSymbolsOnCaption says "Two hyphens become a dash, three dots an ellipsis."
+// in the language of msgs.
+//
+// Onboarding: explains Typeset.
+func (msgs Messages) OnboardingSymbolsOnCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingSymbolsOnCaption", nil)
+}
+
+// OnboardingSymbolsOff says "As typed"
+// in the language the app shows.
+//
+// Onboarding: characters stay as typed.
+func OnboardingSymbolsOff() string { return In(i18n.Locale()).OnboardingSymbolsOff() }
+
+// OnboardingSymbolsOff says "As typed"
+// in the language of msgs.
+//
+// Onboarding: characters stay as typed.
+func (msgs Messages) OnboardingSymbolsOff() string {
+	return Catalog.Format(msgs.locale, "onboardingSymbolsOff", nil)
+}
+
+// OnboardingSymbolsOffCaption says "Plain characters stay plain."
+// in the language the app shows.
+//
+// Onboarding: explains As typed.
+func OnboardingSymbolsOffCaption() string { return In(i18n.Locale()).OnboardingSymbolsOffCaption() }
+
+// OnboardingSymbolsOffCaption says "Plain characters stay plain."
+// in the language of msgs.
+//
+// Onboarding: explains As typed.
+func (msgs Messages) OnboardingSymbolsOffCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingSymbolsOffCaption", nil)
+}
+
+// OnboardingLookEyebrow says "How it looks"
+// in the language the app shows.
+//
+// Onboarding, appearance page: a small line above the headline.
+func OnboardingLookEyebrow() string { return In(i18n.Locale()).OnboardingLookEyebrow() }
+
+// OnboardingLookEyebrow says "How it looks"
+// in the language of msgs.
+//
+// Onboarding, appearance page: a small line above the headline.
+func (msgs Messages) OnboardingLookEyebrow() string {
+	return Catalog.Format(msgs.locale, "onboardingLookEyebrow", nil)
+}
+
+// OnboardingLookHeadline says "The page"
+// in the language the app shows.
+//
+// Onboarding, appearance page: the headline.
+func OnboardingLookHeadline() string { return In(i18n.Locale()).OnboardingLookHeadline() }
+
+// OnboardingLookHeadline says "The page"
+// in the language of msgs.
+//
+// Onboarding, appearance page: the headline.
+func (msgs Messages) OnboardingLookHeadline() string {
+	return Catalog.Format(msgs.locale, "onboardingLookHeadline", nil)
+}
+
+// OnboardingLookBody says "Starfield for the night, Daybreak for the day. This window turns as you choose."
+// in the language the app shows.
+//
+// Onboarding, appearance page: the choice of theme and typeface.
+func OnboardingLookBody() string { return In(i18n.Locale()).OnboardingLookBody() }
+
+// OnboardingLookBody says "Starfield for the night, Daybreak for the day. This window turns as you choose."
+// in the language of msgs.
+//
+// Onboarding, appearance page: the choice of theme and typeface.
+func (msgs Messages) OnboardingLookBody() string {
+	return Catalog.Format(msgs.locale, "onboardingLookBody", nil)
+}
+
+// OnboardingStarfieldCaption says "Pale ink on night."
+// in the language the app shows.
+//
+// Onboarding: describes the Starfield theme.
+func OnboardingStarfieldCaption() string { return In(i18n.Locale()).OnboardingStarfieldCaption() }
+
+// OnboardingStarfieldCaption says "Pale ink on night."
+// in the language of msgs.
+//
+// Onboarding: describes the Starfield theme.
+func (msgs Messages) OnboardingStarfieldCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingStarfieldCaption", nil)
+}
+
+// OnboardingDaybreakCaption says "Dark ink on paper."
+// in the language the app shows.
+//
+// Onboarding: describes the Daybreak theme.
+func OnboardingDaybreakCaption() string { return In(i18n.Locale()).OnboardingDaybreakCaption() }
+
+// OnboardingDaybreakCaption says "Dark ink on paper."
+// in the language of msgs.
+//
+// Onboarding: describes the Daybreak theme.
+func (msgs Messages) OnboardingDaybreakCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingDaybreakCaption", nil)
+}
+
+// OnboardingSystemCaption says "Follows your computer."
+// in the language the app shows.
+//
+// Onboarding: describes the System theme.
+func OnboardingSystemCaption() string { return In(i18n.Locale()).OnboardingSystemCaption() }
+
+// OnboardingSystemCaption says "Follows your computer."
+// in the language of msgs.
+//
+// Onboarding: describes the System theme.
+func (msgs Messages) OnboardingSystemCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingSystemCaption", nil)
+}
+
+// OnboardingSerifCaption says "Bookish and warm."
+// in the language the app shows.
+//
+// Onboarding: describes the serif typeface.
+func OnboardingSerifCaption() string { return In(i18n.Locale()).OnboardingSerifCaption() }
+
+// OnboardingSerifCaption says "Bookish and warm."
+// in the language of msgs.
+//
+// Onboarding: describes the serif typeface.
+func (msgs Messages) OnboardingSerifCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingSerifCaption", nil)
+}
+
+// OnboardingSansCaption says "Plain and open."
+// in the language the app shows.
+//
+// Onboarding: describes the sans typeface.
+func OnboardingSansCaption() string { return In(i18n.Locale()).OnboardingSansCaption() }
+
+// OnboardingSansCaption says "Plain and open."
+// in the language of msgs.
+//
+// Onboarding: describes the sans typeface.
+func (msgs Messages) OnboardingSansCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingSansCaption", nil)
+}
+
+// OnboardingSample says "The tide turned slowly, and she wrote it down."
+// in the language the app shows.
+//
+// Onboarding: a line of prose set in each theme and typeface as a sample.
+func OnboardingSample() string { return In(i18n.Locale()).OnboardingSample() }
+
+// OnboardingSample says "The tide turned slowly, and she wrote it down."
+// in the language of msgs.
+//
+// Onboarding: a line of prose set in each theme and typeface as a sample.
+func (msgs Messages) OnboardingSample() string {
+	return Catalog.Format(msgs.locale, "onboardingSample", nil)
+}
+
+// OnboardingMacEyebrow says "On the Mac"
+// in the language the app shows.
+//
+// Onboarding, macOS page: a small line above the headline.
+func OnboardingMacEyebrow() string { return In(i18n.Locale()).OnboardingMacEyebrow() }
+
+// OnboardingMacEyebrow says "On the Mac"
+// in the language of msgs.
+//
+// Onboarding, macOS page: a small line above the headline.
+func (msgs Messages) OnboardingMacEyebrow() string {
+	return Catalog.Format(msgs.locale, "onboardingMacEyebrow", nil)
+}
+
+// OnboardingMacHeadline says "Menus"
+// in the language the app shows.
+//
+// Onboarding, macOS page: the headline; the choice of context menus.
+func OnboardingMacHeadline() string { return In(i18n.Locale()).OnboardingMacHeadline() }
+
+// OnboardingMacHeadline says "Menus"
+// in the language of msgs.
+//
+// Onboarding, macOS page: the headline; the choice of context menus.
+func (msgs Messages) OnboardingMacHeadline() string {
+	return Catalog.Format(msgs.locale, "onboardingMacHeadline", nil)
+}
+
+// OnboardingMacBody says "Right-click menus can be the Mac's own, or drawn by Neverland to match the page. Right-click anywhere here to try the…"
+// in the language the app shows.
+//
+// Onboarding, macOS page: the choice of menus, and how to try one.
+func OnboardingMacBody() string { return In(i18n.Locale()).OnboardingMacBody() }
+
+// OnboardingMacBody says "Right-click menus can be the Mac's own, or drawn by Neverland to match the page. Right-click anywhere here to try the…"
+// in the language of msgs.
+//
+// Onboarding, macOS page: the choice of menus, and how to try one.
+func (msgs Messages) OnboardingMacBody() string {
+	return Catalog.Format(msgs.locale, "onboardingMacBody", nil)
+}
+
+// OnboardingMenusNativeCaption says "As macOS draws them."
+// in the language the app shows.
+//
+// Onboarding: explains the Native menus.
+func OnboardingMenusNativeCaption() string { return In(i18n.Locale()).OnboardingMenusNativeCaption() }
+
+// OnboardingMenusNativeCaption says "As macOS draws them."
+// in the language of msgs.
+//
+// Onboarding: explains the Native menus.
+func (msgs Messages) OnboardingMenusNativeCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingMenusNativeCaption", nil)
+}
+
+// OnboardingMenusNeverlandCaption says "Drawn to match the page."
+// in the language the app shows.
+//
+// Onboarding: explains Neverland's own menus.
+func OnboardingMenusNeverlandCaption() string {
+	return In(i18n.Locale()).OnboardingMenusNeverlandCaption()
+}
+
+// OnboardingMenusNeverlandCaption says "Drawn to match the page."
+// in the language of msgs.
+//
+// Onboarding: explains Neverland's own menus.
+func (msgs Messages) OnboardingMenusNeverlandCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingMenusNeverlandCaption", nil)
+}
+
+// OnboardingDoneEyebrow says "Ready"
+// in the language the app shows.
+//
+// Onboarding, last page: a small line above the headline.
+func OnboardingDoneEyebrow() string { return In(i18n.Locale()).OnboardingDoneEyebrow() }
+
+// OnboardingDoneEyebrow says "Ready"
+// in the language of msgs.
+//
+// Onboarding, last page: a small line above the headline.
+func (msgs Messages) OnboardingDoneEyebrow() string {
+	return Catalog.Format(msgs.locale, "onboardingDoneEyebrow", nil)
+}
+
+// OnboardingDoneHeadline says "The first page is waiting."
+// in the language the app shows.
+//
+// Onboarding, last page: the headline.
+func OnboardingDoneHeadline() string { return In(i18n.Locale()).OnboardingDoneHeadline() }
+
+// OnboardingDoneHeadline says "The first page is waiting."
+// in the language of msgs.
+//
+// Onboarding, last page: the headline.
+func (msgs Messages) OnboardingDoneHeadline() string {
+	return Catalog.Format(msgs.locale, "onboardingDoneHeadline", nil)
+}
+
+// OnboardingDoneBody says "Here is what you chose. All of it can be changed later in Settings."
+// in the language the app shows.
+//
+// Onboarding, last page: introduces the summary of choices.
+func OnboardingDoneBody() string { return In(i18n.Locale()).OnboardingDoneBody() }
+
+// OnboardingDoneBody says "Here is what you chose. All of it can be changed later in Settings."
+// in the language of msgs.
+//
+// Onboarding, last page: introduces the summary of choices.
+func (msgs Messages) OnboardingDoneBody() string {
+	return Catalog.Format(msgs.locale, "onboardingDoneBody", nil)
+}
+
+// OnboardingStart says "Start Writing"
+// in the language the app shows.
+//
+// Onboarding, last page: the button that opens the notebook.
+func OnboardingStart() string { return In(i18n.Locale()).OnboardingStart() }
+
+// OnboardingStart says "Start Writing"
+// in the language of msgs.
+//
+// Onboarding, last page: the button that opens the notebook.
+func (msgs Messages) OnboardingStart() string {
+	return Catalog.Format(msgs.locale, "onboardingStart", nil)
+}

@@ -29,61 +29,112 @@ func Run() error {
 	if err := theme.RegisterFonts(); err != nil {
 		return err
 	}
-	documents, _ := mygo.App.Path(mygo.PathDocuments)
-	root, err := storage.Root(documents)
+	root, chosen, err := notebookRoot(userData)
 	if err != nil {
 		return err
 	}
+	// The app opens on the notebook once its folder is chosen: at once on
+	// every launch after the first, and on the first as its walkthrough
+	// ends. Whatever is pending is written before the app goes, and once
+	// more should the loop stop some other way.
+	var app *AppState
+	closeApp := func() {
+		if app == nil {
+			return
+		}
+		if err := app.Close(); err != nil {
+			log.Printf("saving the notebook: %v", err)
+		}
+	}
+	defer closeApp()
+	mygo.App.OnWillQuit(func(*mygo.QuitEvent) { closeApp() })
+	if chosen {
+		if app, err = openApp(root, userData); err != nil {
+			return err
+		}
+		mygo.Theme.SetSource(themeSource(app.Product.Appearance.Appearance))
+	}
+	mygo.App.WhenReady(func() {
+		if app != nil {
+			app.start()
+			return
+		}
+		welcome(root, userData, func(opened *AppState) { app = opened })
+	})
+	return mygo.App.Run()
+}
+
+// notebookRoot is the notebook's folder and whether it has been chosen:
+// NEVERLAND_HOME's, or the one recorded on the first launch; else the
+// folder the walkthrough offers, not chosen yet. A record that cannot be
+// read is set up again.
+func notebookRoot(userData string) (string, bool, error) {
+	if os.Getenv(storage.HomeVariable) != "" {
+		root, err := storage.Root("")
+		return root, true, err
+	}
+	root, ok, err := storage.ChosenRoot(userData)
+	if err != nil {
+		log.Printf("reading where the notebook is: %v", err)
+	}
+	if ok {
+		return root, true, nil
+	}
+	base, _ := notebookBase(runtime.GOOS)
+	root, err = storage.Root(base)
+	return root, false, err
+}
+
+// openApp opens the notebook in root, with the fonts kept in userData.
+func openApp(root, userData string) (*AppState, error) {
 	store, err := storage.Open(root)
 	if err != nil {
-		return fmt.Errorf("opening the notebook in %s: %w", root, err)
+		return nil, fmt.Errorf("opening the notebook in %s: %w", root, err)
 	}
 	app, err := OpenAppState(store)
 	if err != nil {
 		_ = store.Close()
-		return err
+		return nil, err
 	}
 	if dir, err := fonts.Dir(userData); err == nil {
 		app.useFonts(openFonts(dir))
 	}
-	// Whatever is pending is written before the app goes, and once more
-	// should the loop stop some other way.
-	defer func() {
-		if err := app.Close(); err != nil {
-			log.Printf("saving the notebook: %v", err)
-		}
-	}()
-	mygo.App.OnWillQuit(func(*mygo.QuitEvent) {
-		if err := app.Close(); err != nil {
-			log.Printf("saving the notebook: %v", err)
-		}
-	})
-	mygo.Theme.SetSource(themeSource(app.Product.Appearance.Appearance))
+	return app, nil
+}
 
-	mygo.App.WhenReady(func() {
-		app.language = mygo.App.ChosenLocale()
-		app.followSystem()
-		mygo.App.OnLocaleChanged(func(string) { app.localeChanged() })
-		mygo.App.SetMenu(app.MainMenu())
-		app.Notices.SetWake(app.wake)
-		if app.finder != nil {
-			app.finder.SetWake(app.wake)
-		}
-		app.showMain()
-		mygo.App.OnSecondInstance(func([]string, string) { app.showMain() })
-		// On macOS Neverland keeps running with its window closed, as Mac
-		// apps do, and opens it again from the Dock; elsewhere closing it
-		// quits.
-		if runtime.GOOS == "darwin" {
-			mygo.App.OnWindowAllClosed(func() {})
-			mygo.App.OnActivate(func(visible bool) {
-				if !visible {
-					app.showMain()
-				}
-			})
-		}
-	})
-	return mygo.App.Run()
+// start shows the main window, once the app is ready, and follows the
+// system from then on.
+func (a *AppState) start() {
+	a.language = mygo.App.ChosenLocale()
+	a.followSystem()
+	mygo.App.OnLocaleChanged(func(string) { a.localeChanged() })
+	mygo.App.SetMenu(a.MainMenu())
+	a.Notices.SetWake(a.wake)
+	if a.finder != nil {
+		a.finder.SetWake(a.wake)
+	}
+	a.showMain()
+	mygo.App.OnSecondInstance(func([]string, string) { a.showMain() })
+	// On macOS Neverland keeps running with its window closed, as Mac
+	// apps do, and opens it again from the Dock; elsewhere closing it
+	// quits.
+	if runtime.GOOS == "darwin" {
+		mygo.App.OnWindowAllClosed(func() {})
+		mygo.App.OnActivate(func(visible bool) {
+			if !visible {
+				a.showMain()
+			}
+		})
+	}
+}
+
+// notebookBase returns the parent directory holding Neverland's notebook: the
+// XDG data folder on Linux, and the user's Documents directory elsewhere.
+func notebookBase(goos string) (string, error) {
+	if goos == "linux" {
+		return storage.XDGDataHome()
+	}
+	return mygo.App.Path(mygo.PathDocuments)
 }
 
 // showMain brings the main window forward, opening it again when it was
