@@ -36,10 +36,8 @@ jobs:
         run: |
           raw="${{ inputs.version }}"
           if [ -z "$raw" ]; then
-            if [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
-              raw="${GITHUB_REF#refs/tags/v}"
-            elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
-              raw="${GITHUB_REF#refs/tags/}"
+            if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+              raw="$GITHUB_REF_NAME"
             else
               raw="$(jq -r '.version' mygo.json)"
             fi
@@ -168,30 +166,23 @@ jobs:
         shell: bash
         run: go tool release prepare-draft -in artifacts -out stage
 
-      - name: generate release notes
+      - name: generate notes and create draft release
         shell: bash
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${{ needs.version.outputs.tag }}"
-          from_tag="$(git tag --sort=-creatordate | grep -vxF "$tag" | head -n 1 || true)"
-          notes_args=(--output release-notes.md --to "$GITHUB_SHA")
-          if [ -n "$from_tag" ]; then
-            notes_args+=(--from "$from_tag")
+          to="$GITHUB_SHA"
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            to="$GITHUB_REF_NAME"
           fi
-          if ! npx --yes changelogithub "${notes_args[@]}" || [ ! -s release-notes.md ]; then
-            echo "changelogithub skipped or empty; falling back to github generated notes"
+          if ! npx --yes changelogithub --no-emoji --to "$to" --output release-notes.md || [ ! -s release-notes.md ]; then
+            echo "changelogithub failed or empty; falling back to github generated notes"
             if ! gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" -f tag_name="$tag" -q .body > release-notes.md || [ ! -s release-notes.md ]; then
               printf "Release %s\n" "$tag" > release-notes.md
             fi
           fi
-
-      - name: publish draft release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tag="${{ needs.version.outputs.tag }}"
           pre_flag=""
           if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then
             pre_flag="--prerelease"
