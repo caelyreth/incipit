@@ -169,6 +169,15 @@ func isMutableR2File(name string) bool {
 	return name == checksumsName || name == "install.sh" || name == "install.ps1" || name == "PKGBUILD"
 }
 
+type signedManifestEnvelope struct {
+	V          int    `json:"v"`
+	Payload    []byte `json:"payload"`
+	Signatures []struct {
+		KeyID string `json:"kid"`
+		Sig   string `json:"sig"`
+	} `json:"signatures"`
+}
+
 type manifestMeta struct {
 	Version string `json:"version"`
 	Target  string `json:"target"`
@@ -369,9 +378,16 @@ func readManifestMeta(path, wantVer string) (manifestMeta, error) {
 	if err != nil {
 		return manifestMeta{}, err
 	}
-	var m manifestMeta
-	if err := json.Unmarshal(raw, &m); err != nil {
+	var env signedManifestEnvelope
+	if err := json.Unmarshal(raw, &env); err != nil {
 		return manifestMeta{}, err
+	}
+	if env.V == 0 || len(env.Payload) == 0 || len(env.Signatures) == 0 {
+		return manifestMeta{}, errors.New("manifest is not a valid signed envelope (missing v, payload, or signatures)")
+	}
+	var m manifestMeta
+	if err := json.Unmarshal(env.Payload, &m); err != nil {
+		return manifestMeta{}, fmt.Errorf("decoding signed manifest payload: %w", err)
 	}
 	if m.Version == "" || m.Target == "" || m.Channel == "" {
 		return manifestMeta{}, errors.New("manifest missing version, target, or channel")

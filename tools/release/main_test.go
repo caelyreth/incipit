@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -94,7 +96,8 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 	dmg := []byte("dmg bytes")
 	delta := []byte("delta bytes")
 	history := []byte(`{"target":"darwin-universal","channel":"beta","history":[]}`)
-	manifest := []byte(`{"version":"1.0.0-alpha.1","target":"darwin-universal","channel":"beta"}`)
+	payload := base64.StdEncoding.EncodeToString([]byte(`{"version":"1.0.0-alpha.1","target":"darwin-universal","channel":"beta"}`))
+	manifest := []byte(fmt.Sprintf(`{"v":2,"payload":%q,"signatures":[{"kid":"k1","sig":"c2ln"},{"kid":"k2","sig":"c2lnMg=="}]}`, payload))
 
 	for name, data := range map[string][]byte{
 		"neverland-1.0.0-alpha.1-universal.dmg":               dmg,
