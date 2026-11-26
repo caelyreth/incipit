@@ -50,9 +50,11 @@ jobs:
           if [[ "$ver" == *-* ]]; then
             pre="true"
           fi
-          echo "version=$ver" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$pre" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$ver"
+            echo "tag=$tag"
+            echo "prerelease=$pre"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: build ${{ matrix.name }}
@@ -91,13 +93,17 @@ jobs:
         run: go tool fetch
 
       - name: import macos signing identity
-        if: matrix.os == 'macos-latest' && secrets.APPLE_CERTIFICATE_P12 != ''
+        if: matrix.os == 'macos-latest'
         shell: bash
         env:
           APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || github.run_id }}
         run: |
+          if [ -z "$APPLE_CERTIFICATE_P12" ]; then
+            echo "APPLE_CERTIFICATE_P12 not set; skipping keychain import"
+            exit 0
+          fi
           kc="$RUNNER_TEMP/neverland-build.keychain-db"
           echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$kc"
