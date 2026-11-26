@@ -9,34 +9,37 @@ import (
 	"github.com/egoist/mygo/ui/shader"
 )
 
-//go:embed halftone.kage
-var halftoneSource string
+//go:embed paper.kage
+var paperSource string
 
-// halftone is the ground's shader and its uniforms, found once.
-var halftone = sync.OnceValue(func() *groundShader {
-	s := shader.MustCompile(halftoneSource)
-	return &groundShader{s: s, ground: s.Uniform("Ground"), dot: s.Uniform("Dot"), cell: s.Uniform("Cell"), drift: s.Uniform("Drift")}
+// paper is the ground's shader and its uniforms, found once.
+var paper = sync.OnceValue(func() *paperShader {
+	s := shader.MustCompile(paperSource)
+	return &paperShader{s: s, ground: s.Uniform("Ground"), line: s.Uniform("Line"), wash: s.Uniform("Wash"),
+		light: s.Uniform("Light"), drift: s.Uniform("Drift")}
 })
 
-type groundShader struct {
-	s                        *shader.Shader
-	ground, dot, cell, drift shader.Uniform
+type paperShader struct {
+	s                                *shader.Shader
+	ground, line, wash, light, drift shader.Uniform
 }
 
-// paintGround fills r with the halftone ground in semantic's colors: the
-// window's background, its dots in Halo's ink. drift is how far the pages
-// have turned. It moves nothing of its own: it is drawn again only in the
-// frames something else asks for, a page turning or a theme changing.
+// paintGround fills r with laid paper in semantic's colors, read each
+// frame: the window's background, its lines in the muted ink, its bleed
+// Halo's. drift is how far the pages have turned. It moves nothing of its
+// own: it is drawn again only in the frames something else asks for, a
+// page turning or a theme changing.
 func paintGround(p *ui.Painter, r ui.Rect, semantic theme.Theme, drift float32) {
-	g := halftone()
-	dot := semantic.Accent.Foreground.Alpha(0.2)
+	g := paper()
+	line, wash, light := semantic.Text.Muted.Alpha(0.06), semantic.Accent.Muted.Alpha(0.55), float32(0.05)
 	if semantic.Appearance == theme.Daybreak {
-		dot = semantic.Accent.Foreground.Alpha(0.24)
+		line, wash, light = semantic.Text.Muted.Alpha(0.075), semantic.Accent.Muted.Alpha(0.8), 0.03
 	}
 	v := g.s.NewValues()
 	v.Color(g.ground, semantic.Surface.Background)
-	v.Color(g.dot, dot)
-	v.Float(g.cell, 8)
+	v.Color(g.line, line)
+	v.Color(g.wash, wash)
+	v.Float(g.light, light)
 	v.Float(g.drift, drift)
 	g.s.Draw(p, r, shader.Options{Values: v})
 }

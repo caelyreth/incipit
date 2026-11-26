@@ -34,7 +34,7 @@ func newMetrics(c *ui.Context) metrics {
 	return metrics{
 		scale: scale, k: k,
 		top: 52 * k, pad: 56 * k, gap: 72 * k, measure: 1080 * k,
-		words: 260 * k, display: 34 * k, wordmark: 60 * k,
+		words: 260 * k, display: 34 * k, wordmark: 56 * k,
 		radius: theme.DefaultControls.Scaled(scale).PanelRadius,
 	}
 }
@@ -81,9 +81,9 @@ func (s *State) welcome(c *ui.Context, semantic theme.Theme, m metrics, animate 
 		mark.Draw(func(p *ui.Painter, r ui.Rect) {
 			s.mark.Paint(p, r, semantic.Text.Heading, drawn)
 		})
-		s.enter(c, ui.Text(c, "Neverland").Font(theme.ProseFontFamily).FontSize(m.wordmark).FontWeight(500).
-			LetterSpacing(-0.02*m.wordmark).TextColor(semantic.Text.Heading).Role(ui.RoleHeading).
-			Padding(28*m.k, 0, 0, 0), 1, animate)
+		s.enter(c, ui.Box(c).Padding(28*m.k, 0, 0, 0).Children(func() {
+			components.Wordmark(c, "wordmark", semantic, m.wordmark).Role(ui.RoleHeading).Label("Neverland")
+		}), 1, animate)
 		line := ui.Text(c, locales.OnboardingWelcomeHeadline()).Font(theme.ProseFontFamily).Italic().FontSize(19*m.k).
 			TextColor(semantic.Text.Muted).Padding(6*m.k, 0, 0, 0)
 		underline := s.inkAfter(now, 650*time.Millisecond, 500*time.Millisecond, animate)
