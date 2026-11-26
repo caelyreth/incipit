@@ -11397,46 +11397,18 @@ func (msgs Messages) OnboardingStep(step string, count string) string {
 	return Catalog.Format(msgs.locale, "onboardingStep", map[string]any{"step": step, "count": count})
 }
 
-// OnboardingWelcomeEyebrow says "A notebook for writing"
-// in the language the app shows.
-//
-// Onboarding, first page: a small line above the headline.
-func OnboardingWelcomeEyebrow() string { return In(i18n.Locale()).OnboardingWelcomeEyebrow() }
-
-// OnboardingWelcomeEyebrow says "A notebook for writing"
-// in the language of msgs.
-//
-// Onboarding, first page: a small line above the headline.
-func (msgs Messages) OnboardingWelcomeEyebrow() string {
-	return Catalog.Format(msgs.locale, "onboardingWelcomeEyebrow", nil)
-}
-
 // OnboardingWelcomeHeadline says "A quiet place to write."
 // in the language the app shows.
 //
-// Onboarding, first page: the headline.
+// Onboarding, cover: the line under the app's name.
 func OnboardingWelcomeHeadline() string { return In(i18n.Locale()).OnboardingWelcomeHeadline() }
 
 // OnboardingWelcomeHeadline says "A quiet place to write."
 // in the language of msgs.
 //
-// Onboarding, first page: the headline.
+// Onboarding, cover: the line under the app's name.
 func (msgs Messages) OnboardingWelcomeHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingWelcomeHeadline", nil)
-}
-
-// OnboardingWelcomeBody says "A few choices before the first page. Each one shows what it changes, and any of them can be changed later in Settings."
-// in the language the app shows.
-//
-// Onboarding, first page: what the walkthrough is.
-func OnboardingWelcomeBody() string { return In(i18n.Locale()).OnboardingWelcomeBody() }
-
-// OnboardingWelcomeBody says "A few choices before the first page. Each one shows what it changes, and any of them can be changed later in Settings."
-// in the language of msgs.
-//
-// Onboarding, first page: what the walkthrough is.
-func (msgs Messages) OnboardingWelcomeBody() string {
-	return Catalog.Format(msgs.locale, "onboardingWelcomeBody", nil)
 }
 
 // OnboardingBegin says "Begin"
@@ -11467,20 +11439,6 @@ func (msgs Messages) OnboardingContinue() string {
 	return Catalog.Format(msgs.locale, "onboardingContinue", nil)
 }
 
-// OnboardingNotebookEyebrow says "Where it lives"
-// in the language the app shows.
-//
-// Onboarding, notebook page: a small line above the headline.
-func OnboardingNotebookEyebrow() string { return In(i18n.Locale()).OnboardingNotebookEyebrow() }
-
-// OnboardingNotebookEyebrow says "Where it lives"
-// in the language of msgs.
-//
-// Onboarding, notebook page: a small line above the headline.
-func (msgs Messages) OnboardingNotebookEyebrow() string {
-	return Catalog.Format(msgs.locale, "onboardingNotebookEyebrow", nil)
-}
-
 // OnboardingNotebookHeadline says "Your notebook"
 // in the language the app shows.
 //
@@ -11495,13 +11453,13 @@ func (msgs Messages) OnboardingNotebookHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingNotebookHeadline", nil)
 }
 
-// OnboardingNotebookBody says "Every sheet you write is kept in one notebook, a folder on this computer. It is yours to back up, sync or move."
+// OnboardingNotebookBody says "A folder on this computer, yours to back up, sync or move."
 // in the language the app shows.
 //
 // Onboarding, notebook page: what the notebook is.
 func OnboardingNotebookBody() string { return In(i18n.Locale()).OnboardingNotebookBody() }
 
-// OnboardingNotebookBody says "Every sheet you write is kept in one notebook, a folder on this computer. It is yours to back up, sync or move."
+// OnboardingNotebookBody says "A folder on this computer, yours to back up, sync or move."
 // in the language of msgs.
 //
 // Onboarding, notebook page: what the notebook is.
@@ -11583,46 +11541,18 @@ func (msgs Messages) OnboardingNotebookFailed() string {
 	return Catalog.Format(msgs.locale, "onboardingNotebookFailed", nil)
 }
 
-// OnboardingWritingEyebrow says "How it writes"
-// in the language the app shows.
-//
-// Onboarding, writing page: a small line above the headline.
-func OnboardingWritingEyebrow() string { return In(i18n.Locale()).OnboardingWritingEyebrow() }
-
-// OnboardingWritingEyebrow says "How it writes"
-// in the language of msgs.
-//
-// Onboarding, writing page: a small line above the headline.
-func (msgs Messages) OnboardingWritingEyebrow() string {
-	return Catalog.Format(msgs.locale, "onboardingWritingEyebrow", nil)
-}
-
-// OnboardingWritingHeadline says "Marks and manners"
+// OnboardingWritingHeadline says "How it writes"
 // in the language the app shows.
 //
 // Onboarding, writing page: the headline.
 func OnboardingWritingHeadline() string { return In(i18n.Locale()).OnboardingWritingHeadline() }
 
-// OnboardingWritingHeadline says "Marks and manners"
+// OnboardingWritingHeadline says "How it writes"
 // in the language of msgs.
 //
 // Onboarding, writing page: the headline.
 func (msgs Messages) OnboardingWritingHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingWritingHeadline", nil)
-}
-
-// OnboardingWritingBody says "Neverland formats as you type. Each answer below writes its own line; pick the one that reads right to you."
-// in the language the app shows.
-//
-// Onboarding, writing page: how to choose.
-func OnboardingWritingBody() string { return In(i18n.Locale()).OnboardingWritingBody() }
-
-// OnboardingWritingBody says "Neverland formats as you type. Each answer below writes its own line; pick the one that reads right to you."
-// in the language of msgs.
-//
-// Onboarding, writing page: how to choose.
-func (msgs Messages) OnboardingWritingBody() string {
-	return Catalog.Format(msgs.locale, "onboardingWritingBody", nil)
 }
 
 // OnboardingMarks says "Formatting marks"
@@ -11841,46 +11771,18 @@ func (msgs Messages) OnboardingSymbolsOffCaption() string {
 	return Catalog.Format(msgs.locale, "onboardingSymbolsOffCaption", nil)
 }
 
-// OnboardingLookEyebrow says "How it looks"
-// in the language the app shows.
-//
-// Onboarding, appearance page: a small line above the headline.
-func OnboardingLookEyebrow() string { return In(i18n.Locale()).OnboardingLookEyebrow() }
-
-// OnboardingLookEyebrow says "How it looks"
-// in the language of msgs.
-//
-// Onboarding, appearance page: a small line above the headline.
-func (msgs Messages) OnboardingLookEyebrow() string {
-	return Catalog.Format(msgs.locale, "onboardingLookEyebrow", nil)
-}
-
-// OnboardingLookHeadline says "The page"
+// OnboardingLookHeadline says "How it looks"
 // in the language the app shows.
 //
 // Onboarding, appearance page: the headline.
 func OnboardingLookHeadline() string { return In(i18n.Locale()).OnboardingLookHeadline() }
 
-// OnboardingLookHeadline says "The page"
+// OnboardingLookHeadline says "How it looks"
 // in the language of msgs.
 //
 // Onboarding, appearance page: the headline.
 func (msgs Messages) OnboardingLookHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingLookHeadline", nil)
-}
-
-// OnboardingLookBody says "Starfield for the night, Daybreak for the day. This window turns as you choose."
-// in the language the app shows.
-//
-// Onboarding, appearance page: the choice of theme and typeface.
-func OnboardingLookBody() string { return In(i18n.Locale()).OnboardingLookBody() }
-
-// OnboardingLookBody says "Starfield for the night, Daybreak for the day. This window turns as you choose."
-// in the language of msgs.
-//
-// Onboarding, appearance page: the choice of theme and typeface.
-func (msgs Messages) OnboardingLookBody() string {
-	return Catalog.Format(msgs.locale, "onboardingLookBody", nil)
 }
 
 // OnboardingStarfieldCaption says "Pale ink on night."
@@ -11967,20 +11869,6 @@ func (msgs Messages) OnboardingSample() string {
 	return Catalog.Format(msgs.locale, "onboardingSample", nil)
 }
 
-// OnboardingMacEyebrow says "On the Mac"
-// in the language the app shows.
-//
-// Onboarding, macOS page: a small line above the headline.
-func OnboardingMacEyebrow() string { return In(i18n.Locale()).OnboardingMacEyebrow() }
-
-// OnboardingMacEyebrow says "On the Mac"
-// in the language of msgs.
-//
-// Onboarding, macOS page: a small line above the headline.
-func (msgs Messages) OnboardingMacEyebrow() string {
-	return Catalog.Format(msgs.locale, "onboardingMacEyebrow", nil)
-}
-
 // OnboardingMacHeadline says "Menus"
 // in the language the app shows.
 //
@@ -11995,16 +11883,16 @@ func (msgs Messages) OnboardingMacHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingMacHeadline", nil)
 }
 
-// OnboardingMacBody says "Right-click menus can be the Mac's own, or drawn by Neverland to match the page. Right-click anywhere here to try the…"
+// OnboardingMacBody says "Right-click here to try the ones chosen."
 // in the language the app shows.
 //
-// Onboarding, macOS page: the choice of menus, and how to try one.
+// Onboarding, macOS page: how to try the menus chosen.
 func OnboardingMacBody() string { return In(i18n.Locale()).OnboardingMacBody() }
 
-// OnboardingMacBody says "Right-click menus can be the Mac's own, or drawn by Neverland to match the page. Right-click anywhere here to try the…"
+// OnboardingMacBody says "Right-click here to try the ones chosen."
 // in the language of msgs.
 //
-// Onboarding, macOS page: the choice of menus, and how to try one.
+// Onboarding, macOS page: how to try the menus chosen.
 func (msgs Messages) OnboardingMacBody() string {
 	return Catalog.Format(msgs.locale, "onboardingMacBody", nil)
 }
@@ -12039,46 +11927,18 @@ func (msgs Messages) OnboardingMenusNeverlandCaption() string {
 	return Catalog.Format(msgs.locale, "onboardingMenusNeverlandCaption", nil)
 }
 
-// OnboardingDoneEyebrow says "Ready"
+// OnboardingDoneHeadline says "Ready to write."
 // in the language the app shows.
 //
-// Onboarding, last page: a small line above the headline.
-func OnboardingDoneEyebrow() string { return In(i18n.Locale()).OnboardingDoneEyebrow() }
-
-// OnboardingDoneEyebrow says "Ready"
-// in the language of msgs.
-//
-// Onboarding, last page: a small line above the headline.
-func (msgs Messages) OnboardingDoneEyebrow() string {
-	return Catalog.Format(msgs.locale, "onboardingDoneEyebrow", nil)
-}
-
-// OnboardingDoneHeadline says "The first page is waiting."
-// in the language the app shows.
-//
-// Onboarding, last page: the headline.
+// Onboarding, last page: the headline, over the summary of choices.
 func OnboardingDoneHeadline() string { return In(i18n.Locale()).OnboardingDoneHeadline() }
 
-// OnboardingDoneHeadline says "The first page is waiting."
+// OnboardingDoneHeadline says "Ready to write."
 // in the language of msgs.
 //
-// Onboarding, last page: the headline.
+// Onboarding, last page: the headline, over the summary of choices.
 func (msgs Messages) OnboardingDoneHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingDoneHeadline", nil)
-}
-
-// OnboardingDoneBody says "Here is what you chose. All of it can be changed later in Settings."
-// in the language the app shows.
-//
-// Onboarding, last page: introduces the summary of choices.
-func OnboardingDoneBody() string { return In(i18n.Locale()).OnboardingDoneBody() }
-
-// OnboardingDoneBody says "Here is what you chose. All of it can be changed later in Settings."
-// in the language of msgs.
-//
-// Onboarding, last page: introduces the summary of choices.
-func (msgs Messages) OnboardingDoneBody() string {
-	return Catalog.Format(msgs.locale, "onboardingDoneBody", nil)
 }
 
 // OnboardingStart says "Start Writing"

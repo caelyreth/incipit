@@ -1,0 +1,35 @@
+// The brand mark's stamp: its coverage (image0) in Ink, shown where the
+// ink has reached as it soaks into the paper, its front sweeping from the
+// lower left up across the mark, ragged with the paper's fibres.
+
+package main
+
+// Ink is the mark's color; Drawn how far it has spread, from 0 to 1.
+var Ink vec4
+var Drawn float
+
+func hash(p vec2) float {
+	p = fract(p * vec2(123.34, 456.21))
+	p += dot(p, p+45.32)
+	return fract(p.x * p.y)
+}
+
+func noise(p vec2) float {
+	i := floor(p)
+	f := fract(p)
+	u := f * f * (3 - 2*f)
+	return mix(mix(hash(i), hash(i+vec2(1, 0)), u.x), mix(hash(i+vec2(0, 1)), hash(i+vec2(1, 1)), u.x), u.y)
+}
+
+func Fragment(dst vec4, pos vec2) vec4 {
+	uv := pos / rectSize()
+	cover := image0Sample(uv * image0Size()).a
+	reached := 1.0
+	if Drawn < 1 {
+		fibre := 0.65*noise(uv*6) + 0.35*noise(uv*17+3.1)
+		front := Drawn*1.6 - 0.3 - (0.55*uv.x + 0.45*(1-uv.y) + (fibre-0.5)*0.4)
+		reached = smoothstep(0, 0.07, front)
+	}
+	a := cover * reached * Ink.a
+	return vec4(Ink.rgb*a, a)
+}

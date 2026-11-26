@@ -1,0 +1,55 @@
+// The ground of the walkthrough: a halftone screen, as a print's, its dots
+// in the accent's ink swelling where a few soft blooms of tone gather and
+// shrinking to nothing where the words stand. The tone is a handful of
+// gaussians, so each pixel costs a few operations; the blooms move only
+// as the pages turn (Drift).
+
+package main
+
+// Ground is the paper, Dot the ink (its alpha how strongly), Cell the
+// screen's pitch in DIPs, Drift how far the pages have turned.
+var Ground vec4
+var Dot vec4
+var Cell float
+var Drift float
+
+func hash(p vec2) float {
+	p = fract(p * vec2(123.34, 456.21))
+	p += dot(p, p+45.32)
+	return fract(p.x * p.y)
+}
+
+func bloom(p, at vec2, r float) float {
+	d := p - at
+	return exp(-dot(d, d) / (r * r))
+}
+
+// tone is how dark the screen is at p, in heights of the window, from 0
+// to 1.
+func tone(p vec2, aspect float) float {
+	t := 0.85*bloom(p, vec2(aspect*0.86-Drift*0.07, 0.22+0.05*sin(Drift*1.3)), 0.46)
+	t += 0.6 * bloom(p, vec2(aspect*0.1+Drift*0.06, 1.02), 0.4)
+	t += 0.45 * bloom(p, vec2(aspect*0.55+0.05*cos(Drift), 1.12-Drift*0.02), 0.32)
+	// The words stand on the left: the screen clears under them.
+	t *= mix(0.15, 1, smoothstep(0.15, 0.62, p.x/aspect))
+	// Light tone thins to no dot at all: the screen gathers in its blooms.
+	return smoothstep(0.14, 1, t)
+}
+
+func Fragment(dst vec4, pos vec2) vec4 {
+	size := rectSize()
+	aspect := size.x / size.y
+	// The screen turns 30°, as a print's does, so no row lines up with
+	// the window's edges.
+	c, s := 0.8660254, 0.5
+	q := vec2(c*pos.x+s*pos.y, -s*pos.x+c*pos.y)
+	cell := floor(q / Cell)
+	center := (cell + 0.5) * Cell
+	at := vec2(c*center.x-s*center.y, s*center.x+c*center.y)
+	v := tone(at/size.y, aspect)
+	r := 0.5 * Cell * sqrt(v) * (0.92 + 0.16*hash(cell))
+	aa := 0.7 / pixelScale()
+	ink := 1 - smoothstep(r-aa, r+aa, length(q-center))
+	col := mix(Ground.rgb, Dot.rgb, ink*Dot.a)
+	return vec4(col, 1)
+}

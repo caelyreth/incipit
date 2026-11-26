@@ -85,8 +85,7 @@ type State struct {
 	// clock is the time of the frame last drawn, which actions turn by.
 	clock  time.Time
 	colors theme.Transition
-	// tide is the ground's canvas, mark the brand's.
-	tide   tide
+	// mark is the brand's, as rasterized.
 	mark   components.BrandMark
 	placed bool
 }
@@ -244,7 +243,7 @@ func proseFamily(style fonts.Style) string {
 	return theme.ProseFontFamily
 }
 
-// View draws the walkthrough: the tide behind, the page in front, the way
+// View draws the walkthrough: the halftone ground behind, the page in front, the way
 // on at its foot.
 func (s *State) View(c *ui.Context) {
 	now := c.Now()
@@ -267,36 +266,27 @@ func (s *State) View(c *ui.Context) {
 	}
 	c.SetTheme(settings.MyGoThemeFor(semantic))
 	components.Menus(c, semantic, settings.DrawnMenus)
-	s.keys(c, now)
 	m := newMetrics(c)
 
 	root := ui.Box(c).Key("onboarding").WidthPercent(100).HeightPercent(100).Clip()
 	drift := float32(s.index(s.at))
 	if animate {
-		drift = components.Follow(root, "drift", drift, 2400*time.Millisecond)
+		drift = components.Follow(root, "drift", drift, components.MotionScene*2)
 	}
-	root.Draw(func(p *ui.Painter, r ui.Rect) {
-		s.tide.paint(p, r, semantic, now.Sub(s.started).Seconds(), drift, animate)
-	})
+	root.Draw(func(p *ui.Painter, r ui.Rect) { paintGround(p, r, semantic, drift) })
 	root.Children(func() {
-		ui.Column(c).WidthPercent(100).HeightPercent(100).Padding(m.top, m.pad, m.pad, m.pad).Children(func() {
-			body := ui.Column(c).Key(int(s.at)).WidthPercent(100).Grow(1).MinHeight(0).Justify(ui.Center)
-			body.Children(func() { s.pageView(c, semantic, m, animate, now) })
-			s.foot(c, semantic, m, animate, now)
+		// The page stands in a measure of its own, centered, however wide
+		// the window: room around it, never stretched thin.
+		ui.Column(c).WidthPercent(100).HeightPercent(100).Padding(m.top, m.pad, m.pad, m.pad).AlignItems(ui.Center).Children(func() {
+			ui.Column(c).WidthPercent(100).MaxWidth(m.measure).Grow(1).MinHeight(0).Children(func() {
+				body := ui.Column(c).Key(int(s.at)).WidthPercent(100).Grow(1).MinHeight(0).Justify(ui.Center)
+				body.Children(func() { s.pageView(c, semantic, m, animate, now) })
+				s.foot(c, semantic, m, animate)
+			})
 		})
 	})
 	if s.at == pageMac {
 		root.ContextMenu(tryMenu)
-	}
-}
-
-// keys answer the window's keys: Return goes on, Escape back.
-func (s *State) keys(c *ui.Context, now time.Time) {
-	if c.Shortcut(0, ui.KeyEnter) {
-		s.next(now)
-	}
-	if c.Shortcut(0, ui.KeyEscape) {
-		s.turn(-1, now)
 	}
 }
 
@@ -307,8 +297,8 @@ func (s *State) entering(now time.Time, order int, animate bool) float32 {
 	if !animate {
 		return 1
 	}
-	since := now.Sub(s.turned) - time.Duration(order)*70*time.Millisecond
-	return components.GlideEase(float32(since) / float32(components.MotionScene+180*time.Millisecond))
+	since := now.Sub(s.turned) - time.Duration(order)*50*time.Millisecond
+	return components.GlideEase(float32(since) / float32(components.MotionScene))
 }
 
 // enter has el come in at order: rising and clearing as it arrives, from
@@ -321,7 +311,7 @@ func (s *State) enter(c *ui.Context, el ui.Element, order int, animate bool) ui.
 		if s.index(s.at) < s.index(s.from) {
 			dir = -1
 		}
-		el.Opacity(k).Translate(dir*24*(1-k), 10*(1-k))
+		el.Opacity(k).Translate(dir*16*(1-k), 0)
 	}
 	return el
 }

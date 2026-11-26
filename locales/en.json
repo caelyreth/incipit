@@ -3136,17 +3136,9 @@
   "@onboardingStep": {
     "description": "Onboarding: which page of the walkthrough is shown, as \"2 of 5\"."
   },
-  "onboardingWelcomeEyebrow": "A notebook for writing",
-  "@onboardingWelcomeEyebrow": {
-    "description": "Onboarding, first page: a small line above the headline."
-  },
   "onboardingWelcomeHeadline": "A quiet place to write.",
   "@onboardingWelcomeHeadline": {
-    "description": "Onboarding, first page: the headline."
-  },
-  "onboardingWelcomeBody": "A few choices before the first page. Each one shows what it changes, and any of them can be changed later in Settings.",
-  "@onboardingWelcomeBody": {
-    "description": "Onboarding, first page: what the walkthrough is."
+    "description": "Onboarding, cover: the line under the app's name."
   },
   "onboardingBegin": "Begin",
   "@onboardingBegin": {
@@ -3156,15 +3148,11 @@
   "@onboardingContinue": {
     "description": "Onboarding: the button that goes to the next page."
   },
-  "onboardingNotebookEyebrow": "Where it lives",
-  "@onboardingNotebookEyebrow": {
-    "description": "Onboarding, notebook page: a small line above the headline."
-  },
   "onboardingNotebookHeadline": "Your notebook",
   "@onboardingNotebookHeadline": {
     "description": "Onboarding, notebook page: the headline."
   },
-  "onboardingNotebookBody": "Every sheet you write is kept in one notebook, a folder on this computer. It is yours to back up, sync or move.",
+  "onboardingNotebookBody": "A folder on this computer, yours to back up, sync or move.",
   "@onboardingNotebookBody": {
     "description": "Onboarding, notebook page: what the notebook is."
   },
@@ -3188,17 +3176,9 @@
   "@onboardingNotebookFailed": {
     "description": "Onboarding: the notebook could not be opened in the folder chosen; the reason follows."
   },
-  "onboardingWritingEyebrow": "How it writes",
-  "@onboardingWritingEyebrow": {
-    "description": "Onboarding, writing page: a small line above the headline."
-  },
-  "onboardingWritingHeadline": "Marks and manners",
+  "onboardingWritingHeadline": "How it writes",
   "@onboardingWritingHeadline": {
     "description": "Onboarding, writing page: the headline."
-  },
-  "onboardingWritingBody": "Neverland formats as you type. Each answer below writes its own line; pick the one that reads right to you.",
-  "@onboardingWritingBody": {
-    "description": "Onboarding, writing page: how to choose."
   },
   "onboardingMarks": "Formatting marks",
   "@onboardingMarks": {
@@ -3260,17 +3240,9 @@
   "@onboardingSymbolsOffCaption": {
     "description": "Onboarding: explains As typed."
   },
-  "onboardingLookEyebrow": "How it looks",
-  "@onboardingLookEyebrow": {
-    "description": "Onboarding, appearance page: a small line above the headline."
-  },
-  "onboardingLookHeadline": "The page",
+  "onboardingLookHeadline": "How it looks",
   "@onboardingLookHeadline": {
     "description": "Onboarding, appearance page: the headline."
-  },
-  "onboardingLookBody": "Starfield for the night, Daybreak for the day. This window turns as you choose.",
-  "@onboardingLookBody": {
-    "description": "Onboarding, appearance page: the choice of theme and typeface."
   },
   "onboardingStarfieldCaption": "Pale ink on night.",
   "@onboardingStarfieldCaption": {
@@ -3296,17 +3268,13 @@
   "@onboardingSample": {
     "description": "Onboarding: a line of prose set in each theme and typeface as a sample."
   },
-  "onboardingMacEyebrow": "On the Mac",
-  "@onboardingMacEyebrow": {
-    "description": "Onboarding, macOS page: a small line above the headline."
-  },
   "onboardingMacHeadline": "Menus",
   "@onboardingMacHeadline": {
     "description": "Onboarding, macOS page: the headline; the choice of context menus."
   },
-  "onboardingMacBody": "Right-click menus can be the Mac's own, or drawn by Neverland to match the page. Right-click anywhere here to try the ones chosen.",
+  "onboardingMacBody": "Right-click here to try the ones chosen.",
   "@onboardingMacBody": {
-    "description": "Onboarding, macOS page: the choice of menus, and how to try one."
+    "description": "Onboarding, macOS page: how to try the menus chosen."
   },
   "onboardingMenusNativeCaption": "As macOS draws them.",
   "@onboardingMenusNativeCaption": {
@@ -3316,17 +3284,9 @@
   "@onboardingMenusNeverlandCaption": {
     "description": "Onboarding: explains Neverland's own menus."
   },
-  "onboardingDoneEyebrow": "Ready",
-  "@onboardingDoneEyebrow": {
-    "description": "Onboarding, last page: a small line above the headline."
-  },
-  "onboardingDoneHeadline": "The first page is waiting.",
+  "onboardingDoneHeadline": "Ready to write.",
   "@onboardingDoneHeadline": {
-    "description": "Onboarding, last page: the headline."
-  },
-  "onboardingDoneBody": "Here is what you chose. All of it can be changed later in Settings.",
-  "@onboardingDoneBody": {
-    "description": "Onboarding, last page: introduces the summary of choices."
+    "description": "Onboarding, last page: the headline, over the summary of choices."
   },
   "onboardingStart": "Start Writing",
   "@onboardingStart": {

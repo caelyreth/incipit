@@ -44,12 +44,28 @@ type Button struct {
 	Disabled bool
 	Animate  bool
 	Fill     *ui.Color
+	// Shortcut, when set, is a key the button answers to wherever the
+	// window's keys go, its cap shown at the button's end.
+	Shortcut ButtonKey
 	Action   func()
+}
+
+// ButtonKey is a key a Button answers to (Shortcut): pressed while the button can
+// act, it acts as a click. Its cap shows after the label.
+type ButtonKey struct {
+	Mods ui.Modifiers
+	Key  ui.Key
+	// Cap is the key as its cap names it, as "↩" for Return.
+	Cap string
 }
 
 func (b Button) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	ink := buttonTextColor(semantic, b.Style, b.Selected)
-	return buttonElement(c, semantic, buttonOptions{
+	if b.Shortcut.Key != 0 && !b.Disabled && b.Action != nil && c.Shortcut(b.Shortcut.Mods, b.Shortcut.Key) {
+		b.Action()
+	}
+	scale := UIFontSize(c)
+	el := buttonElement(c, semantic, buttonOptions{
 		key:      b.Key,
 		label:    b.Label,
 		style:    b.Style,
@@ -60,9 +76,40 @@ func (b Button) View(c *ui.Context, semantic theme.Theme) ui.Element {
 		fill:     b.Fill,
 		action:   b.Action,
 		children: func() {
-			CenteredLabel(c, b.Label, theme.TextSmall, ink)
+			if b.Shortcut.Cap == "" {
+				CenteredLabel(c, b.Label, theme.TextSmall, ink)
+				return
+			}
+			ui.Row(c).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
+				CenteredLabel(c, b.Label, theme.TextSmall, ink)
+				Keycaps(c, buttonKeycap(semantic, scale, b.Style, b.Selected), []string{b.Shortcut.Cap}, "").AccessHidden(true)
+			})
 		},
-	}).PaddingX(theme.Space12.DIPs(UIFontSize(c))).MinWidth(0)
+	}).PaddingX(theme.Space12.DIPs(scale)).MinWidth(0)
+	if b.Shortcut.Key != 0 {
+		el.KeyShortcuts(b.Shortcut.Mods, b.Shortcut.Key)
+		if b.Shortcut.Cap != "" {
+			// The cap stands in a little from the end, as far as the label
+			// from the start's rim less the cap's own margin.
+			el.Padding(0, theme.Space06.DIPs(scale), 0, theme.Space12.DIPs(scale))
+		}
+	}
+	return el
+}
+
+// buttonKeycap is a key's cap inside a button: smaller than a row's, its
+// face a step off the button's own and its glyph the label's ink, softer.
+func buttonKeycap(semantic theme.Theme, scale float32, style ButtonStyle, selected bool) Keycap {
+	k := KeycapStyle(semantic, scale, true)
+	unit := scale / theme.DefaultUIFontSize
+	k.Height, k.Radius, k.PadX = 18*unit, 4*unit, theme.Space04.DIPs(scale)
+	rest, _, _ := buttonColors(semantic, style, selected)
+	label := buttonTextColor(semantic, style, selected)
+	if rest.A == 0 {
+		rest = semantic.Surface.Page
+	}
+	k.Face, k.Border, k.Ink = blend(rest, label, 0.08), blend(rest, label, 0.22), blend(rest, label, 0.7)
+	return k
 }
 
 type IconButton struct {
