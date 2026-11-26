@@ -26,7 +26,11 @@ func Run() error {
 	useSystemSpelling()
 	appFolders(runtime.GOOS)
 	userData, _ := mygo.App.Path(mygo.PathUserData)
-	if path := keepLog(userData); path != "" {
+	logsDir, _ := mygo.App.Path(mygo.PathLogs)
+	if logsDir == "" && userData != "" {
+		logsDir = filepath.Join(userData, "Logs")
+	}
+	if path := keepLog(logsDir); path != "" {
 		log.Printf("Neverland %s started, logging to %s", mygo.App.Version(), path)
 	}
 	root, chosen, locErr := notebookRoot(userData)

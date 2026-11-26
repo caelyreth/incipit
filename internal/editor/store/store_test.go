@@ -146,3 +146,46 @@ func TestACorruptCountIsRefusedNotAllocated(t *testing.T) {
 		}
 	}
 }
+
+func TestMarkUnknownAttrsDecodeAsRawAndSchemaIDsStayStable(t *testing.T) {
+	// Verify every persisted NodeKind and MarkKind ID remains exact.
+	wantNodes := map[string]doc.Kind{
+		"Page": 1, "Paragraph": 2, "Heading": 3, "Quote": 4, "List": 5, "Item": 6,
+		"Code": 7, "Math": 8, "Divider": 9, "Figure": 10, "Table": 11, "Row": 12, "Cell": 13, "Formula": 14,
+	}
+	gotNodes := map[string]doc.Kind{
+		"Page": profile.Page, "Paragraph": profile.Paragraph, "Heading": profile.Heading,
+		"Quote": profile.Quote, "List": profile.List, "Item": profile.Item,
+		"Code": profile.Code, "Math": profile.Math, "Divider": profile.Divider,
+		"Figure": profile.Figure, "Table": profile.Table, "Row": profile.Row,
+		"Cell": profile.Cell, "Formula": profile.Formula,
+	}
+	for name, want := range wantNodes {
+		if gotNodes[name] != want {
+			t.Fatalf("profile.%s = %d, want immutable persisted ID %d", name, gotNodes[name], want)
+		}
+	}
+	if profile.Emphasis != 1 || profile.Strong != 2 || profile.CodeMark != 3 || profile.Strike != 4 {
+		t.Fatalf("mark kind IDs shifted: emphasis=%d strong=%d code=%d strike=%d",
+			profile.Emphasis, profile.Strong, profile.CodeMark, profile.Strike)
+	}
+
+	// Verify unknown mark attributes decode as doc.ValueRaw via knownMarkFields and round-trip.
+	rawBytes := EncodeAttrs(doc.MakeAttrs(doc.Field{Num: 99, Value: doc.Text("https://example.com")}))
+	decoded, err := DecodeAttrs(rawBytes, knownMarkFields(profile.Schema(), profile.Strong))
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, ok := decoded.Get(99)
+	if !ok || v.Kind() != doc.ValueRaw {
+		t.Fatalf("expected unknown mark field 99 to decode as ValueRaw, got ok=%v val=%+v", ok, v)
+	}
+	reencoded := EncodeAttrs(decoded)
+	redecoded, err := DecodeAttrs(reencoded, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rv, rok := redecoded.Get(99); !rok || rv.Text() != "https://example.com" {
+		t.Fatalf("raw mark field failed round-trip: ok=%v val=%+v", rok, rv)
+	}
+}

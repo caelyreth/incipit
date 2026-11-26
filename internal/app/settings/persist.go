@@ -2,6 +2,7 @@ package settings
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -12,6 +13,10 @@ import (
 	"github.com/caelyreth/neverland/internal/app/manifest"
 	"github.com/caelyreth/neverland/internal/editor/policy"
 )
+
+// ErrNewerVersion reports a settings record created by a newer build whose
+// schema version is higher than persistedVersion.
+var ErrNewerVersion = errors.New("settings: saved settings are from a newer version")
 
 // persistedVersion is the settings record's format. A record from another
 // version is not read; the app starts from its defaults instead.
@@ -80,6 +85,9 @@ func (s *State) Decode(data []byte) error {
 	var record persisted
 	if err := json.Unmarshal(data, &record); err != nil {
 		return fmt.Errorf("settings: decode: %w", err)
+	}
+	if record.Version > persistedVersion {
+		return fmt.Errorf("%w (%d > %d)", ErrNewerVersion, record.Version, persistedVersion)
 	}
 	if record.Version != persistedVersion {
 		return fmt.Errorf("settings: unknown settings version %d", record.Version)

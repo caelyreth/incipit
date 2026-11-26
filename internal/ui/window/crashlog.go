@@ -12,16 +12,13 @@ import (
 // the previous one.
 const logLimit = 1 << 20
 
-// keepLog has the app's log, and the report of a crash that ends it, go
-// to Logs/neverland.log in the user-data folder as well as to stderr, so
-// what happened to an app opened from the Dock or Finder can be read
-// after. It never touches the notebook. It returns the log's path, ""
-// where it could not be kept.
-func keepLog(userData string) string {
-	if userData == "" {
+// keepLog directs application logs and crash reports to neverland.log inside dir
+// (mygo.PathLogs in production) as well as stderr. It returns the log path, or
+// "" if dir is empty or could not be opened.
+func keepLog(dir string) string {
+	if dir == "" {
 		return ""
 	}
-	dir := filepath.Join(userData, "Logs")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		log.Printf("keeping the log: %v", err)
 		return ""

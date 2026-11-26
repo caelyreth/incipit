@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"errors"
 	"maps"
 	"testing"
 
@@ -87,5 +88,13 @@ func TestSystemThemeKeptAndResolved(t *testing.T) {
 	}
 	if System.Resolved(true) != Starfield || System.Resolved(false) != Daybreak || Daybreak.Resolved(true) != Daybreak {
 		t.Fatal("System resolves to the wrong palette")
+	}
+}
+
+func TestDecodeNewerVersionReturnsErrNewerVersion(t *testing.T) {
+	s := DefaultState()
+	err := s.Decode([]byte(`{"version": 999, "theme": "system", "uiFontSize": 13, "proseFontSize": 17, "lineSpacing": 1.6}`))
+	if !errors.Is(err, ErrNewerVersion) {
+		t.Fatalf("err = %v, want ErrNewerVersion", err)
 	}
 }

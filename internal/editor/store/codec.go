@@ -270,7 +270,7 @@ func decodeSlots(r *reader, text *string, schema *doc.Schema, marks *doc.Interne
 				ms := make([]doc.Mark, 0, nm)
 				for m := 0; m < nm && r.err == nil; m++ {
 					mk := doc.MarkKind(r.uvarint())
-					attrs, err := DecodeAttrs([]byte(r.bytes()), nil)
+					attrs, err := DecodeAttrs([]byte(r.bytes()), knownMarkFields(schema, mk))
 					if err != nil {
 						r.fail()
 					}
@@ -288,6 +288,21 @@ func decodeSlots(r *reader, text *string, schema *doc.Schema, marks *doc.Interne
 
 func knownFields(schema *doc.Schema, k doc.Kind) func(uint16) bool {
 	spec, ok := schema.Kind(k)
+	return func(num uint16) bool {
+		if !ok {
+			return false
+		}
+		for _, f := range spec.Fields {
+			if f.Num == num {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func knownMarkFields(schema *doc.Schema, mk doc.MarkKind) func(uint16) bool {
+	spec, ok := schema.Mark(mk)
 	return func(num uint16) bool {
 		if !ok {
 			return false

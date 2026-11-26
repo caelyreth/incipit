@@ -1,6 +1,7 @@
 package window
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -182,6 +183,16 @@ func (a *AppState) loadSettings(store *storage.Store) error {
 	}
 	if err := a.Product.Decode(data); err != nil {
 		a.Product = appsettings.DefaultState()
+		if errors.Is(err, appsettings.ErrNewerVersion) {
+			a.Notices.Post(Notice{
+				ID:          "settings.load",
+				Kind:        NoticeWarning,
+				Sticky:      true,
+				Title:       locales.SettingsVersionNewer(),
+				Description: locales.SettingsVersionNewerDescription(),
+			})
+			return nil
+		}
 		a.settingsDirty = true
 		a.saveSettings()
 		a.Notices.Post(Notice{

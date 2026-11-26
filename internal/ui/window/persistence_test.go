@@ -6,10 +6,12 @@ import (
 
 	"github.com/caelyreth/neverland/internal/app/keymap"
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
+	"github.com/caelyreth/neverland/internal/app/storage"
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/ui/page"
 	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/neverland/locales"
 )
 
 func TestSettingsSurviveARestart(t *testing.T) {
@@ -104,5 +106,47 @@ func selectPageText(t *testing.T, el *page.Element, anchor, head int) {
 	}
 	if !el.Editor.Do(vocab.Place{Stop: doc.CaretAt(doc.At(ref, head)), Extend: true}, at) {
 		t.Fatal("could not place the selection head")
+	}
+}
+
+func TestNewerSettingsPreservedWithoutOverwritingDisk(t *testing.T) {
+	root := t.TempDir()
+	futureJSON := []byte(`{"version":999,"theme":"starfield","uiFontSize":15}`)
+	first := openNotebookApp(t, root)
+	first.notebook.saver.Settings(futureJSON)
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, lost := openChosen(root, t.TempDir())
+	if lost != nil || reopened == nil {
+		t.Fatalf("openChosen failed: lost=%+v", lost)
+	}
+	if err := reopened.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify saved settings bytes were NOT overwritten by DefaultState().
+	checkStore, err := storage.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer checkStore.Close()
+	raw, err := checkStore.LoadSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != string(futureJSON) {
+		t.Fatalf("newer settings record was overwritten: got %s, want %s", raw, futureJSON)
+	}
+
+	var sawWarning bool
+	for _, change := range reopened.Notices.take() {
+		if change.notice.ID == "settings.load" && change.notice.Title == locales.SettingsVersionNewer() {
+			sawWarning = true
+		}
+	}
+	if !sawWarning {
+		t.Fatalf("expected %q sticky notice on newer settings version", locales.SettingsVersionNewer())
 	}
 }

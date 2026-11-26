@@ -12,31 +12,31 @@ import (
 	"github.com/caelyreth/neverland/internal/editor/doc"
 )
 
-// Node kinds.
+// Node kinds. Values are persisted in notebook storage and must stay invariant.
 const (
-	Page doc.Kind = iota + 1
-	Paragraph
-	Heading
-	Quote
-	List
-	Item
-	Code
-	Math
-	Divider
-	Figure
-	Table
-	Row
-	Cell
-	Formula
+	Page      doc.Kind = 1
+	Paragraph doc.Kind = 2
+	Heading   doc.Kind = 3
+	Quote     doc.Kind = 4
+	List      doc.Kind = 5
+	Item      doc.Kind = 6
+	Code      doc.Kind = 7
+	Math      doc.Kind = 8
+	Divider   doc.Kind = 9
+	Figure    doc.Kind = 10
+	Table     doc.Kind = 11
+	Row       doc.Kind = 12
+	Cell      doc.Kind = 13
+	Formula   doc.Kind = 14
 )
 
-// Mark kinds. Emphasis and strong are independent: bold italic is the set
-// {strong, emphasis}.
+// Mark kinds. Values are persisted in notebook storage and must stay invariant.
+// Emphasis and strong are independent: bold italic is the set {strong, emphasis}.
 const (
-	Emphasis doc.MarkKind = iota + 1
-	Strong
-	CodeMark
-	Strike
+	Emphasis doc.MarkKind = 1
+	Strong   doc.MarkKind = 2
+	CodeMark doc.MarkKind = 3
+	Strike   doc.MarkKind = 4
 )
 
 // MarkKinds are every mark kind, in kind order.
@@ -69,29 +69,29 @@ const (
 	FieldColumnFit   = 3 // its text kept on one line
 )
 
-// ListStyle is a list's style.
+// ListStyle is a list's style. Values are persisted.
 type ListStyle int64
 
 const (
-	Bullet ListStyle = iota
-	Ordered
+	Bullet  ListStyle = 0
+	Ordered ListStyle = 1
 )
 
-// Task is an item's task state.
+// Task is an item's task state. Values are persisted.
 type Task int64
 
 const (
-	NoTask Task = iota
-	TaskOpen
-	TaskDone
+	NoTask   Task = 0
+	TaskOpen Task = 1
+	TaskDone Task = 2
 )
 
-// MathDialect is the input syntax of a formula or math block.
+// MathDialect is the input syntax of a formula or math block. Values are persisted.
 type MathDialect int64
 
 const (
-	DialectTeX MathDialect = iota
-	DialectTypst
+	DialectTeX   MathDialect = 0
+	DialectTypst MathDialect = 1
 )
 
 // Label is the short dialect label shown on open formula controls.
@@ -102,13 +102,13 @@ func (d MathDialect) Label() string {
 	return "TeX"
 }
 
-// Align is a figure's or a column's alignment.
+// Align is a figure's or a column's alignment. Values are persisted.
 type Align int64
 
 const (
-	AlignStart Align = iota
-	AlignCenter
-	AlignEnd
+	AlignStart  Align = 0
+	AlignCenter Align = 1
+	AlignEnd    Align = 2
 )
 
 func intIn(lo, hi int64) func(doc.Value) bool {

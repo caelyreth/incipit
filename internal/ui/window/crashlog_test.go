@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// TestTheLogIsKeptInUserData writes the log to Logs/neverland.log in the
-// user-data folder, keeping a log grown too large aside first.
+// TestTheLogIsKeptInUserData writes the log to neverland.log inside the log
+// directory, keeping a log grown too large aside first.
 func TestTheLogIsKeptInUserData(t *testing.T) {
 	dir := t.TempDir()
 	logs := filepath.Join(dir, "Logs")
@@ -24,7 +24,7 @@ func TestTheLogIsKeptInUserData(t *testing.T) {
 		log.SetOutput(os.Stderr)
 		_ = debug.SetCrashOutput(nil, debug.CrashOptions{})
 	}()
-	path := keepLog(dir)
+	path := keepLog(logs)
 	log.Print("a line to keep")
 	data, err := os.ReadFile(path)
 	if err != nil {
