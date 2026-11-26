@@ -263,13 +263,33 @@ func grewAbove(before []stood, pl *pageLayout) float32 {
 	return d
 }
 
+func (el *Element) viewWidth() float32 {
+	if el.LayoutWidth > 0 {
+		return el.LayoutWidth
+	}
+	if el.viewport.W > 0 {
+		return el.viewport.W
+	}
+	if el.windowW > 0 {
+		return el.windowW
+	}
+	return el.Prose.Column() + 2*el.Prose.FontSize
+}
+
+func (el *Element) viewHeight() float32 {
+	if el.viewport.H > 0 {
+		return el.viewport.H
+	}
+	return el.windowH
+}
+
 // setWindow tells the editor what the element shows of the page: every
 // unit while it is laid out still or read by assistive technology, and
 // from the page's top to a saved offset's view while that offset waits to
 // be restored, so it is restored exactly.
 func (el *Element) setWindow() {
 	ed := el.Editor
-	h := el.viewport.H
+	h := el.viewHeight()
 	switch {
 	case el.still || el.assistive || h <= 0:
 		ed.SetWindow(0, 0, true)

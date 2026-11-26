@@ -80,9 +80,11 @@ type Element struct {
 	// it shrank past the page, which then glides back in (stepViewport).
 	ranged   [2]float32
 	astray   bool
-	edges    components.EdgeFade
-	viewport ui.Rect
-	column   float32 // the column's left, in the element
+	edges          components.EdgeFade
+	viewport       ui.Rect
+	windowW        float32
+	windowH        float32 // fallback size from c.Size() before first Draw
+	column         float32 // the column's left, in the element
 	// drag is the press the page holds until it lets go: a control's or
 	// the text's (controls.go). menuChosen is whether a secondary click
 	// readied the menu since the last press or key, menuOffers whether it
@@ -194,7 +196,7 @@ func (el *Element) metrics(width float32) Metrics {
 		Gap:        el.Prose.Leading() * 0.9,
 		// The margins less the gutters objects' controls stand in.
 		Reach:  max((width-col)/2-el.controlGutter(), 0),
-		Window: el.viewport.H,
+		Window: el.viewHeight(),
 		Family: el.Prose.Family,
 	}
 }
@@ -215,13 +217,7 @@ func (el *Element) settle(pl *pageLayout, frame bool) bool {
 // topmost unit whose kind takes it.
 func (el *Element) relayout() *pageLayout {
 	ed := el.Editor
-	w := el.LayoutWidth
-	if w <= 0 {
-		w = el.viewport.W
-	}
-	if w <= 0 {
-		w = el.Prose.Column() + 2*el.Prose.FontSize
-	}
+	w := el.viewWidth()
 	m := el.metrics(w)
 	if el.still {
 		m.Width, m.Reach, m.Window = w, 0, 0
@@ -309,6 +305,7 @@ func (el *Element) View(c *ui.Context) {
 	ed.setWake(services.Invalidate)
 	ed.clock = services.Now
 	el.assistive = c.AssistiveTechnology()
+	el.windowW, el.windowH = c.Size()
 	ed.Due(c.Now())
 	pl := el.relayout()
 	el.follow(pl, c.Now())

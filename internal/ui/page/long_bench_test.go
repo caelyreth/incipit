@@ -6,7 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/internal/editor/engine"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/egoist/mygo/ui"
 )
 
 const longParagraph = "Some **marked** text, a #tag and `code`, and plain words after it to fill a line or two. "
@@ -78,6 +81,43 @@ func BenchmarkTheMemoryOfAnOpenPage(b *testing.B) {
 				runtime.KeepAlive(el)
 			}
 			b.ReportMetric(held, "B/byte")
+		})
+	}
+}
+
+// BenchmarkFirstFrameOnALongPage measures opening a fresh element on an
+// existing long document through its first rendered frame.
+func BenchmarkFirstFrameOnALongPage(b *testing.B) {
+	for _, c := range []struct {
+		name string
+		n    int
+	}{{"paragraphs=60", 60}, {"paragraphs=300", 300}} {
+		b.Run(c.name, func(b *testing.B) {
+			seed := newBenchElement(b, longPage(c.n, false))
+			seed.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(101, 0))
+			snap := seed.Editor.Engine.Snapshot()
+			prog := seed.Editor.Engine.Program()
+			th := theme.DefaultSettings().Semantic()
+			prose := theme.DefaultSettings().Prose()
+
+			var laidUnits, relayouts, iters float64
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				ed := NewEditor(engine.New(snap, prog, engine.Options{}), 1)
+				el := NewElement(ed)
+				el.Theme, el.Prose = th, prose
+				el.RestoreScroll(0)
+				el.Editor.CancelReveal()
+				tt := ui.NewTester(el.View, 900, 600)
+				tt.Frame()
+				laidUnits += float64(len(ed.cache.measured))
+				relayouts += float64(ed.relayouts)
+				iters++
+				ed.Close()
+			}
+			b.ReportMetric(laidUnits/iters, "laid/op")
+			b.ReportMetric(relayouts/iters, "relayouts/op")
 		})
 	}
 }

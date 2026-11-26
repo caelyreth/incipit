@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caelyreth/neverland/internal/editor/engine"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -140,5 +142,41 @@ func TestThePagesEndIsShownWhenTheCaretJumpsThere(t *testing.T) {
 	r := el.caretInElement()
 	if r == (ui.Rect{}) || r.Y < 0 || r.Y+r.H > el.viewport.H {
 		t.Fatalf("after jumping to the end the caret is at %+v in a view %v high", r, el.viewport.H)
+	}
+}
+
+// The very first frame of a fresh element uses the window height before Draw
+// measures the element, so it does not lay out the whole page or rebuild once
+// Draw reports the viewport.
+func TestFirstFrameSketchesBeyondItsView(t *testing.T) {
+	seed := newElement(t)
+	seed.Editor.Do(vocab.Paste{Text: strings.Repeat(wide, 300)}, time.Unix(100, 0))
+	seed.Editor.Do(vocab.Move{Unit: vocab.ToPageEdge, Dir: vocab.Backward}, time.Unix(101, 0))
+	snap := seed.Editor.Engine.Snapshot()
+	prog := seed.Editor.Engine.Program()
+	seed.Editor.Close()
+
+	for _, restoreZero := range []bool{false, true} {
+		ed := NewEditor(engine.New(snap, prog, engine.Options{}), 1)
+		el := NewElement(ed)
+		el.Theme, el.Prose = theme.DefaultSettings().Semantic(), theme.DefaultSettings().Prose()
+		if restoreZero {
+			el.RestoreScroll(0)
+			el.Editor.CancelReveal()
+		}
+		tt := ui.NewTester(el.View, 900, 600)
+		tt.Frame()
+		pl := ed.layout
+		laid, sketches := sketched(pl)
+		if sketches == 0 || laid > len(pl.units)/4 {
+			t.Fatalf("restoreZero=%v: first frame laid out %d units and sketched %d", restoreZero, laid, sketches)
+		}
+		if got := len(ed.cache.measured); got > len(pl.units)/4 {
+			t.Fatalf("restoreZero=%v: first frame measured %d of %d units", restoreZero, got, len(pl.units))
+		}
+		if ed.relayouts != 1 {
+			t.Fatalf("restoreZero=%v: first frame ran %d relayouts, want 1", restoreZero, ed.relayouts)
+		}
+		ed.Close()
 	}
 }
