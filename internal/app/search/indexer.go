@@ -220,20 +220,43 @@ func (ix *Indexer) apply() {
 		}
 	}
 	var batch []Page
+	var batchEntries []*Entry
+	var retryPuts []*Entry
+	var retryDrops []int64
+	requeue := func() {
+		if len(retryPuts) == 0 && len(retryDrops) == 0 {
+			return
+		}
+		ix.mu.Lock()
+		for _, e := range retryPuts {
+			if _, exists := ix.pending[e.Key]; !exists && (ix.all == nil || ix.all[e.Key]) {
+				ix.pending[e.Key] = e
+			}
+		}
+		for _, k := range retryDrops {
+			if _, exists := ix.pending[k]; !exists && (ix.all == nil || !ix.all[k]) {
+				ix.pending[k] = nil
+			}
+		}
+		ix.mu.Unlock()
+	}
+	took := false
 	keep := func() {
 		if len(batch) == 0 {
 			return
 		}
 		if err := ix.x.Put(batch...); err != nil {
 			ix.fail(err)
+			retryPuts = append(retryPuts, batchEntries...)
 		} else {
 			for _, p := range batch {
 				ix.indexed[p.Key] = p.Rev
 			}
+			took = true
 		}
 		batch = batch[:0]
+		batchEntries = batchEntries[:0]
 	}
-	took := false
 	for k, e := range pending {
 		if e == nil {
 			if _, ok := ix.indexed[k]; ok {
@@ -247,14 +270,16 @@ func (ix *Indexer) apply() {
 		t, err := e.Text()
 		if err != nil {
 			ix.fail(err)
+			retryPuts = append(retryPuts, e)
 			continue
 		}
 		batch = append(batch, e.page(t))
-		took = true
+		batchEntries = append(batchEntries, e)
 		if len(batch) == batchPages {
 			keep()
 			select {
 			case <-ix.stop:
+				requeue()
 				return
 			default:
 			}
@@ -264,6 +289,7 @@ func (ix *Indexer) apply() {
 	if len(drop) > 0 {
 		if err := ix.x.Delete(drop...); err != nil {
 			ix.fail(err)
+			retryDrops = append(retryDrops, drop...)
 		} else {
 			for _, k := range drop {
 				delete(ix.indexed, k)
@@ -271,6 +297,7 @@ func (ix *Indexer) apply() {
 			took = true
 		}
 	}
+	requeue()
 	if took {
 		ix.gen.Add(1)
 		if ix.changed != nil {

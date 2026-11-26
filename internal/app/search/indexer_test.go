@@ -1,6 +1,7 @@
 package search
 
 import (
+	"github.com/blevesearch/bleve/v2"
 	"github.com/caelyreth/neverland/internal/text/query"
 
 	"errors"
@@ -117,5 +118,72 @@ func TestDomainsAreTheSitesAddressesName(t *testing.T) {
 	got := Domains("at https://Example.com:8080/a, www.notes.org, ftp://files.net and mailto:x — not.this or a://b")
 	if !slices.Equal(got, []string{"example.com", "notes.org", "files.net"}) {
 		t.Fatalf("domains %v", got)
+	}
+}
+
+type bleveIndex = bleve.Index
+
+type failingBatchBleve struct {
+	bleveIndex
+	failNext atomic.Bool
+}
+
+func (f *failingBatchBleve) Batch(b *bleve.Batch) error {
+	if f.failNext.Load() {
+		return errors.New("injected batch failure")
+	}
+	return f.bleveIndex.Batch(b)
+}
+
+func TestIndexerRequeuesFailedPutAndDeleteUntilRetrySucceeds(t *testing.T) {
+	base, err := Memory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer base.Close()
+
+	fb := &failingBatchBleve{bleveIndex: base.b}
+	x := &Index{b: fb}
+
+	var reads, changes, failures atomic.Int32
+	ix, err := NewIndexer(x, func() { changes.Add(1) }, func(error) { failures.Add(1) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ix.Close()
+
+	fb.failNext.Store(true)
+	ix.Put(entry(1, 1, "resilient", &reads))
+	ix.Flush()
+	if failures.Load() != 1 || changes.Load() != 0 || ix.Generation() != 0 {
+		t.Fatalf("after failed put: failures=%d changes=%d gen=%d", failures.Load(), changes.Load(), ix.Generation())
+	}
+
+	// Clearing the transient error allows a subsequent Flush to retry without re-sending Put.
+	fb.failNext.Store(false)
+	ix.Flush()
+	if changes.Load() != 1 || ix.Generation() != 1 {
+		t.Fatalf("after retry flush: changes=%d gen=%d", changes.Load(), ix.Generation())
+	}
+	res, err := x.Search(query.Parse("resilient"), Request{})
+	if err != nil || !slices.Equal(keys(res), []int64{1}) {
+		t.Fatalf("search after retry put = %v err=%v", keys(res), err)
+	}
+
+	fb.failNext.Store(true)
+	ix.Drop(1)
+	ix.Flush()
+	if failures.Load() != 2 || changes.Load() != 1 || ix.Generation() != 1 {
+		t.Fatalf("after failed drop: failures=%d changes=%d gen=%d", failures.Load(), changes.Load(), ix.Generation())
+	}
+
+	fb.failNext.Store(false)
+	ix.Flush()
+	if changes.Load() != 2 || ix.Generation() != 2 {
+		t.Fatalf("after retry drop flush: changes=%d gen=%d", changes.Load(), ix.Generation())
+	}
+	res, err = x.Search(query.Parse("resilient"), Request{})
+	if err != nil || len(keys(res)) != 0 {
+		t.Fatalf("expected page 1 dropped after retry, got %v err=%v", keys(res), err)
 	}
 }

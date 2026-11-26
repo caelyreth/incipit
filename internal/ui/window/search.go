@@ -24,10 +24,13 @@ import (
 	"github.com/caelyreth/neverland/locales"
 )
 
-// indexFolder is where the notebook's search index is kept, beside the
-// notebook in its folder. It is a cache (internal/app/search): losing it costs a
-// rebuild, never a page.
-const indexFolder = "Search Index"
+const (
+	// indexFolder is where the notebook's search index is kept, beside the
+	// notebook in its folder. It is a cache (internal/app/search): losing it costs a
+	// rebuild, never a page.
+	indexFolder       = "Search Index"
+	searchWriteNotice = "search.write"
+)
 
 // finder keeps the notebook's search index in step with its pages and
 // answers the sidebar's searches.
@@ -165,10 +168,29 @@ func (a *AppState) openFinder(store *storage.Store) error {
 		}
 	}
 	f.lines = newLines(changed)
-	failed := func(err error) { log.Printf("search index: %v", err) }
+	var writeFailed atomic.Bool
+	indexed := func() {
+		if writeFailed.Swap(false) && a.Notices != nil {
+			a.Notices.Dismiss(searchWriteNotice)
+		}
+		changed()
+	}
+	failed := func(err error) {
+		log.Printf("search index: %v", err)
+		writeFailed.Store(true)
+		if a.Notices != nil {
+			a.Notices.Post(Notice{
+				ID:          searchWriteNotice,
+				Kind:        NoticeWarning,
+				Sticky:      true,
+				Title:       locales.SearchIndexUnavailable(),
+				Description: describeNotice(err),
+			})
+		}
+	}
 
 	if err == nil {
-		f.indexer, err = search.NewIndexer(x, changed, failed)
+		f.indexer, err = search.NewIndexer(x, indexed, failed)
 		if err != nil {
 			_ = x.Close()
 			x = nil
@@ -176,7 +198,7 @@ func (a *AppState) openFinder(store *storage.Store) error {
 				dir := filepath.Join(store.Root(), indexFolder)
 				_ = os.RemoveAll(dir)
 				if nx, _, oerr := search.Open(dir); oerr == nil {
-					if ni, nerr := search.NewIndexer(nx, changed, failed); nerr == nil {
+					if ni, nerr := search.NewIndexer(nx, indexed, failed); nerr == nil {
 						x, f.indexer, err, rebuilt = nx, ni, nil, true
 					} else {
 						_ = nx.Close()
@@ -197,7 +219,7 @@ func (a *AppState) openFinder(store *storage.Store) error {
 		if merr != nil {
 			return merr
 		}
-		mi, ierr := search.NewIndexer(mem, changed, failed)
+		mi, ierr := search.NewIndexer(mem, indexed, failed)
 		if ierr != nil {
 			_ = mem.Close()
 			return ierr
@@ -209,7 +231,7 @@ func (a *AppState) openFinder(store *storage.Store) error {
 				Kind:        NoticeWarning,
 				Sticky:      true,
 				Title:       locales.SearchIndexUnavailable(),
-				Description: err.Error(),
+				Description: describeNotice(err),
 			})
 		}
 	} else if rebuilt && a.Notices != nil {

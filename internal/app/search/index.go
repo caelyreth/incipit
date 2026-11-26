@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
@@ -65,7 +66,8 @@ type Task struct {
 // source of truth, and an index that cannot be read is made again empty.
 // It is safe for use from several goroutines.
 type Index struct {
-	b bleve.Index
+	b      bleve.Index
+	closed atomic.Bool
 }
 
 // ErrClosed reports an index used after Close.
@@ -112,7 +114,12 @@ func create(dir string) (*Index, error) {
 }
 
 // Close lets the index go.
-func (x *Index) Close() error { return x.b.Close() }
+func (x *Index) Close() error {
+	if x.closed.Swap(true) {
+		return nil
+	}
+	return x.b.Close()
+}
 
 // Put keeps pages in the index, each in place of what it kept of them.
 func (x *Index) Put(pages ...Page) error {

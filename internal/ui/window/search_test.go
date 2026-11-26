@@ -11,6 +11,8 @@ import (
 	"github.com/caelyreth/neverland/internal/editor/vocab"
 	"github.com/caelyreth/neverland/internal/text/query"
 	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/caelyreth/neverland/locales"
+	"github.com/egoist/mygo/ui"
 )
 
 // typeIntoActivePage types text into the page in front and lets the frame
@@ -280,4 +282,25 @@ func TestSearchHitsCachedAcrossLineSnippetReads(t *testing.T) {
 	if app.finder.hits != cachedHits {
 		t.Fatal("rawHits cache was evicted and rebuilt on line generation change")
 	}
+}
+
+func TestSearchIndexWriteFailurePostsNotice(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	tester := ui.NewTester(app.View, 1260, 850)
+	tester.Frame()
+
+	// Closing the underlying search index causes subsequent indexing to fail.
+	if err := app.finder.index.Close(); err != nil {
+		t.Fatal(err)
+	}
+	typeIntoActivePage(t, app, "broken search write")
+	settleSearch(app)
+	tester.Frame()
+
+	if !tester.HasText(locales.SearchIndexUnavailable()) {
+		t.Fatalf("expected search index failure notice, got %v", tester.Texts())
+	}
+	app.finder.indexer.Close()
+	app.finder.lines.close()
+	app.finder = nil
 }
