@@ -75,7 +75,7 @@ func facePreview(c *ui.Context, m metrics, semantic theme.Theme, family string) 
 	ui.Row(c).WidthPercent(100).Height(previewHeight*m.k).Background(semantic.Surface.Page).
 		Padding(0, 16*m.k).Gap(14 * m.k).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, "Ag").Font(family).FontSize(46 * m.k).FontWeight(500).
-			TextColor(semantic.Families[theme.Afterglow].Foreground).Shrink(0)
+			TextColor(semantic.Accent.Foreground).Shrink(0)
 		ui.Text(c, locales.OnboardingSample()).Font(family).FontSize(13 * m.k).LineHeight(1.5).
 			TextColor(semantic.Text.Default).Grow(1).MinWidth(0).MaxLines(3)
 	})

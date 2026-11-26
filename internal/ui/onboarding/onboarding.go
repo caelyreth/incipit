@@ -85,6 +85,9 @@ type State struct {
 	// clock is the time of the frame last drawn, which actions turn by.
 	clock  time.Time
 	colors theme.Transition
+	// tide is the ground's canvas, mark the brand's.
+	tide   tide
+	mark   components.BrandMark
 	placed bool
 }
 
@@ -273,7 +276,7 @@ func (s *State) View(c *ui.Context) {
 		drift = components.Follow(root, "drift", drift, 2400*time.Millisecond)
 	}
 	root.Draw(func(p *ui.Painter, r ui.Rect) {
-		paintTide(p, r, semantic, now.Sub(s.started).Seconds(), drift, animate)
+		s.tide.paint(p, r, semantic, now.Sub(s.started).Seconds(), drift, animate)
 	})
 	root.Children(func() {
 		ui.Column(c).WidthPercent(100).HeightPercent(100).Padding(m.top, m.pad, m.pad, m.pad).Children(func() {

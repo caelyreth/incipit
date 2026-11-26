@@ -1,8 +1,7 @@
-// The tide: the onboarding's ground, a sheet of warm paper with ink
-// washed into it. Two fields of noise, one bending the other, make a
-// slow current; its high water blooms in the washes' hues, and its
-// levels draw faint contour lines across the sheet, as a chart of the
-// tide would. A grain over all keeps it paper and not glass.
+// The tide's current: the onboarding's ground, washed in its inks, drawn
+// small (tide.go) since it holds nothing sharp. Two fields of noise, one
+// bending the other, make a slow current; its high water blooms in the
+// washes' hues.
 
 package main
 
@@ -11,16 +10,12 @@ package main
 var Time float
 var Drift vec2
 
-// Ground is the paper, Wash0 to Wash2 the inks washed in (their alpha
-// how strongly), Contour the lines' ink (its alpha how strongly), Grain
-// how coarse the paper is and Vignette how much its edges darken.
+// Ground is the paper, Wash0 to Wash2 the inks washed in, their alpha
+// how strongly.
 var Ground vec4
 var Wash0 vec4
 var Wash1 vec4
 var Wash2 vec4
-var Contour vec4
-var Grain float
-var Vignette float
 
 func hash(p vec2) float {
 	p = fract(p * vec2(123.34, 456.21))
@@ -42,17 +37,16 @@ func noise(p vec2) float {
 func fbm(p vec2) float {
 	v := 0.0
 	a := 0.5
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 3; i++ {
 		v += a * noise(p)
 		p = p*2.03 + vec2(1.7, 9.2)
 		a *= 0.5
 	}
-	return v
+	return v / 0.875
 }
 
 func Fragment(dst vec4, pos vec2) vec4 {
-	size := rectSize()
-	uv := pos / size.y
+	uv := pos / rectSize().y
 	t := Time * 0.025
 	q := vec2(fbm(uv*1.4+vec2(0, t)), fbm(uv*1.4+vec2(5.2, -t)+Drift*0.3))
 	f := fbm(uv*1.2 + 1.9*q + vec2(t*0.7, -t*0.4) + Drift)
@@ -61,16 +55,5 @@ func Fragment(dst vec4, pos vec2) vec4 {
 	col = mix(col, Wash0.rgb, smoothstep(0.5, 0.82, f)*Wash0.a)
 	col = mix(col, Wash1.rgb, smoothstep(0.55, 0.85, q.x)*Wash1.a)
 	col = mix(col, Wash2.rgb, smoothstep(0.6, 0.9, q.y)*Wash2.a)
-
-	// The levels of the current, a line every tenth, thin as a pen's.
-	g := f * 11
-	d := abs(fract(g) - 0.5)
-	fw := abs(dfdx(g)) + abs(dfdy(g)) + 0.0001
-	line := 1 - smoothstep(0, fw*1.3, 0.5-d)
-	col = mix(col, Contour.rgb, line*Contour.a*smoothstep(0.25, 0.75, f))
-
-	edge := pos/size - 0.5
-	col *= 1 - Vignette*dot(edge, edge)
-	col += (hash(floor(dst.xy)) - 0.5) * Grain
 	return vec4(col, 1)
 }

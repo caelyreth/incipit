@@ -11655,13 +11655,13 @@ func (msgs Messages) OnboardingMarksShown() string {
 	return Catalog.Format(msgs.locale, "onboardingMarksShown", nil)
 }
 
-// OnboardingMarksShownCaption says "The asterisks stay in sight as you write."
+// OnboardingMarksShownCaption says "The asterisks stay in sight."
 // in the language the app shows.
 //
 // Onboarding: explains Shown.
 func OnboardingMarksShownCaption() string { return In(i18n.Locale()).OnboardingMarksShownCaption() }
 
-// OnboardingMarksShownCaption says "The asterisks stay in sight as you write."
+// OnboardingMarksShownCaption says "The asterisks stay in sight."
 // in the language of msgs.
 //
 // Onboarding: explains Shown.
@@ -11727,13 +11727,13 @@ func (msgs Messages) OnboardingPairsClosed() string {
 	return Catalog.Format(msgs.locale, "onboardingPairsClosed", nil)
 }
 
-// OnboardingPairsClosedCaption says "Type an opening bracket and its closer follows."
+// OnboardingPairsClosedCaption says "The closer follows the opener."
 // in the language the app shows.
 //
 // Onboarding: explains Closed for you.
 func OnboardingPairsClosedCaption() string { return In(i18n.Locale()).OnboardingPairsClosedCaption() }
 
-// OnboardingPairsClosedCaption says "Type an opening bracket and its closer follows."
+// OnboardingPairsClosedCaption says "The closer follows the opener."
 // in the language of msgs.
 //
 // Onboarding: explains Closed for you.
@@ -11755,13 +11755,13 @@ func (msgs Messages) OnboardingPairsOpen() string {
 	return Catalog.Format(msgs.locale, "onboardingPairsOpen", nil)
 }
 
-// OnboardingPairsOpenCaption says "Every character as you type it."
+// OnboardingPairsOpenCaption says "Each character as typed."
 // in the language the app shows.
 //
 // Onboarding: explains Left to you.
 func OnboardingPairsOpenCaption() string { return In(i18n.Locale()).OnboardingPairsOpenCaption() }
 
-// OnboardingPairsOpenCaption says "Every character as you type it."
+// OnboardingPairsOpenCaption says "Each character as typed."
 // in the language of msgs.
 //
 // Onboarding: explains Left to you.
@@ -11799,13 +11799,13 @@ func (msgs Messages) OnboardingSymbolsOn() string {
 	return Catalog.Format(msgs.locale, "onboardingSymbolsOn", nil)
 }
 
-// OnboardingSymbolsOnCaption says "Two hyphens become a dash, three dots an ellipsis."
+// OnboardingSymbolsOnCaption says "Dashes and ellipses as you type."
 // in the language the app shows.
 //
 // Onboarding: explains Typeset.
 func OnboardingSymbolsOnCaption() string { return In(i18n.Locale()).OnboardingSymbolsOnCaption() }
 
-// OnboardingSymbolsOnCaption says "Two hyphens become a dash, three dots an ellipsis."
+// OnboardingSymbolsOnCaption says "Dashes and ellipses as you type."
 // in the language of msgs.
 //
 // Onboarding: explains Typeset.

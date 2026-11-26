@@ -2,7 +2,6 @@ package onboarding
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,13 +70,16 @@ func (s *State) welcome(c *ui.Context, semantic theme.Theme, m metrics, animate 
 				FontWeight(500).LineHeight(1.08).LetterSpacing(-0.02 * m.hero).TextColor(semantic.Text.Heading).
 				Role(ui.RoleHeading)
 			s.enter(c, head, 1, animate)
-			drawn := s.inkAfter(now, 900*time.Millisecond, 700*time.Millisecond, animate)
-			ink := semantic.Families[theme.Afterglow].Emphasis
+			drawn := s.inkAfter(now, 700*time.Millisecond, 600*time.Millisecond, animate)
+			if drawn < 1 {
+				c.AnimationFrame()
+			}
+			ink := semantic.Accent.Foreground
 			head.DrawOver(func(p *ui.Painter, r ui.Rect) {
 				// A stroke under the last line, as a pen sets the title off.
 				line := m.hero * 1.08
 				y := r.Y + r.H - line*0.06
-				components.InkUnderline(p, r.X+r.W*0.02, r.X+min(r.W, m.hero*6.6), y, ink.Alpha(0.85), 3.2*m.k, 7, drawn)
+				components.InkUnderline(p, r.X+r.W*0.02, r.X+min(r.W, m.hero*3.4), y, ink.Alpha(0.85), 3.2*m.k, 7, drawn)
 			})
 			s.enter(c, ui.Text(c, locales.OnboardingWelcomeBody()).Font(theme.ProseFontFamily).FontSize(18*m.k).
 				LineHeight(1.55).TextColor(semantic.Text.Default).MaxWidth(440*m.k), 2, animate)
@@ -86,33 +88,30 @@ func (s *State) welcome(c *ui.Context, semantic theme.Theme, m metrics, animate 
 					Animate: animate, Action: func() { s.next(s.clock) }}.View(c, semantic).PaddingX(22 * m.k)
 			}), 3, animate)
 		})
-		mark := ui.Box(c).Key("mark").Grow(1).Shrink(1).MinWidth(0).HeightPercent(80).Role(ui.RoleImage).Label(locales.OnboardingTitle())
-		drawn := s.inkAfter(now, 250*time.Millisecond, 2600*time.Millisecond, animate)
+		mark := ui.Box(c).Key("mark").Grow(1).Shrink(1).MinWidth(0).Height(markHeight * m.k).Role(ui.RoleImage).Label(locales.OnboardingTitle())
+		drawn := s.inkAfter(now, 200*time.Millisecond, 1400*time.Millisecond, animate)
+		if drawn < 1 {
+			c.AnimationFrame()
+		}
 		mark.Draw(func(p *ui.Painter, r ui.Rect) {
-			size := min(r.W, r.H*components.BrandAspect())
-			box := ui.Rect{X: r.X + (r.W-size)/2, Y: r.Y + (r.H-size/components.BrandAspect())/2, W: size, H: size / components.BrandAspect()}
-			// A moon of the page's own surface behind it, as the icon's tile.
-			disc := min(box.W, box.H) * 1.04
+			aspect := components.BrandAspect()
+			w := min(r.W, r.H*aspect)
+			box := ui.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-w/aspect)/2, W: w, H: w / aspect}
+			// A moon of the accent's surface behind it, as the icon's tile.
 			var moon ui.Path
-			moon.Circle(box.X+box.W*0.5, box.Y+box.H*0.52, disc/2)
-			p.FillPath(&moon, semantic.Surface.Page.Alpha(0.55*components.Smoothstep(drawn*2)))
-			components.DrawBrandMark(p, box, semantic.Text.Heading, drawn)
-			glow := float32(1)
-			if animate {
-				t := now.Sub(s.started).Seconds()
-				glow = float32(0.5 + 0.5*math.Sin(t*1.7))
-				p.AnimationFrameRate(tideFrameRate)
-			}
-			for i, at := range [][3]float32{{0.06, 0.18, 18}, {0.9, 0.12, 12}, {0.96, 0.62, 16}, {0.12, 0.86, 10}} {
-				g := glow
-				if i%2 == 1 {
-					g = 1 - glow
-				}
-				components.InkStar(p, box.X+box.W*at[0], box.Y+box.H*at[1], at[2]*m.k, semantic.Families[theme.Regolith].Foreground.Alpha(drawn), g)
+			moon.Circle(box.X+box.W*0.5, box.Y+box.H*0.52, min(box.W, box.H)*0.54)
+			p.FillPath(&moon, semantic.Accent.Muted.Alpha(0.6*components.Smoothstep(drawn*2)))
+			s.mark.Paint(p, box, semantic.Text.Heading, drawn)
+			for _, at := range [][3]float32{{0.04, 0.16, 16}, {0.92, 0.1, 11}, {0.98, 0.64, 14}} {
+				components.InkStar(p, box.X+box.W*at[0], box.Y+box.H*at[1], at[2]*m.k, semantic.Accent.Foreground.Alpha(drawn), 1)
 			}
 		})
 	})
 }
+
+// markHeight is how tall the mark stands on the welcome, at the default
+// UI size: beside the headline, not over it.
+const markHeight = 300
 
 // inkAfter is how far a mark has drawn itself, starting after wait from
 // the page's turn and taking draw.
@@ -144,7 +143,7 @@ func (s *State) eyebrow(c *ui.Context, semantic theme.Theme, m metrics, number, 
 	return ui.Row(c).AlignItems(ui.Baseline).Gap(10 * m.k).Children(func() {
 		if number != "" {
 			ui.Text(c, number).Font(theme.ProseFontFamily).Italic().FontSize(17 * m.k).
-				TextColor(semantic.Families[theme.Afterglow].Foreground)
+				TextColor(semantic.Accent.Foreground)
 			ui.Box(c).Size(22*m.k, 1).Background(semantic.Text.Muted.Alpha(0.5)).Translate(0, -4*m.k)
 		}
 		components.Label(c, words, theme.TextSmall, semantic.Text.Muted).LetterSpacing(0.08 * m.scale).FontWeight(600)
@@ -172,7 +171,7 @@ func (s *State) notebook(c *ui.Context, semantic theme.Theme, m metrics, animate
 	})
 	folder.Children(func() {
 		ui.Row(c).Gap(12 * m.k).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, components.IconFolder.SVG()).FontSize(22 * m.k).TextColor(semantic.Families[theme.Regolith].Foreground)
+			ui.Icon(c, components.IconFolder.SVG()).FontSize(22 * m.k).TextColor(semantic.Accent.Foreground)
 			components.Label(c, filepath.Base(s.root), theme.TextLarge, semantic.Text.Heading).FontWeight(600).SingleLine()
 		})
 		ui.Text(c, shortPath(s.root)).Font(theme.MonoFontFamily).FontSize(13 * m.k).LineHeight(1.5).
@@ -219,7 +218,7 @@ func shortPath(path string) string {
 // paintFolder draws a folder behind r: a tab at its top left, its body a
 // sheet of the raised surface, a second sheet peeking out behind it.
 func paintFolder(p *ui.Painter, r ui.Rect, tab, radius float32, semantic theme.Theme) {
-	back := semantic.Families[theme.Regolith].Surface
+	back := semantic.Accent.Muted
 	body := semantic.Surface.Elevated
 	w, h := r.W, r.H
 	var behind ui.Path
@@ -410,7 +409,7 @@ func (s *State) summaryLine(c *ui.Context, semantic theme.Theme, m metrics, line
 	row.Children(func() {
 		mark := 18 * m.k
 		ui.Box(c).Size(mark, mark).Shrink(0).Draw(func(p *ui.Painter, r ui.Rect) {
-			components.InkCheck(p, r, semantic.Families[theme.Life].Emphasis, 2.4*m.k, drawn)
+			components.InkCheck(p, r, semantic.Accent.Foreground, 2.4*m.k, drawn)
 		})
 		components.Label(c, line[0], theme.TextDefault, semantic.Text.Muted).Width(160 * m.k).Shrink(0).SingleLine()
 		ui.Text(c, line[1]).Font(theme.ProseFontFamily).FontSize(15 * m.k).TextColor(semantic.Text.Heading).
@@ -481,7 +480,7 @@ func (s *State) foot(c *ui.Context, semantic theme.Theme, m metrics, animate boo
 			}
 			x := x0 + step*ring
 			components.InkRing(p, ui.Rect{X: x - 7*m.k, Y: cy - 7*m.k, W: 14 * m.k, H: 14 * m.k},
-				semantic.Families[theme.Afterglow].Emphasis, 1.8*m.k, float32(at), 1)
+				semantic.Accent.Foreground, 1.8*m.k, float32(at), 1)
 		})
 		components.Label(c, locales.OnboardingStep(fmt.Sprint(at+1), fmt.Sprint(len(pages))), theme.TextSmall, semantic.Text.Muted).
 			FontFeatures("tnum").AccessHidden(true)

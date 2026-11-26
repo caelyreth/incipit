@@ -1,69 +1,112 @@
 package components
 
 import (
+	_ "embed"
 	"encoding/xml"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/caelyreth/neverland/assets"
 	"github.com/egoist/mygo/ui"
+	"github.com/egoist/mygo/ui/shader"
 )
 
 // The brand mark is the profile of the application icon, drawn from its
 // own vector (assets.Profile) rather than a picture of it, so it is crisp
-// at any size, takes any ink, and can draw itself as a pen would.
+// at any size and takes any ink.
 
-// brandShape is one filled path of the mark.
+// brandShape is one filled path of the mark: its data, read again at the
+// size it is drawn (pathData), and its fill rule.
 type brandShape struct {
-	path    *ui.Path
-	outline *ui.Path
+	data    string
 	evenOdd bool
 }
 
-var brandMark = sync.OnceValues(func() (brandArt, error) { return parseBrand(assets.Profile) })
+var brandArtwork = sync.OnceValues(func() (brandArt, error) { return parseBrand(assets.Profile) })
 
 type brandArt struct {
 	w, h   float32
 	shapes []brandShape
 }
 
+//go:embed soak.kage
+var soakSource string
+
+// soak is the shader the mark spreads in with, as ink into paper.
+var soak = sync.OnceValues(func() (*shader.Shader, shader.Uniform) {
+	s := shader.MustCompile(soakSource)
+	return s, s.Uniform("Drawn")
+})
+
 // BrandAspect is the mark's width over its height.
 func BrandAspect() float32 {
-	art, err := brandMark()
+	art, err := brandArtwork()
 	if err != nil || art.h == 0 {
 		return 1
 	}
 	return art.w / art.h
 }
 
-// DrawBrandMark draws the mark centered in box in ink. drawn, from 0 to 1,
-// is how far it has drawn itself: first a pen tracing its outlines, then
-// the ink filling them in behind it; 1 is the mark as the icon has it.
-func DrawBrandMark(p *ui.Painter, box ui.Rect, ink ui.Color, drawn float32) {
-	art, err := brandMark()
-	if err != nil || art.w == 0 || box.W <= 0 || box.H <= 0 {
+// BrandMark is the mark as a view keeps it: its curves read once at the
+// size it is drawn, so each frame fills the same shapes, whose masks are
+// kept; and, while it spreads onto the page, a canvas the spreading reads.
+type BrandMark struct {
+	paths  []*ui.Path
+	px     float32
+	canvas *ui.Canvas
+}
+
+// Paint draws the mark centered in box in ink. drawn, from 0 to 1, is how
+// far it has spread onto the page, as ink soaks into paper; 1 is the mark
+// as the icon has it.
+func (b *BrandMark) Paint(p *ui.Painter, box ui.Rect, ink ui.Color, drawn float32) {
+	art, err := brandArtwork()
+	if err != nil || art.w == 0 || box.W <= 0 || box.H <= 0 || drawn <= 0 {
 		return
 	}
-	drawn = max(0, min(drawn, 1))
 	s := min(box.W/art.w, box.H/art.h)
-	x, y := box.X+(box.W-art.w*s)/2, box.Y+(box.H-art.h*s)/2
-	// The pen leads over the first two thirds; the fill comes up through
-	// the last half, so the two overlap and the line seems to bleed.
-	pen := Smoothstep(drawn / 0.68)
-	fill := Smoothstep((drawn - 0.5) / 0.5)
-	p.Transform(ui.Scaling(s, s).Then(ui.Translation(x, y)), 0, 0, func() {
+	at := ui.Rect{X: box.X + (box.W-art.w*s)/2, Y: box.Y + (box.H-art.h*s)/2, W: art.w * s, H: art.h * s}
+	w := max(1, int(math.Ceil(float64(at.W*p.Scale()))))
+	h := max(1, int(math.Ceil(float64(at.H*p.Scale()))))
+	// The curves are read at the size they are drawn, in pixels, which
+	// their masks are cut at, rather than drawn small and scaled.
+	if px := float32(w) / art.w; px != b.px {
+		b.px, b.paths = px, b.paths[:0]
 		for _, shape := range art.shapes {
-			if fill > 0 {
-				p.FillPath(shape.path, ink.Alpha(fill*float32(ink.A)/255))
+			path, err := pathData(shape.data, px)
+			if err != nil {
+				continue
 			}
-			if pen > 0 && fill < 1 {
-				shape.outline.Trim(0, pen)
-				p.StrokePath(shape.outline, 1.4/s+0.9, ink.Alpha((1-fill*0.6)*float32(ink.A)/255))
+			if shape.evenOdd {
+				path.FillRule(ui.EvenOdd)
 			}
+			b.paths = append(b.paths, path)
 		}
-	})
+	}
+	fill := func(fp *ui.Painter) {
+		for _, path := range b.paths {
+			fp.FillPath(path, ink)
+		}
+	}
+	if drawn >= 1 {
+		b.canvas = nil
+		k := 1 / p.Scale()
+		p.Transform(ui.Scaling(k, k).Then(ui.Translation(at.X, at.Y)), 0, 0, func() { fill(p) })
+		return
+	}
+	if b.canvas == nil {
+		b.canvas = ui.NewCanvas(w, h)
+	} else if cw, ch := b.canvas.Size(); cw != w || ch != h {
+		b.canvas = ui.NewCanvas(w, h)
+	}
+	b.canvas.Draw(p, fill)
+	fx, amount := soak()
+	v := fx.NewValues()
+	v.Float(amount, drawn)
+	fx.Draw(p, at, shader.Options{Values: v, Images: [4]*ui.Bitmap{b.canvas.Bitmap()}})
 }
 
 // parseBrand reads the mark's SVG: its view box and its paths, which use
@@ -87,24 +130,20 @@ func parseBrand(data []byte) (brandArt, error) {
 	}
 	art := brandArt{w: float32(w), h: float32(h)}
 	for _, el := range doc.Paths {
-		fill, err := ParsePathData(el.D)
-		if err != nil {
+		if _, err := ParsePathData(el.D); err != nil {
 			return brandArt{}, err
 		}
-		outline, _ := ParsePathData(el.D)
-		outline.Cap(ui.RoundCap).Join(ui.RoundJoin)
-		shape := brandShape{path: fill, outline: outline, evenOdd: el.FillRule == "evenodd"}
-		if shape.evenOdd {
-			fill.FillRule(ui.EvenOdd)
-		}
-		art.shapes = append(art.shapes, shape)
+		art.shapes = append(art.shapes, brandShape{data: el.D, evenOdd: el.FillRule == "evenodd"})
 	}
 	return art, nil
 }
 
 // ParsePathData reads an SVG path's data, of moves, lines, horizontal and
 // vertical lines, cubic curves and closes, absolute or relative.
-func ParsePathData(d string) (*ui.Path, error) {
+func ParsePathData(d string) (*ui.Path, error) { return pathData(d, 1) }
+
+// pathData is ParsePathData with every coordinate scaled by k.
+func pathData(d string, k float32) (*ui.Path, error) {
 	var path ui.Path
 	nums, cmd := []float32{}, byte(0)
 	var cx, cy, sx, sy float32
@@ -183,7 +222,7 @@ func ParsePathData(d string) (*ui.Path, error) {
 			if err != nil {
 				return nil, fmt.Errorf("path: number %q", d[i:j])
 			}
-			nums = append(nums, float32(v))
+			nums = append(nums, float32(v)*k)
 			i = j
 		}
 	}

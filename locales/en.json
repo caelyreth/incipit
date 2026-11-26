@@ -3208,7 +3208,7 @@
   "@onboardingMarksShown": {
     "description": "Onboarding: the formatting marks show beside the text."
   },
-  "onboardingMarksShownCaption": "The asterisks stay in sight as you write.",
+  "onboardingMarksShownCaption": "The asterisks stay in sight.",
   "@onboardingMarksShownCaption": {
     "description": "Onboarding: explains Shown."
   },
@@ -3228,7 +3228,7 @@
   "@onboardingPairsClosed": {
     "description": "Onboarding: typing ( adds ) after the caret."
   },
-  "onboardingPairsClosedCaption": "Type an opening bracket and its closer follows.",
+  "onboardingPairsClosedCaption": "The closer follows the opener.",
   "@onboardingPairsClosedCaption": {
     "description": "Onboarding: explains Closed for you."
   },
@@ -3236,7 +3236,7 @@
   "@onboardingPairsOpen": {
     "description": "Onboarding: brackets and quotes are typed one by one."
   },
-  "onboardingPairsOpenCaption": "Every character as you type it.",
+  "onboardingPairsOpenCaption": "Each character as typed.",
   "@onboardingPairsOpenCaption": {
     "description": "Onboarding: explains Left to you."
   },
@@ -3248,7 +3248,7 @@
   "@onboardingSymbolsOn": {
     "description": "Onboarding: plain characters become typographic symbols."
   },
-  "onboardingSymbolsOnCaption": "Two hyphens become a dash, three dots an ellipsis.",
+  "onboardingSymbolsOnCaption": "Dashes and ellipses as you type.",
   "@onboardingSymbolsOnCaption": {
     "description": "Onboarding: explains Typeset."
   },

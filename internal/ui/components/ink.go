@@ -21,8 +21,8 @@ func wobble(seed, t float32) float32 {
 // InkRing draws a loop around box, a little larger than it, as a pen
 // circles a word: it starts at the upper left, goes round once and a bit
 // past where it began, and leans as a hand does. The loop is a
-// superellipse, round as a ring around a small box and hugging the
-// corners of a wide one, so it never cuts across what it circles. width
+// superellipse hugging the box's corners, so it never cuts across what
+// it circles. width
 // is the pen's.
 func InkRing(p *ui.Painter, box ui.Rect, ink ui.Color, width, seed, drawn float32) {
 	if drawn <= 0 || box.W <= 0 || box.H <= 0 {
@@ -32,9 +32,13 @@ func InkRing(p *ui.Painter, box ui.Rect, ink ui.Color, width, seed, drawn float3
 	const turn = 1.08 // once round and past the start
 	cx, cy := box.X+box.W/2, box.Y+box.H/2
 	rx, ry := box.W/2+width*3, box.H/2+width*3
-	// The rounder the box, the rounder the loop: 2 is an ellipse, more
-	// squares it toward the box's corners.
-	n := 2 + 3*min(1, max(0, max(box.W, box.H)/min(box.W, box.H)-1)/2)
+	// 2 would be an ellipse, which cuts a card's corners; 4 and more
+	// square the loop toward the box's corners, the more the wider it is.
+	// A small mark, as a dot circled, keeps a round loop.
+	n := 4 + 2*min(1, max(0, max(box.W, box.H)/min(box.W, box.H)-1)/2)
+	if max(box.W, box.H) < 32 {
+		n = 2
+	}
 	var path ui.Path
 	start := float32(-2.4) + 0.15*wobble(seed, 0)
 	for i := 0; i <= steps; i++ {
