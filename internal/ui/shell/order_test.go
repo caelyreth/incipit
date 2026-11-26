@@ -526,11 +526,12 @@ func (l *orderedLibrary) SheetGroup(id string) string {
 	return ""
 }
 
-func (l *orderedLibrary) MoveSheet(id, group string, index int) {
+func (l *orderedLibrary) MoveSheet(id, group string, index int) bool {
 	for g := range l.groups {
 		l.groups[g] = slices.DeleteFunc(l.groups[g], func(o string) bool { return o == id })
 	}
 	l.groups[group] = slices.Insert(l.groups[group], min(index, len(l.groups[group])), id)
+	return true
 }
 
 // Sheets arranged together land together, in their order, before the one

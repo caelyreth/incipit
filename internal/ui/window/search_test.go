@@ -251,3 +251,33 @@ func TestTheKeysOfferTheNotebooksValuesAndCountThem(t *testing.T) {
 		t.Fatalf("counts kept = %v", again)
 	}
 }
+
+func TestSearchHitsCachedAcrossLineSnippetReads(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	typeIntoActivePage(t, app, "Alpha line with cachecheck keyword inside body")
+	settleSearch(app)
+
+	first := app.Search("cachecheck")
+	if len(first.Sheets) != 1 || app.finder.hits == nil {
+		t.Fatalf("first search = %+v, hits = %+v", first.Sheets, app.finder.hits)
+	}
+	cachedHits := app.finder.hits
+
+	// Wait for background line reader to bump generation, or advance until line loads.
+	deadline := time.Now().Add(2 * time.Second)
+	var withLine shell.Found
+	for time.Now().Before(deadline) {
+		withLine = app.Search("cachecheck")
+		if len(withLine.Sheets) == 1 && withLine.Sheets[0].Line != "" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(withLine.Sheets) != 1 || withLine.Sheets[0].Line == "" {
+		t.Fatalf("expected snippet line to populate, got %+v", withLine.Sheets)
+	}
+	// Reassembling snippets across line-read generations must keep the same cached rawHits pointer.
+	if app.finder.hits != cachedHits {
+		t.Fatal("rawHits cache was evicted and rebuilt on line generation change")
+	}
+}

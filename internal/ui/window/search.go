@@ -48,9 +48,13 @@ type finder struct {
 	// with a count that moves as the snapshot does: the index's revision of
 	// a page whose text may be newer than the store's.
 	texts map[library.SheetID]textState
-	// found is the last search, kept while its query, what it reads
-	// (queryStamp) and the lines read stand; counted the last count of a
-	// key's values, and smart each smart folder's sheets, the same.
+	// hits holds the last raw Bleve search result for (query, queryStamp) so
+	// progressive line-snippet updates assemble against cached hits without
+	// re-running Index.Search.
+	// found is the assembled result, kept while query, queryStamp, and lines
+	// generation stand; counted the last count of a key's values, and smart
+	// each smart folder's sheets, the same.
+	hits    *rawHits
 	found   *found
 	counted *counted
 	sites   *sites
@@ -107,6 +111,13 @@ type counted struct {
 	query, key, values string
 	stamp              queryStamp
 	counts             map[string]int
+}
+
+type rawHits struct {
+	query   string
+	stamp   queryStamp
+	res     search.Result
+	matcher *query.Matcher
 }
 
 type found struct {
@@ -394,12 +405,22 @@ func (a *AppState) searchSheets(text string) shell.Found {
 	if r := f.found; r != nil && r.query == text && r.stamp == stamp && r.read == read {
 		return r.result
 	}
-	q := query.Parse(text)
-	res, err := f.index.Search(q, search.Request{Env: a.searchEnv(), Limit: searchLimit})
-	if err != nil {
-		log.Printf("search: %v", err)
+	h := f.hits
+	if h == nil || h.query != text || h.stamp != stamp {
+		q := query.Parse(text)
+		res, err := f.index.Search(q, search.Request{Env: a.searchEnv(), Limit: searchLimit})
+		if err != nil {
+			log.Printf("search: %v", err)
+		}
+		h = &rawHits{
+			query:   text,
+			stamp:   stamp,
+			res:     res,
+			matcher: query.NewMatcher(q, res.Close),
+		}
+		f.hits = h
 	}
-	m := query.NewMatcher(q, res.Close)
+	res, m := h.res, h.matcher
 	f.lines.query(text, m)
 	sessions := a.sessionsBySheet()
 	paths := map[library.GroupID][]int64{}

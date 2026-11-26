@@ -176,26 +176,26 @@ type Library interface {
 	DuplicateSheet(id string) string
 	// Pin pins an object, "group:" or "sheet:" and its ID, standing it
 	// before the others where it is shown, or lets the pin go.
-	Pin(id string, pinned bool)
-	MoveSheet(id, group string, index int)
-	TrashSheet(id string)
-	RestoreSheet(id string)
+	Pin(id string, pinned bool) bool
+	MoveSheet(id, group string, index int) bool
+	TrashSheet(id string) bool
+	RestoreSheet(id string) bool
 	DeleteSheet(id string)
 
 	// NewGroup makes a group at index in parent and returns it, for
 	// naming.
 	NewGroup(parent string, index int) string
-	RenameGroup(id, name string)
+	RenameGroup(id, name string) bool
 	// NewSmartGroup keeps a query as a smart folder, at the top level, and
 	// returns it.
 	NewSmartGroup(name, query string) string
 	// StyleGroup sets a group's icon and tint, as GroupItem holds them.
-	StyleGroup(id, icon string, color int)
+	StyleGroup(id, icon string, color int) bool
 	// KeepAsList keeps a group shown as a list, or lets that go.
-	KeepAsList(id string, listed bool)
-	MoveGroup(id, parent string, index int)
-	TrashGroup(id string)
-	RestoreGroup(id string)
+	KeepAsList(id string, listed bool) bool
+	MoveGroup(id, parent string, index int) bool
+	TrashGroup(id string) bool
+	RestoreGroup(id string) bool
 	DeleteGroup(id string)
 	EmptyTrash()
 

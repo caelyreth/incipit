@@ -153,7 +153,7 @@ func (l *trialLibrary) DuplicateSheet(string) string {
 	return ""
 }
 
-func (l *trialLibrary) Pin(id string, pinned bool) {
+func (l *trialLibrary) Pin(id string, pinned bool) bool {
 	if g := l.groupPtr(trimKind(id, "group:")); g != nil {
 		g.Pinned = pinned
 	}
@@ -163,40 +163,47 @@ func (l *trialLibrary) Pin(id string, pinned bool) {
 		}
 	}
 	l.touch()
+	return true
 }
 
-func (l *trialLibrary) MoveSheet(string, string, int) {}
-func (l *trialLibrary) TrashSheet(string)             {}
-func (l *trialLibrary) RestoreSheet(string)           {}
-func (l *trialLibrary) DeleteSheet(string)            {}
-func (l *trialLibrary) NewGroup(string, int) string   { return "" }
+func (l *trialLibrary) MoveSheet(string, string, int) bool { return false }
+func (l *trialLibrary) TrashSheet(string) bool             { return false }
+func (l *trialLibrary) RestoreSheet(string) bool           { return false }
+func (l *trialLibrary) DeleteSheet(string)                 {}
+func (l *trialLibrary) NewGroup(string, int) string        { return "" }
 
-func (l *trialLibrary) RenameGroup(id, name string) {
+func (l *trialLibrary) RenameGroup(id, name string) bool {
 	if g := l.groupPtr(id); g != nil {
 		g.Name = name
 		l.touch()
+		return true
 	}
+	return false
 }
 
 func (l *trialLibrary) NewSmartGroup(string, string) string { return "" }
 
-func (l *trialLibrary) StyleGroup(id, icon string, color int) {
+func (l *trialLibrary) StyleGroup(id, icon string, color int) bool {
 	if g := l.groupPtr(id); g != nil {
 		g.Icon, g.Color = icon, color
 		l.touch()
+		return true
 	}
+	return false
 }
 
-func (l *trialLibrary) KeepAsList(id string, listed bool) {
+func (l *trialLibrary) KeepAsList(id string, listed bool) bool {
 	if g := l.groupPtr(id); g != nil {
 		g.Listed = listed
 		l.touch()
+		return true
 	}
+	return false
 }
 
-func (l *trialLibrary) MoveGroup(string, string, int) {}
-func (l *trialLibrary) TrashGroup(string)             {}
-func (l *trialLibrary) RestoreGroup(string)           {}
+func (l *trialLibrary) MoveGroup(string, string, int) bool { return false }
+func (l *trialLibrary) TrashGroup(string) bool             { return false }
+func (l *trialLibrary) RestoreGroup(string) bool           { return false }
 func (l *trialLibrary) DeleteGroup(string)            {}
 func (l *trialLibrary) EmptyTrash()                   {}
 func (l *trialLibrary) Export(string)                 {}

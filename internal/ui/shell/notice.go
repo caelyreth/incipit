@@ -243,21 +243,31 @@ func (s *State) moveSheets(ids []string, group string) {
 	if len(ids) == 0 {
 		return
 	}
-	text := locales.MovedTo(s.sheetsNamed(ids), s.groupNamedByID(group))
 	from := s.sheetPlaces(ids)
-	do := func() {
-		for _, id := range ids {
-			s.Library.MoveSheet(id, group, Last)
+	moved := make([]string, 0, len(from))
+	movedFrom := make([]sheetPlace, 0, len(from))
+	for _, p := range from {
+		if s.Library.MoveSheet(p.id, group, Last) {
+			moved = append(moved, p.id)
+			movedFrom = append(movedFrom, p)
 		}
-		s.arrive(rowIDs("sheet:", ids)...)
 	}
-	do()
+	if len(moved) == 0 {
+		return
+	}
+	s.arrive(rowIDs("sheet:", moved)...)
+	text := locales.MovedTo(s.sheetsNamed(moved), s.groupNamedByID(group))
 	s.tell(text, func() {
-		for _, p := range from {
+		for _, p := range movedFrom {
 			s.Library.MoveSheet(p.id, p.group, p.index)
 		}
-		s.arrive(rowIDs("sheet:", ids)...)
-	}, do)
+		s.arrive(rowIDs("sheet:", moved)...)
+	}, func() {
+		for _, id := range moved {
+			s.Library.MoveSheet(id, group, Last)
+		}
+		s.arrive(rowIDs("sheet:", moved)...)
+	})
 }
 
 // trashSheets puts the sheets ids in the trash, to be undone.
@@ -265,24 +275,34 @@ func (s *State) trashSheets(ids []string) {
 	if len(ids) == 0 {
 		return
 	}
-	text := locales.MovedToTrash(s.sheetsNamed(ids))
 	from := s.sheetPlaces(ids)
 	// A sheet open on the desk closes as it goes; taken back, it comes
 	// back to its place in the field, marked there, and stays closed: the
 	// undo is had on the field, and leaves the window looking at it.
-	do := func() {
-		for _, id := range ids {
-			s.Library.TrashSheet(id)
+	trashed := make([]string, 0, len(from))
+	trashedFrom := make([]sheetPlace, 0, len(from))
+	for _, p := range from {
+		if s.Library.TrashSheet(p.id) {
+			trashed = append(trashed, p.id)
+			trashedFrom = append(trashedFrom, p)
 		}
 	}
-	do()
+	if len(trashed) == 0 {
+		return
+	}
+	text := locales.MovedToTrash(s.sheetsNamed(trashed))
 	s.tell(text, func() {
-		for _, p := range from {
-			s.Library.RestoreSheet(p.id)
-			s.Library.MoveSheet(p.id, p.group, p.index)
+		for _, p := range trashedFrom {
+			if s.Library.RestoreSheet(p.id) {
+				s.Library.MoveSheet(p.id, p.group, p.index)
+			}
 		}
-		s.arrive(rowIDs("sheet:", ids)...)
-	}, do)
+		s.arrive(rowIDs("sheet:", trashed)...)
+	}, func() {
+		for _, id := range trashed {
+			s.Library.TrashSheet(id)
+		}
+	})
 }
 
 // restoreSheets puts the sheets ids back out of the trash, to be undone.
@@ -290,19 +310,27 @@ func (s *State) restoreSheets(ids []string) {
 	if len(ids) == 0 {
 		return
 	}
-	text := locales.PutBackWhat(s.sheetsNamed(ids))
-	do := func() {
-		for _, id := range ids {
-			s.Library.RestoreSheet(id)
+	restored := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if s.Library.RestoreSheet(id) {
+			restored = append(restored, id)
 		}
-		s.arrive(rowIDs("sheet:", ids)...)
 	}
-	do()
+	if len(restored) == 0 {
+		return
+	}
+	s.arrive(rowIDs("sheet:", restored)...)
+	text := locales.PutBackWhat(s.sheetsNamed(restored))
 	s.tell(text, func() {
-		for _, id := range ids {
+		for _, id := range restored {
 			s.Library.TrashSheet(id)
 		}
-	}, do)
+	}, func() {
+		for _, id := range restored {
+			s.Library.RestoreSheet(id)
+		}
+		s.arrive(rowIDs("sheet:", restored)...)
+	})
 }
 
 // groupPlace is where a group stands: its parent, and where among its
@@ -336,35 +364,48 @@ func (s *State) moveGroup(id, parent string) {
 		text = locales.MovedInto(s.groupNamedByID(id), s.groupNamedByID(parent))
 	}
 	from, at := s.groupPlace(id)
-	do := func() {
-		s.Library.MoveGroup(id, parent, Last)
+	do := func() bool {
+		if !s.Library.MoveGroup(id, parent, Last) {
+			return false
+		}
 		s.arrive("group:" + id)
+		return true
 	}
-	do()
+	if !do() {
+		return
+	}
 	s.tell(text, func() {
-		s.Library.MoveGroup(id, from, at)
-		s.arrive("group:" + id)
-	}, do)
+		if s.Library.MoveGroup(id, from, at) {
+			s.arrive("group:" + id)
+		}
+	}, func() { do() })
 }
 
 // trashGroup puts the group g in the trash, to be undone.
 func (s *State) trashGroup(g GroupItem) {
-	do := func() { s.Library.TrashGroup(g.ID) }
-	do()
+	if !s.Library.TrashGroup(g.ID) {
+		return
+	}
 	s.tell(locales.MovedToTrash(locales.Quoted(g.Name)), func() {
-		s.Library.RestoreGroup(g.ID)
-		s.arrive("group:" + g.ID)
-	}, do)
+		if s.Library.RestoreGroup(g.ID) {
+			s.arrive("group:" + g.ID)
+		}
+	}, func() { s.Library.TrashGroup(g.ID) })
 }
 
 // restoreGroup puts the group g back out of the trash, to be undone.
 func (s *State) restoreGroup(g GroupItem) {
-	do := func() {
-		s.Library.RestoreGroup(g.ID)
+	do := func() bool {
+		if !s.Library.RestoreGroup(g.ID) {
+			return false
+		}
 		s.arrive("group:" + g.ID)
+		return true
 	}
-	do()
-	s.tell(locales.PutBackWhat(locales.Quoted(g.Name)), func() { s.Library.TrashGroup(g.ID) }, do)
+	if !do() {
+		return
+	}
+	s.tell(locales.PutBackWhat(locales.Quoted(g.Name)), func() { s.Library.TrashGroup(g.ID) }, func() { do() })
 }
 
 // renameGroup names the group id name, to be undone.
@@ -374,8 +415,11 @@ func (s *State) renameGroup(id, name string) {
 		return
 	}
 	old := g.Name
-	set := func(from, to string) func() {
-		return func() {
+	set := func(from, to string) func() bool {
+		return func() bool {
+			if !s.Library.RenameGroup(id, to) {
+				return false
+			}
 			// The query going on in the group follows its name.
 			for i, text := range s.field.conditions {
 				if c, ok := condition(text); ok && c.Key.Name == "in" && strings.EqualFold(c.Value, from) {
@@ -384,11 +428,13 @@ func (s *State) renameGroup(id, name string) {
 				}
 			}
 			s.field.conditions = ordered(s.field.conditions)
-			s.Library.RenameGroup(id, to)
+			return true
 		}
 	}
-	set(old, name)()
-	s.tell(locales.Renamed(old, name), set(name, old), set(old, name))
+	if !set(old, name)() {
+		return
+	}
+	s.tell(locales.Renamed(old, name), func() { set(name, old)() }, func() { set(old, name)() })
 }
 
 // deleteBookmark lets the bookmark id go; taken back, it is kept again
@@ -406,7 +452,9 @@ func (s *State) deleteBookmark(id string) {
 	remove()
 	s.tell(locales.DeletedBookmark(g.Name), func() {
 		current = s.Library.NewSmartGroup(g.Name, g.Query)
-		s.Library.StyleGroup(current, g.Icon, g.Color)
+		if current != "" {
+			s.Library.StyleGroup(current, g.Icon, g.Color)
+		}
 	}, remove)
 }
 
@@ -415,33 +463,46 @@ func (s *State) styleGroup(g GroupItem, icon string, color int) {
 	if g.Icon == icon && g.Color == color {
 		return
 	}
-	do := func() { s.Library.StyleGroup(g.ID, icon, color) }
-	do()
-	s.tell(locales.Changed(g.Name), func() { s.Library.StyleGroup(g.ID, g.Icon, g.Color) }, do)
+	if !s.Library.StyleGroup(g.ID, icon, color) {
+		return
+	}
+	s.tell(locales.Changed(g.Name),
+		func() { s.Library.StyleGroup(g.ID, g.Icon, g.Color) },
+		func() { s.Library.StyleGroup(g.ID, icon, color) },
+	)
 }
 
 // pin pins the object id, or lets its pin go, to be undone.
 func (s *State) pin(id string, pinned bool) {
-	set := func(on bool) func() {
-		return func() {
-			s.Library.Pin(id, on)
+	set := func(on bool) func() bool {
+		return func() bool {
+			if !s.Library.Pin(id, on) {
+				return false
+			}
 			s.arrive(id)
+			return true
 		}
 	}
-	set(pinned)()
+	if !set(pinned)() {
+		return
+	}
 	text := map[bool]func(string) string{true: locales.PinnedWhat, false: locales.UnpinnedWhat}[pinned](s.objectsNamed([]string{id}))
-	s.tell(text, set(!pinned), set(pinned))
+	s.tell(text, func() { set(!pinned)() }, func() { set(pinned)() })
 }
 
 // newGroup makes a group in parent and starts naming it; taken back, it
 // goes to the trash, as a new folder does in the Finder.
 func (s *State) newGroup(parent string) {
 	id := s.Library.NewGroup(parent, Last)
+	if id == "" {
+		return
+	}
 	s.arrive("group:" + id)
 	s.startRename(id)
 	s.tell(locales.NewGroupTold(), func() { s.Library.TrashGroup(id) }, func() {
-		s.Library.RestoreGroup(id)
-		s.arrive("group:" + id)
+		if s.Library.RestoreGroup(id) {
+			s.arrive("group:" + id)
+		}
 	})
 }
 
@@ -460,15 +521,16 @@ func (s *State) duplicate(sheets []string) {
 			}
 			s.arrive("sheet:" + copied)
 			s.tell(locales.Duplicated(), func() { s.Library.TrashSheet(copied) }, func() {
-				s.Library.RestoreSheet(copied)
-				s.arrive("sheet:" + copied)
+				if s.Library.RestoreSheet(copied) {
+					s.arrive("sheet:" + copied)
+				}
 			})
 		}
 	})
 }
 
 // FieldUndoes reports whether Undo and Redo are the field's: while it is
-// in front and no name is being written, whose text undoes its own.
+// in front, not inside Settings, and no text input holds focus.
 func (s *State) FieldUndoes() bool {
-	return !s.OnDesk() && s.field.renaming == ""
+	return !s.OnDesk() && !s.InSettings() && s.field.renaming == "" && !s.textFocused
 }

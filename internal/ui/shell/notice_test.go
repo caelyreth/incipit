@@ -143,3 +143,54 @@ func TestATrashedSheetTakenBackStaysClosed(t *testing.T) {
 		t.Fatal("Undo should leave the window on the field.")
 	}
 }
+
+func TestFailedLibraryMutationsDoNotPushUndoAndRespectFocusedTextField(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.fail = map[string]bool{
+		"move 7":   true,
+		"trash 7":  true,
+		"rename 2": true,
+	}
+	state.field.conditions = []string{"$in:\"Novel\""}
+
+	state.moveSheets([]string{"7"}, "1")
+	state.trashSheets([]string{"7"})
+	state.renameGroup("2", "Elsewhere")
+
+	if what, ok := state.CanUndo(); ok {
+		t.Fatalf("failed mutations should not create undo entries, got %q", what)
+	}
+	if !slices.Equal(state.field.conditions, []string{"$in:\"Novel\""}) {
+		t.Fatalf("failed RenameGroup mutated conditions to %v", state.field.conditions)
+	}
+
+	// Initially the search pill has text focus, so FieldUndoes is false.
+	if state.FieldUndoes() {
+		t.Fatal("FieldUndoes must be false while the search pill holds focus")
+	}
+
+	// Pressing Escape moves focus from the search pill to the library field.
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+	if !state.FieldUndoes() {
+		t.Fatal("FieldUndoes should be true on the library field after Escape")
+	}
+
+	// Opening Settings keeps FieldUndoes false so text/search inputs handle Cmd+Z.
+	state.ShowSettings()
+	tester.Frame()
+	if state.FieldUndoes() {
+		t.Fatal("FieldUndoes must be false while viewing Settings")
+	}
+	state.ShowSettings()
+	settle(tester)
+	tester.Key(0, ui.KeyEscape)
+	settle(tester)
+
+	// Focusing the search pill puts textFocused=true so FieldUndoes is false.
+	state.Search()
+	settle(tester)
+	if state.FieldUndoes() {
+		t.Fatal("FieldUndoes must be false while the search field has text focus")
+	}
+}

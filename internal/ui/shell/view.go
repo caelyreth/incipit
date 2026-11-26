@@ -57,4 +57,5 @@ func (s *State) View(c *ui.Context) {
 			}
 		})
 	})
+	s.textFocused = c.FocusTakesText()
 }

@@ -72,6 +72,8 @@ type fakeLibrary struct {
 	listed map[string]bool
 	// moved are the sheets moved, each with the index it was moved to.
 	moved []string
+	// fail marks mutation keys that fail cleanly and return false.
+	fail map[string]bool
 	// unwritten holds no word in any sheet, as a new notebook.
 	unwritten bool
 }
@@ -253,21 +255,41 @@ func (f *fakeLibrary) DuplicateSheet(id string) string {
 	f.call("duplicate " + id)
 	return id + "-copy"
 }
-func (f *fakeLibrary) MoveSheet(id, group string, index int) {
+func (f *fakeLibrary) MoveSheet(id, group string, index int) bool {
+	if f.fail["move "+id] {
+		return false
+	}
 	f.call("move " + id + " to " + group)
 	f.moved = append(f.moved, fmt.Sprint(id, "@", index))
+	return true
 }
-func (f *fakeLibrary) TrashSheet(id string) { f.call("trash " + id) }
-func (f *fakeLibrary) Pin(id string, pinned bool) {
+func (f *fakeLibrary) TrashSheet(id string) bool {
+	if f.fail["trash "+id] {
+		return false
+	}
+	f.call("trash " + id)
+	return true
+}
+func (f *fakeLibrary) Pin(id string, pinned bool) bool {
+	if f.fail["pin "+id] {
+		return false
+	}
 	f.call(fmt.Sprint("pin ", id, " ", pinned))
 	if f.pins == nil {
 		f.pins = map[string]bool{}
 	}
 	_, bare, _ := strings.Cut(id, ":")
 	f.pins[bare] = pinned
+	return true
 }
-func (f *fakeLibrary) RestoreSheet(id string) { f.call("restore " + id) }
-func (f *fakeLibrary) DeleteSheet(id string)  { f.call("delete " + id) }
+func (f *fakeLibrary) RestoreSheet(id string) bool {
+	if f.fail["restore "+id] {
+		return false
+	}
+	f.call("restore " + id)
+	return true
+}
+func (f *fakeLibrary) DeleteSheet(id string) { f.call("delete " + id) }
 
 func (f *fakeLibrary) NewGroup(parent string, index int) string {
 	f.call(fmt.Sprint("new group ", parent, " ", index))
@@ -289,44 +311,59 @@ func (f *fakeLibrary) NewGroup(parent string, index int) string {
 	}
 	return "2"
 }
-func (f *fakeLibrary) RenameGroup(id, name string) {
+func (f *fakeLibrary) RenameGroup(id, name string) bool {
+	if f.fail["rename "+id] {
+		return false
+	}
 	f.call("rename " + id + " " + name)
 	for key, groups := range f.groupTree {
 		for at := range groups {
 			if groups[at].ID == id {
 				groups[at].Name = name
 				f.groupTree[key] = groups
-				return
+				return true
 			}
 		}
 	}
+	return true
 }
-func (f *fakeLibrary) StyleGroup(id, icon string, color int) {
+func (f *fakeLibrary) StyleGroup(id, icon string, color int) bool {
+	if f.fail["style "+id] {
+		return false
+	}
 	f.call(fmt.Sprintf("style %s %s %d", id, icon, color))
 	for key, groups := range f.groupTree {
 		for at := range groups {
 			if groups[at].ID == id {
 				groups[at].Icon, groups[at].Color = icon, color
 				f.groupTree[key] = groups
-				return
+				return true
 			}
 		}
 	}
+	return true
 }
-func (f *fakeLibrary) KeepAsList(id string, listed bool) {
+func (f *fakeLibrary) KeepAsList(id string, listed bool) bool {
+	if f.fail["keep "+id] {
+		return false
+	}
 	f.call(fmt.Sprintf("keep %s as list %v", id, listed))
 	if f.listed == nil {
 		f.listed = map[string]bool{}
 	}
 	f.listed[id] = listed
+	return true
 }
 
 // MoveGroup records the move and, in a tree of groups, makes it: the
 // group taken out, then put at index among parent's.
-func (f *fakeLibrary) MoveGroup(id, parent string, index int) {
+func (f *fakeLibrary) MoveGroup(id, parent string, index int) bool {
+	if f.fail["move group "+id] {
+		return false
+	}
 	f.call("move group " + id + " to " + parent)
 	if f.groupTree == nil {
-		return
+		return true
 	}
 	var moved GroupItem
 	for p, groups := range f.groupTree {
@@ -336,19 +373,32 @@ func (f *fakeLibrary) MoveGroup(id, parent string, index int) {
 		}
 	}
 	if moved.ID == "" {
-		return
+		return false
 	}
 	siblings := f.groupTree[parent]
 	f.groupTree[parent] = slices.Insert(slices.Clone(siblings), max(0, min(index, len(siblings))), moved)
+	return true
 }
-func (f *fakeLibrary) TrashGroup(id string) { f.call("trash group " + id) }
+func (f *fakeLibrary) TrashGroup(id string) bool {
+	if f.fail["trash group "+id] {
+		return false
+	}
+	f.call("trash group " + id)
+	return true
+}
 func (f *fakeLibrary) NewSmartGroup(name, query string) string {
 	f.call("new smart " + name + " " + query)
 	f.smart = query
 	f.rev++
 	return "5"
 }
-func (f *fakeLibrary) RestoreGroup(id string) { f.call("restore group " + id) }
+func (f *fakeLibrary) RestoreGroup(id string) bool {
+	if f.fail["restore group "+id] {
+		return false
+	}
+	f.call("restore group " + id)
+	return true
+}
 func (f *fakeLibrary) DeleteGroup(id string)  { f.call("delete group " + id) }
 func (f *fakeLibrary) EmptyTrash()            { f.call("empty trash") }
 func (f *fakeLibrary) Export(id string)       { f.call("export " + id) }

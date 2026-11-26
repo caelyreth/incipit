@@ -122,19 +122,24 @@ func (s *State) placeListed() bool {
 // own, marked on the group (listBadge), where turning the view passes.
 // What was turned in it this session gives way to what it now keeps.
 func (s *State) keepAsList(g GroupItem, listed bool) {
-	set := func(on bool) func() {
-		return func() {
-			s.Library.KeepAsList(g.ID, on)
+	set := func(on bool) func() bool {
+		return func() bool {
+			if !s.Library.KeepAsList(g.ID, on) {
+				return false
+			}
 			delete(s.field.lists, "group:"+g.ID)
 			s.field.listsRev++
+			return true
 		}
 	}
-	set(listed)()
+	if !set(listed)() {
+		return
+	}
 	text := locales.AlwaysShowingAsList(g.Name)
 	if !listed {
 		text = locales.StoppedShowingAsList(g.Name)
 	}
-	s.tell(text, set(!listed), set(listed))
+	s.tell(text, func() { set(!listed)() }, func() { set(listed)() })
 }
 
 // keepItem is a menu's Always Show as List for g, checked while it does.
@@ -415,8 +420,9 @@ func (s *State) arrange(ids []string, group, before string) {
 		return
 	}
 	from := s.sheetPlaces(ids)
-	do := func() { s.placeSheets(group, want, at, len(ids)) }
-	do()
+	if !s.placeSheets(group, want, at, len(ids)) {
+		return
+	}
 	text := locales.Moved(s.sheetsNamed(ids))
 	if slices.ContainsFunc(from, func(p sheetPlace) bool { return p.group != group }) {
 		text = locales.MovedTo(s.sheetsNamed(ids), s.groupNamedByID(group))
@@ -426,25 +432,32 @@ func (s *State) arrange(ids []string, group, before string) {
 			s.Library.MoveSheet(p.id, p.group, p.index)
 		}
 		s.arrive(rowIDs("sheet:", ids)...)
-	}, do)
+	}, func() { s.placeSheets(group, want, at, len(ids)) })
 }
 
 // placeSheets moves the n sheets at in want so group's sheets stand as
 // want does: each goes just after the one before it there, which already
 // stands where it will, so wherever each comes from, the rest keep their
 // order around it.
-func (s *State) placeSheets(group string, want []string, at, n int) {
+func (s *State) placeSheets(group string, want []string, at, n int) bool {
 	cur := s.sheetIDs(group)
+	moved := make([]string, 0, n)
 	for _, id := range want[at : at+n] {
 		cur = slices.DeleteFunc(cur, func(c string) bool { return c == id })
 		to := 0
 		if i := slices.Index(want, id); i > 0 {
 			to = slices.Index(cur, want[i-1]) + 1
 		}
-		s.Library.MoveSheet(id, group, to)
+		if s.Library.MoveSheet(id, group, to) {
+			moved = append(moved, id)
+		}
 		cur = slices.Insert(cur, to, id)
 	}
-	s.arrive(rowIDs("sheet:", want[at:at+n])...)
+	if len(moved) == 0 {
+		return false
+	}
+	s.arrive(rowIDs("sheet:", moved)...)
+	return true
 }
 
 // arrangeGroup puts the group id in parent at index among its groups, as
@@ -454,11 +467,16 @@ func (s *State) arrangeGroup(id, parent string, index int) {
 	if from == parent && index == at {
 		return
 	}
-	move := func(parent string, index int) {
-		s.Library.MoveGroup(id, parent, index)
+	move := func(parent string, index int) bool {
+		if !s.Library.MoveGroup(id, parent, index) {
+			return false
+		}
 		s.arrive("group:" + id)
+		return true
 	}
-	move(parent, index)
+	if !move(parent, index) {
+		return
+	}
 	s.tell(locales.Moved(s.groupNamedByID(id)), func() { move(from, at) }, func() { move(parent, index) })
 }
 

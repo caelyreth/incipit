@@ -4,10 +4,16 @@ import (
 	"log"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/caelyreth/neverland/internal/app/library"
 	"github.com/caelyreth/neverland/internal/app/search"
 	"github.com/caelyreth/neverland/internal/text/query"
+)
+
+const (
+	lineBatchSize  = 8
+	lineBatchDelay = 12 * time.Millisecond
 )
 
 // lineKey is a sheet at a revision of the index: its lines stand while
@@ -119,33 +125,47 @@ func (l *lines) run() {
 		case <-l.wake:
 		}
 		for {
-			l.mu.Lock()
-			if len(l.pending) == 0 {
+			start := time.Now()
+			processed := 0
+			for processed < lineBatchSize {
+				l.mu.Lock()
+				if len(l.pending) == 0 {
+					l.mu.Unlock()
+					break
+				}
+				job, text, m := l.pending[0], l.current, l.matcher
+				l.pending = l.pending[1:]
 				l.mu.Unlock()
+
+				got := line{}
+				if t, err := job.read(); err != nil {
+					log.Printf("search line: %v", err)
+				} else if spans := m.Find(t.Body); len(spans) > 0 {
+					got.text, got.spans = query.Line(t.Body, spans, lineWidth)
+				}
+
+				l.mu.Lock()
+				if text == l.current {
+					l.done[job.key] = got
+				}
+				l.mu.Unlock()
+				processed++
+
+				select {
+				case <-l.stop:
+					return
+				default:
+				}
+				if time.Since(start) >= lineBatchDelay {
+					break
+				}
+			}
+			if processed == 0 {
 				break
 			}
-			job, text, m := l.pending[0], l.current, l.matcher
-			l.pending = l.pending[1:]
-			l.mu.Unlock()
-			got := line{}
-			if t, err := job.read(); err != nil {
-				log.Printf("search line: %v", err)
-			} else if spans := m.Find(t.Body); len(spans) > 0 {
-				got.text, got.spans = query.Line(t.Body, spans, lineWidth)
-			}
-			l.mu.Lock()
-			if text == l.current {
-				l.done[job.key] = got
-			}
-			l.mu.Unlock()
 			l.gen.Add(1)
 			if l.changed != nil {
 				l.changed()
-			}
-			select {
-			case <-l.stop:
-				return
-			default:
 			}
 		}
 	}

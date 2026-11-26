@@ -113,62 +113,71 @@ func (a *AppState) discardUnfiledPage(id workspace.PageID, cause error) error {
 }
 
 // MoveSheet is part of shell.Library.
-func (a *AppState) MoveSheet(name, group string, index int) {
+func (a *AppState) MoveSheet(name, group string, index int) bool {
 	session, ok := a.sessionOf(name)
 	if !ok {
-		return
+		return false
 	}
 	target := groupOf(group)
 	sheet, _ := a.library.Sheet(library.SheetID(session.key))
 	if err := a.library.MoveSheet(sheet.ID, target, index); err != nil {
 		a.fail(locales.CouldntMoveSheet(), err)
-		return
+		return false
 	}
 	a.libraryChanged()
+	return true
 }
 
 // Pin is part of shell.Library.
-func (a *AppState) Pin(id string, pinned bool) {
+func (a *AppState) Pin(id string, pinned bool) bool {
 	var err error
 	if group, ok := strings.CutPrefix(id, "group:"); ok {
 		err = a.library.PinGroup(groupOf(group), pinned)
 	} else if name, ok := strings.CutPrefix(id, "sheet:"); ok {
 		session, open := a.sessionOf(name)
 		if !open {
-			return
+			return false
 		}
 		err = a.library.PinSheet(library.SheetID(session.key), pinned)
 	} else {
-		return
+		return false
 	}
 	if err != nil {
 		a.fail(locales.CouldntPin(), err)
-		return
+		return false
 	}
 	a.libraryChanged()
+	return true
 }
 
 // TrashSheet is part of shell.Library: the sheet goes to the trash and
 // closes.
-func (a *AppState) TrashSheet(name string) {
+func (a *AppState) TrashSheet(name string) bool {
 	session, ok := a.sessionOf(name)
 	if !ok {
-		return
+		return false
 	}
 	if err := a.library.TrashSheet(library.SheetID(session.key), time.Now()); err != nil {
 		a.fail(locales.CouldntMoveSheetToTrash(), err)
-		return
+		return false
 	}
 	a.closeSheets([]*sheetSession{session})
 	a.libraryChanged()
+	return true
 }
 
 // RestoreSheet is part of shell.Library.
-func (a *AppState) RestoreSheet(name string) {
-	if session, ok := a.sessionOf(name); ok {
-		_ = a.library.RestoreSheet(library.SheetID(session.key))
-		a.libraryChanged()
+func (a *AppState) RestoreSheet(name string) bool {
+	session, ok := a.sessionOf(name)
+	if !ok {
+		return false
 	}
+	if err := a.library.RestoreSheet(library.SheetID(session.key)); err != nil {
+		a.fail(locales.CouldntRunCommand(), err)
+		return false
+	}
+	a.libraryChanged()
+	return true
 }
 
 // DeleteSheet is part of shell.Library: the sheet is gone for good. The
@@ -210,42 +219,52 @@ func (a *AppState) NewSmartGroup(name, query string) string {
 }
 
 // RenameGroup is part of shell.Library.
-func (a *AppState) RenameGroup(id, name string) {
-	if err := a.library.RenameGroup(groupOf(id), name); err == nil {
-		a.libraryChanged()
+func (a *AppState) RenameGroup(id, name string) bool {
+	if err := a.library.RenameGroup(groupOf(id), name); err != nil {
+		a.fail(locales.CouldntRunCommand(), err)
+		return false
 	}
+	a.libraryChanged()
+	return true
 }
 
 // StyleGroup is part of shell.Library.
-func (a *AppState) StyleGroup(id, icon string, color int) {
-	if err := a.library.StyleGroup(groupOf(id), icon, uint8(max(0, min(color, 255)))); err == nil {
-		a.libraryChanged()
+func (a *AppState) StyleGroup(id, icon string, color int) bool {
+	if err := a.library.StyleGroup(groupOf(id), icon, uint8(max(0, min(color, 255)))); err != nil {
+		a.fail(locales.CouldntChangeSetting(), err)
+		return false
 	}
+	a.libraryChanged()
+	return true
 }
 
 // KeepAsList is part of shell.Library.
-func (a *AppState) KeepAsList(id string, listed bool) {
-	if err := a.library.KeepAsList(groupOf(id), listed); err == nil {
-		a.libraryChanged()
+func (a *AppState) KeepAsList(id string, listed bool) bool {
+	if err := a.library.KeepAsList(groupOf(id), listed); err != nil {
+		a.fail(locales.CouldntChangeSetting(), err)
+		return false
 	}
+	a.libraryChanged()
+	return true
 }
 
 // MoveGroup is part of shell.Library.
-func (a *AppState) MoveGroup(id, parent string, index int) {
+func (a *AppState) MoveGroup(id, parent string, index int) bool {
 	if err := a.library.MoveGroup(groupOf(id), groupOf(parent), index); err != nil {
 		a.fail(locales.CouldntMoveGroup(), err)
-		return
+		return false
 	}
 	a.libraryChanged()
+	return true
 }
 
 // TrashGroup is part of shell.Library: the group goes to the trash with all
 // it holds, which close.
-func (a *AppState) TrashGroup(id string) {
+func (a *AppState) TrashGroup(id string) bool {
 	group := groupOf(id)
 	if err := a.library.TrashGroup(group, time.Now()); err != nil {
 		a.fail(locales.CouldntMoveGroupToTrash(), err)
-		return
+		return false
 	}
 	var closing []*sheetSession
 	for _, session := range a.sessions {
@@ -255,13 +274,17 @@ func (a *AppState) TrashGroup(id string) {
 	}
 	a.closeSheets(closing)
 	a.libraryChanged()
+	return true
 }
 
 // RestoreGroup is part of shell.Library.
-func (a *AppState) RestoreGroup(id string) {
-	if err := a.library.RestoreGroup(groupOf(id)); err == nil {
-		a.libraryChanged()
+func (a *AppState) RestoreGroup(id string) bool {
+	if err := a.library.RestoreGroup(groupOf(id)); err != nil {
+		a.fail(locales.CouldntMoveGroup(), err)
+		return false
 	}
+	a.libraryChanged()
+	return true
 }
 
 // DeleteGroup is part of shell.Library: the group and all it holds are

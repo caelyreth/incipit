@@ -130,10 +130,11 @@ type State struct {
 	actionDock dockState
 	// field is the field's state (field.go); onDesk whether the window
 	// looks at the desk, and view how far it has gone there (scene.go).
-	field  fieldState
-	lane   laneState
-	onDesk bool
-	view   float32
+	field       fieldState
+	lane        laneState
+	onDesk      bool
+	view        float32
+	textFocused bool
 }
 
 func New() *State {
