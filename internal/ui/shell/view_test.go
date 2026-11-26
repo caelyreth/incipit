@@ -327,3 +327,36 @@ func TestDeskSkipsFarOffscreenSheets(t *testing.T) {
 		t.Fatalf("Visible/active sheets should build and far-offscreen sheet 8 should be culled: built=%v.", built)
 	}
 }
+
+// TestFieldDeskTransitionLifecycle checks that repeated Field <-> Desk
+// transitions cleanly unmount the hidden Field, settle leanDesk back onto the
+// Desk, and keep open sheets responsive across multiple round trips.
+func TestFieldDeskTransitionLifecycle(t *testing.T) {
+	state, library := libraryState()
+	library.extraSheets = 30
+	library.desk = state
+	state.Sheet = func(c *ui.Context, page Page, _ SheetFrame) {
+		ui.Text(c, "Body of "+page.Title)
+	}
+	state.Open = nil
+	for i := 1; i <= 6; i++ {
+		state.Open = append(state.Open, sheetPage(fmt.Sprint(i), fmt.Sprintf("Sheet %d", i)))
+	}
+	inFront(state, "1")
+	state.ShowField()
+	tester := ui.NewTester(state.View, 1260, 850)
+	settle(tester)
+
+	for round := range 3 {
+		state.ShowDesk()
+		settle(tester)
+		if !state.OnDesk() || !state.field.hidden {
+			t.Fatalf("round %d: expected settled on desk with hidden field (onDesk=%v hidden=%v)", round, state.OnDesk(), state.field.hidden)
+		}
+		state.ShowField()
+		settle(tester)
+		if state.OnDesk() || state.field.hidden {
+			t.Fatalf("round %d: expected settled on field with visible field (onDesk=%v hidden=%v)", round, state.OnDesk(), state.field.hidden)
+		}
+	}
+}
