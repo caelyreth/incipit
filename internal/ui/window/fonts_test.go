@@ -23,13 +23,13 @@ func TestFontStateFamilyResolution(t *testing.T) {
 	if got := fs.family(fonts.Serif, "Georgia", ""); got != "Georgia, serif" {
 		t.Fatalf("custom system font = %q, want %q", got, "Georgia, serif")
 	}
-	// Once kept, managed Latin and CJK chain cleanly before system fallback.
+	// Once kept, managed Latin and CJK chain cleanly around system fallback.
 	fs.kept["serif-latin"] = true
 	fs.kept["serif-sc"] = true
-	if got := fs.family(fonts.Serif, "Noto Serif", "sc"); got != "Noto Serif, Noto Serif SC, serif" {
+	if got := fs.family(fonts.Serif, "Noto Serif", "sc"); got != "Noto Serif, serif, Noto Serif SC" {
 		t.Fatalf("kept Noto Serif + SC = %q", got)
 	}
-	if got := fs.family(fonts.Serif, "Georgia", "sc"); got != "Georgia, Noto Serif SC, serif" {
+	if got := fs.family(fonts.Serif, "Georgia", "sc"); got != "Georgia, serif, Noto Serif SC" {
 		t.Fatalf("custom font + SC = %q", got)
 	}
 	if got := fs.family(fonts.Sans, "", "sc"); got != "sans-serif" {

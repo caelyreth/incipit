@@ -122,10 +122,10 @@ func Languages() []Face {
 }
 
 // ResolveFamily returns the prose family list: primary (when non-empty),
-// then any optional fallback faces (e.g. a downloaded CJK face), ending with
-// the system fallback base ("serif" or "sans-serif") without duplicates.
-// When primary is empty or equals base, base comes first so system glyphs
-// draw Latin before any CJK fallback font.
+// then the system fallback base ("serif" or "sans-serif"), followed by any
+// optional fallback faces (e.g. a downloaded CJK face) without duplicates.
+// Placing base before optional CJK fallbacks prevents CJK faces from taking
+// over Latin text if primary is unavailable on another machine.
 func ResolveFamily(base, primary string, fallbacks ...*Face) string {
 	var parts []string
 	seen := map[string]bool{}
@@ -142,17 +142,15 @@ func ResolveFamily(base, primary string, fallbacks ...*Face) string {
 		parts = append(parts, name)
 	}
 	primary = strings.TrimSpace(primary)
-	if primary == "" || strings.EqualFold(primary, base) {
-		add(base)
-	} else {
+	if primary != "" && !strings.EqualFold(primary, base) {
 		add(primary)
 	}
+	add(base)
 	for _, fb := range fallbacks {
 		if fb != nil {
 			add(fb.Family)
 		}
 	}
-	add(base)
 	return strings.Join(parts, ", ")
 }
 

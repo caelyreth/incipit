@@ -125,6 +125,10 @@ func (s *State) policyShowcase(c *ui.Context, semantic theme.Theme, card appsett
 	}
 	scale := s.Theme.UIFontSize
 	inset := theme.Space16.DIPs(scale)
+	prose := theme.NewProseStyle(s.Theme.ProseFontSize * 0.9).WithSpacing(s.Theme.LineSpacing)
+	if s.Theme.ProseFamily != "" {
+		prose.Family = s.Theme.ProseFamily
+	}
 	ui.Row(c).WidthPercent(100).Padding(0, inset, inset, inset).Children(func() {
 		ShowcaseStage{
 			Key:     "showcase-" + card.ID,
@@ -132,7 +136,7 @@ func (s *State) policyShowcase(c *ui.Context, semantic theme.Theme, card appsett
 			Policy:  card.ID,
 			Values:  s.Data.PolicyValues,
 			Theme:   semantic,
-			Prose:   theme.NewProseStyle(s.Theme.ProseFontSize * 0.9).WithSpacing(s.Theme.LineSpacing),
+			Prose:   prose,
 			Height:  132 * scale / theme.DefaultUIFontSize,
 			Padding: theme.Space24.DIPs(scale),
 			Radius:  10 * scale / theme.DefaultUIFontSize,

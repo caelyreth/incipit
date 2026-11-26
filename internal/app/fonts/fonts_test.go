@@ -36,7 +36,7 @@ func TestResolveFamily(t *testing.T) {
 		{"serif", "", nil, "serif"},
 		{"sans-serif", "", &sc, "sans-serif, Noto Serif SC"},
 		{"serif", "Georgia", nil, "Georgia, serif"},
-		{"serif", "Noto Serif", &sc, "Noto Serif, Noto Serif SC, serif"},
+		{"serif", "Noto Serif", &sc, "Noto Serif, serif, Noto Serif SC"},
 		{"serif", "serif", nil, "serif"},
 		{"serif", "Noto Serif SC", &sc, "Noto Serif SC, serif"},
 	}
