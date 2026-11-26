@@ -126,7 +126,7 @@ func (s *State) policyShowcase(c *ui.Context, semantic theme.Theme, card appsett
 	scale := s.Theme.UIFontSize
 	inset := theme.Space16.DIPs(scale)
 	ui.Row(c).WidthPercent(100).Padding(0, inset, inset, inset).Children(func() {
-		showcaseStage{
+		ShowcaseStage{
 			Key:     "showcase-" + card.ID,
 			Script:  *card.Showcase,
 			Policy:  card.ID,

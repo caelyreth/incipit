@@ -25,8 +25,10 @@ const (
 	dimmed = float32(0.55)
 )
 
-// Stage is one showcase, as wide as its container and Height tall.
-type showcaseStage struct {
+// ShowcaseStage is one policy's showcase, as wide as its container and
+// Height tall: the Editor page shows each policy by it, and the
+// onboarding each answer to a choice.
+type ShowcaseStage struct {
 	Key    string
 	Script policy.Showcase
 	// Policy is the policy shown, and Values the person's policy values.
@@ -57,7 +59,7 @@ type stageKey struct{}
 // the player advances, the page paints and recenters at the display's
 // rate without rebuilding the view, and a stage scrolled out of sight
 // paints nothing and so plays nothing.
-func (s showcaseStage) View(c *ui.Context) {
+func (s ShowcaseStage) View(c *ui.Context) {
 	animate := s.Animate && !c.Preferences().ReduceMotion
 	box := ui.Box(c).Key(s.Key).WidthPercent(100).Height(s.Height).
 		Radius(s.Radius).Background(s.Theme.Surface.Page).
@@ -83,7 +85,7 @@ func (st *stageState) open(e *engine.Engine) appsettings.ShowcasePage {
 	return ed
 }
 
-func (st *stageState) paint(p *ui.Painter, rect ui.Rect, s showcaseStage, animate bool) {
+func (st *stageState) paint(p *ui.Painter, rect ui.Rect, s ShowcaseStage, animate bool) {
 	now := p.Now()
 	next := now
 	if animate {
