@@ -61,17 +61,6 @@ func InkRing(p *ui.Painter, box ui.Rect, ink ui.Color, width, seed, drawn float3
 	p.StrokePath(&path, width, ink)
 }
 
-// InkUnderline draws a line under a title from x0 to x1 at y, level, as
-// a ruled pen draws it, swept left to right as drawn goes to 1: a capsule
-// filled, which no stroke's seams can mark.
-func InkUnderline(p *ui.Painter, x0, x1, y float32, ink ui.Color, width, drawn float32) {
-	if drawn <= 0 || x1 <= x0 {
-		return
-	}
-	reach := (x1 - x0) * Smoothstep(min(drawn, 1))
-	p.Fill(ui.Rect{X: x0 - width/2, Y: y - width/2, W: reach + width, H: width}, ink, width/2)
-}
-
 // InkCheck draws a check in box, its short stroke then its long one.
 func InkCheck(p *ui.Painter, box ui.Rect, ink ui.Color, width, drawn float32) {
 	if drawn <= 0 {

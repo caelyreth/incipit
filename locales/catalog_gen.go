@@ -11397,18 +11397,36 @@ func (msgs Messages) OnboardingStep(step string, count string) string {
 	return Catalog.Format(msgs.locale, "onboardingStep", map[string]any{"step": step, "count": count})
 }
 
-// OnboardingWelcomeHeadline says "A quiet place to write."
+// OnboardingWelcomeHeadline says "Find my way to Neverland"
 // in the language the app shows.
 //
-// Onboarding, cover: the line under the app's name.
+// Onboarding, cover: under the app's name, a line of the song
+// “Constellation”, which Neverland is named from.
 func OnboardingWelcomeHeadline() string { return In(i18n.Locale()).OnboardingWelcomeHeadline() }
 
-// OnboardingWelcomeHeadline says "A quiet place to write."
+// OnboardingWelcomeHeadline says "Find my way to Neverland"
 // in the language of msgs.
 //
-// Onboarding, cover: the line under the app's name.
+// Onboarding, cover: under the app's name, a line of the song
+// “Constellation”, which Neverland is named from.
 func (msgs Messages) OnboardingWelcomeHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingWelcomeHeadline", nil)
+}
+
+// OnboardingWelcomeSong says "“Constellation”"
+// in the language the app shows.
+//
+// Onboarding, cover: the title of the song the line above is from, kept in
+// English and quoted as the language quotes a song's title.
+func OnboardingWelcomeSong() string { return In(i18n.Locale()).OnboardingWelcomeSong() }
+
+// OnboardingWelcomeSong says "“Constellation”"
+// in the language of msgs.
+//
+// Onboarding, cover: the title of the song the line above is from, kept in
+// English and quoted as the language quotes a song's title.
+func (msgs Messages) OnboardingWelcomeSong() string {
+	return Catalog.Format(msgs.locale, "onboardingWelcomeSong", nil)
 }
 
 // OnboardingBegin says "Begin"

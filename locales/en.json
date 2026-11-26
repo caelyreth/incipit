@@ -3136,9 +3136,13 @@
   "@onboardingStep": {
     "description": "Onboarding: which page of the walkthrough is shown, as \"2 of 5\"."
   },
-  "onboardingWelcomeHeadline": "A quiet place to write.",
+  "onboardingWelcomeHeadline": "Find my way to Neverland",
   "@onboardingWelcomeHeadline": {
-    "description": "Onboarding, cover: the line under the app's name."
+    "description": "Onboarding, cover: under the app's name, a line of the song “Constellation”, which Neverland is named from."
+  },
+  "onboardingWelcomeSong": "“Constellation”",
+  "@onboardingWelcomeSong": {
+    "description": "Onboarding, cover: the title of the song the line above is from, kept in English and quoted as the language quotes a song's title."
   },
   "onboardingBegin": "Begin",
   "@onboardingBegin": {

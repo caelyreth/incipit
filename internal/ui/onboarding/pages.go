@@ -70,7 +70,8 @@ func (s *State) pageView(c *ui.Context, semantic theme.Theme, m metrics, animate
 }
 
 // welcome is the cover: the mark spreading onto the page, the name under
-// it, one line saying what it is, and the way in.
+// it, a line of the song it is named from with the song's title, and the
+// way in.
 func (s *State) welcome(c *ui.Context, semantic theme.Theme, m metrics, animate bool, now time.Time) {
 	ui.Column(c).WidthPercent(100).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Gap(0).Children(func() {
 		drawn := s.inkAfter(now, 120*time.Millisecond, 1100*time.Millisecond, animate)
@@ -85,17 +86,12 @@ func (s *State) welcome(c *ui.Context, semantic theme.Theme, m metrics, animate 
 		s.enter(c, ui.Box(c).Padding(28*m.k, 0, 0, 0).Children(func() {
 			components.Wordmark(c, "wordmark", semantic, m.wordmark).Role(ui.RoleHeading).Label("Neverland")
 		}), 1, animate)
-		line := ui.Text(c, locales.OnboardingWelcomeHeadline()).Font(theme.ProseFontFamily).Italic().FontSize(19*m.k).
-			TextColor(semantic.Text.Muted).Padding(6*m.k, 0, 0, 0)
-		underline := s.inkAfter(now, 650*time.Millisecond, 500*time.Millisecond, animate)
-		if underline < 1 {
-			c.AnimationFrame()
-		}
-		line.DrawOver(func(p *ui.Painter, r ui.Rect) {
-			// A stroke under the line, as a pen sets a title off.
-			components.InkUnderline(p, r.X+r.W*0.12, r.X+r.W*0.88, r.Y+r.H+4*m.k, semantic.Accent.Foreground, 2.4*m.k, underline)
-		})
-		s.enter(c, line, 2, animate)
+		// The line is the song's the name is taken from, and under it the
+		// song's title, as a lyric is credited.
+		s.enter(c, ui.Text(c, locales.OnboardingWelcomeHeadline()).Font(theme.ProseFontFamily).Italic().FontSize(19*m.k).
+			TextColor(semantic.Text.Muted).Padding(6*m.k, 0, 0, 0), 2, animate)
+		s.enter(c, components.Label(c, locales.OnboardingWelcomeSong(), theme.TextSmall, semantic.Text.Muted).
+			Opacity(0.75).Padding(6*m.k, 0, 0, 0), 2, animate)
 		s.enter(c, ui.Row(c).Padding(40*m.k, 0, 0, 0).Children(func() {
 			components.Button{Key: "begin", Label: locales.OnboardingBegin(), Style: components.PrimaryButton,
 				Animate: animate, Shortcut: returnKey, Action: func() { s.next(s.clock) }}.View(c, semantic)
