@@ -37,6 +37,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: fetch assets
+        run: go tool fetch
+
       - name: build linux
         run: go build ./...
 

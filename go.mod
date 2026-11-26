@@ -4,11 +4,12 @@ go 1.27.3
 
 require (
 	github.com/blevesearch/bleve/v2 v2.6.3
-	github.com/caelyreth/untie v0.4.2
-	github.com/caelyreth/untie/contrib/mygo v0.4.2
+	github.com/caelyreth/untie v0.5.1
 	github.com/clipperhouse/uax29/v2 v2.7.0
 	github.com/egoist/mygo v0.10.0
+	github.com/yuin/goldmark v1.8.7
 	golang.org/x/image v0.47.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
 	modernc.org/sqlite v1.61.0
@@ -52,8 +53,8 @@ require (
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	go.digitalxero.dev/rpm v0.3.4 // indirect
 	go.etcd.io/bbolt v1.4.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/net v0.62.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	modernc.org/libc v1.79.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
@@ -68,3 +69,5 @@ tool (
 	github.com/caelyreth/neverland/tools/locales
 	github.com/egoist/mygo/cmd/mygo
 )
+
+replace github.com/egoist/mygo => github.com/caelyreth/evil-mygo v0.0.0-20261126135322-c4742f4ec531
