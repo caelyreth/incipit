@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -35,6 +36,88 @@ const (
 type backup struct {
 	path  string
 	taken time.Time
+}
+
+// BackupInfo describes a verified backup stored in Backups/.
+type BackupInfo struct {
+	Path  string
+	Name  string
+	Taken time.Time
+	Size  int64
+}
+
+// ListBackups returns all verified notebook backups in root newest first.
+func ListBackups(root string) ([]BackupInfo, error) {
+	ctx := context.Background()
+	raw, err := (&Store{root: root}).backups()
+	if err != nil {
+		return nil, err
+	}
+	var out []BackupInfo
+	for _, b := range raw {
+		if err := verifyFile(ctx, b.path); err != nil {
+			continue
+		}
+		info, err := os.Stat(b.path)
+		if err != nil {
+			continue
+		}
+		out = append(out, BackupInfo{
+			Path:  b.path,
+			Name:  filepath.Base(b.path),
+			Taken: b.taken,
+			Size:  info.Size(),
+		})
+	}
+	return out, nil
+}
+
+// RestoreBackup moves any existing database files in root aside into Recovery/
+// and durably installs backupPath as the notebook database. Caller must ensure
+// the notebook Store is not open (hold/acquire the notebook lock if needed).
+func RestoreBackup(root, backupPath string) error {
+	ctx := context.Background()
+	if err := verifyFile(ctx, backupPath); err != nil {
+		return err
+	}
+	folder, err := uniqueSubdir(filepath.Join(root, recoveryDir), time.Now().Format("20060102-150405"))
+	if err != nil {
+		return err
+	}
+	dbPath := filepath.Join(root, databaseName)
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		from := dbPath + suffix
+		if _, err := os.Stat(from); err != nil {
+			continue
+		}
+		if err := os.Rename(from, filepath.Join(folder, databaseName+suffix)); err != nil {
+			return err
+		}
+	}
+	if err := syncDir(root); err != nil {
+		return err
+	}
+	return copyDurably(backupPath, dbPath)
+}
+
+func uniqueSubdir(parent, base string) (string, error) {
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return "", err
+	}
+	for n := 0; ; n++ {
+		name := base
+		if n > 0 {
+			name = fmt.Sprintf("%s-%d", base, n+1)
+		}
+		candidate := filepath.Join(parent, name)
+		err := os.Mkdir(candidate, 0o755)
+		if err == nil {
+			return candidate, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return "", err
+		}
+	}
 }
 
 // backups lists the notebook's backups, newest first.
@@ -76,10 +159,11 @@ func (s *Store) backupIfStale(ctx context.Context, now time.Time) error {
 	if len(backups) > 0 && now.Sub(backups[0].taken) < backupInterval {
 		return nil
 	}
-	if err := s.backup(ctx, now); err != nil {
+	if name, err := s.backupNamed(ctx, now); err != nil {
 		return err
+	} else {
+		s.launched = name
 	}
-	s.launched = backupPrefix + now.Format(backupLayout) + backupSuffix
 	return nil
 }
 
@@ -111,25 +195,45 @@ func (s *Store) pinned() string {
 // backup writes a consistent copy of the notebook, checks it, and only
 // then gives it a backup's name, so a listed backup is always a sound one.
 func (s *Store) backup(ctx context.Context, now time.Time) error {
+	_, err := s.backupNamed(ctx, now)
+	return err
+}
+
+func (s *Store) backupNamed(ctx context.Context, now time.Time) (string, error) {
 	folder := filepath.Join(s.root, backupDir)
 	if err := os.MkdirAll(folder, 0o755); err != nil {
-		return err
+		return "", err
 	}
-	name := filepath.Join(folder, backupPrefix+now.Format(backupLayout)+backupSuffix)
+	name, _ := uniqueBackupPath(folder, now)
 	partial := name + ".partial"
 	_ = os.Remove(partial)
 	if _, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, partial); err != nil {
 		if removeErr := os.Remove(partial); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			return errors.Join(err, removeErr)
+			return "", errors.Join(err, removeErr)
 		}
-		return err
+		return "", err
 	}
 	if err := completePreparedFile(name, partial, func(path string) error {
 		return verifyFile(ctx, path)
 	}); err != nil {
-		return err
+		return "", err
 	}
-	return s.prune()
+	if err := s.prune(); err != nil {
+		return "", err
+	}
+	return filepath.Base(name), nil
+}
+
+func uniqueBackupPath(folder string, now time.Time) (string, time.Time) {
+	t := now
+	for range 60 {
+		candidate := filepath.Join(folder, backupPrefix+t.Format(backupLayout)+backupSuffix)
+		if _, err := os.Stat(candidate); errors.Is(err, os.ErrNotExist) {
+			return candidate, t
+		}
+		t = t.Add(time.Second)
+	}
+	return filepath.Join(folder, backupPrefix+t.Format(backupLayout)+backupSuffix), t
 }
 
 // prune keeps the recent backups, then the newest of each day, and the
@@ -155,7 +259,7 @@ func (s *Store) prune() error {
 }
 
 // verifyFile opens a database file read-only and checks it is a sound
-// notebook.
+// notebook compatible with this build's schema.
 func verifyFile(ctx context.Context, path string) error {
 	db, err := sql.Open("sqlite", path+"?_pragma=query_only(1)")
 	if err != nil {
@@ -165,12 +269,18 @@ func verifyFile(ctx context.Context, path string) error {
 	if err := check(ctx, db); err != nil {
 		return err
 	}
-	var identity int64
+	var identity, version int64
 	if err := db.QueryRowContext(ctx, `PRAGMA application_id`).Scan(&identity); err != nil {
 		return err
 	}
 	if identity != applicationID {
 		return ErrForeign
+	}
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		return err
+	}
+	if version > int64(len(migrations)) {
+		return fmt.Errorf("%w: backup schema %d is newer than this build's %d", ErrNewer, version, len(migrations))
 	}
 	return nil
 }

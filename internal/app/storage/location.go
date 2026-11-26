@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -100,16 +101,19 @@ func ChooseRoot(userData, root string) error {
 		return err
 	}
 	path := filepath.Join(userData, locationName)
-	temp := path + ".tmp"
-	if err := os.WriteFile(temp, data, 0o644); err != nil {
-		return err
-	}
-	return replaceFile(temp, path)
+	return writePreparedFile(path, func(w io.Writer) error {
+		_, writeErr := w.Write(data)
+		return writeErr
+	}, nil)
 }
 
-// Holds reports whether root already holds a notebook, which opening it
-// keeps.
+// Holds reports whether root already holds a non-empty notebook or verified
+// backups that opening can recover.
 func Holds(root string) bool {
 	info, err := os.Stat(filepath.Join(root, databaseName))
-	return err == nil && info.Mode().IsRegular()
+	if err == nil && info.Mode().IsRegular() && info.Size() > 0 {
+		return true
+	}
+	backups, err := ListBackups(root)
+	return err == nil && len(backups) > 0
 }

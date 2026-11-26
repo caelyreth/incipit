@@ -101,11 +101,20 @@ func (s *Store) path() string { return filepath.Join(s.root, databaseName) }
 
 func (s *Store) open() error {
 	ctx := context.Background()
-	_, statErr := os.Stat(s.path())
+	info, statErr := os.Stat(s.path())
 	existed := statErr == nil
-	db, err := openDatabase(s.path())
-	if err == nil {
-		err = check(ctx, db)
+	var db *sql.DB
+	var err error
+	if existed && info.Size() == 0 {
+		// An existing 0-byte database file (crash/sync truncation) passes
+		// SQLite quick_check as an empty DB and would otherwise wipe the
+		// notebook instead of triggering backup recovery.
+		err = fmt.Errorf("%w: empty notebook database", errDamaged)
+	} else {
+		db, err = openDatabase(s.path())
+		if err == nil {
+			err = check(ctx, db)
+		}
 	}
 	if err != nil && damaged(err) {
 		if db != nil {
@@ -124,14 +133,19 @@ func (s *Store) open() error {
 		return err
 	}
 	s.db = db
+	closeOnErr := func(opErr error) error {
+		_ = s.db.Close()
+		s.db = nil
+		return opErr
+	}
 	// A launch is a moment worth keeping: what the last session left.
 	if existed && !s.Recovery.Repaired() {
 		if err := s.backupIfStale(ctx, time.Now()); err != nil {
-			return err
+			return closeOnErr(err)
 		}
 	}
 	if err := s.loadMedia(ctx); err != nil {
-		return err
+		return closeOnErr(err)
 	}
 	// A sweep that cannot finish tries again at the next launch: it never
 	// stops the notebook opening. A notebook just repaired is not swept:
@@ -227,8 +241,8 @@ func damaged(err error) bool {
 // Recovery folder, then installs the newest backup that checks out.
 func (s *Store) recover(ctx context.Context) (*sql.DB, error) {
 	stamp := time.Now().Format("20060102-150405")
-	folder := filepath.Join(s.root, recoveryDir, stamp)
-	if err := os.MkdirAll(folder, 0o755); err != nil {
+	folder, err := uniqueSubdir(filepath.Join(s.root, recoveryDir), stamp)
+	if err != nil {
 		return nil, err
 	}
 	for _, suffix := range []string{"", "-wal", "-shm"} {
