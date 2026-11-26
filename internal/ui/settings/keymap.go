@@ -135,9 +135,10 @@ func (s *State) changedKeys(c *ui.Context, semantic theme.Theme) {
 	scale := s.Theme.UIFontSize
 	inset := theme.Space16.DIPs(scale)
 	changed := s.customized()
-	ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+	ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).Wrap().Gap(theme.Space08.DIPs(scale)).
 		Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).Children(func() {
-		components.Label(c, locales.ResetKeysDescription(), theme.TextSmall, semantic.Text.Muted).Grow(1).MinWidth(0)
+		components.Label(c, locales.ResetKeysDescription(), theme.TextSmall, semantic.Text.Muted).
+			Grow(1).MinWidth(180 * scale / theme.DefaultUIFontSize).MaxWidthPercent(100)
 		components.Button{
 			Key: "keymap-reset-all", Label: locales.ResetAll(),
 			Style: components.OutlinedButton, Animate: s.motion(c),

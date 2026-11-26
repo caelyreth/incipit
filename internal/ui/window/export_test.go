@@ -13,6 +13,7 @@ import (
 	"github.com/caelyreth/neverland/internal/ui/shell"
 	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 )
 
 // A group exports as a folder of its sheets, its groups folders within,
@@ -116,5 +117,40 @@ func TestExportSummaryReflectsPDFModeAndDefaultDirFallback(t *testing.T) {
 	})
 	if got := defaultExportDir(); got != docs {
 		t.Fatalf("defaultExportDir = %q, want fallback %q", got, docs)
+	}
+}
+
+func TestExportViewBoundsWithLongFolderName(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	longDir := filepath.Join(t.TempDir(), "VeryLongUnbrokenExportDestinationFolderName")
+	longFolder := "VeryLongUnbrokenSubfolderNameForPreviewBoundsVerification"
+	app.exporting = &exportJob{
+		name:  "Work",
+		group: true,
+		dir:   longDir,
+		shown: longFolder,
+		plan: &export.Plan{
+			Files: []export.File{
+				{Path: longFolder, Kind: export.KindFolder, Sheets: 1},
+			},
+		},
+	}
+
+	tester := ui.NewTester(app.exportView, 900, 620)
+	tester.Frame()
+
+	place, ok := tester.Access(locales.ExportPlace())
+	if !ok || place.Bounds.W <= 0 || place.Bounds.X < 24 || place.Bounds.X+place.Bounds.W > 344 {
+		t.Fatalf("export-place button %+v (ok=%v) escaped files panel", place.Bounds, ok)
+	}
+	if !tester.HasText(locales.ExportFiles()) {
+		t.Fatalf("missing %q in export texts: %v", locales.ExportFiles(), tester.Texts())
+	}
+	metaRect, ok := tester.Find(locales.SheetsCount(1))
+	if !ok || metaRect.X < 356 || metaRect.X+metaRect.W > 900-24 {
+		t.Fatalf("preview folder meta %+v (ok=%v) escaped preview panel", metaRect, ok)
 	}
 }

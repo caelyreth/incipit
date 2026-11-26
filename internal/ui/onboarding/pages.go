@@ -142,21 +142,22 @@ func (s *State) choiceRow(c *ui.Context, m metrics, label string, order int, ani
 // whether a notebook is there already, with the way to choose another.
 func (s *State) notebook(c *ui.Context, semantic theme.Theme, m metrics, animate bool) {
 	holds := s.Host.Holds != nil && s.Host.Holds(s.root)
-	folder := ui.Column(c).Key("folder").WidthPercent(100).Padding(24*m.k, 28*m.k).Gap(10*m.k).
+	folder := ui.Column(c).Key("folder").WidthPercent(100).MinWidth(0).Padding(24*m.k, 28*m.k).Gap(10*m.k).
 		Radius(m.radius).Background(semantic.Surface.Page).Border(1, semantic.Border.Variant)
 	folder.Children(func() {
-		ui.Row(c).Gap(10 * m.k).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, components.IconFolder.SVG()).FontSize(20 * m.k).TextColor(semantic.Accent.Foreground)
-			components.Label(c, filepath.Base(s.root), theme.TextLarge, semantic.Text.Heading).FontWeight(600).SingleLine()
+		ui.Row(c).WidthPercent(100).MinWidth(0).Gap(10 * m.k).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, components.IconFolder.SVG()).FontSize(20 * m.k).TextColor(semantic.Accent.Foreground).Shrink(0)
+			components.Label(c, filepath.Base(s.root), theme.TextLarge, semantic.Text.Heading).
+				FontWeight(600).SingleLine().Grow(1).MinWidth(0)
 		})
 		ui.Text(c, shortPath(s.root)).Font(theme.MonoFontFamily).FontSize(13 * m.k).LineHeight(1.5).
-			TextColor(semantic.Text.Default).Selectable()
+			TextColor(semantic.Text.Default).WidthPercent(100).MinWidth(0).Selectable()
 		status, color := locales.OnboardingNotebookNew(), semantic.Text.Muted
 		if holds {
 			status, color = locales.OnboardingNotebookFound(), semantic.Status.Success.Foreground
 		}
-		components.Label(c, status, theme.TextSmall, color)
-		ui.Row(c).Gap(10*m.k).Padding(10*m.k, 0, 0, 0).Children(func() {
+		components.Label(c, status, theme.TextSmall, color).WidthPercent(100).MinWidth(0)
+		ui.Row(c).WidthPercent(100).MinWidth(0).Wrap().Gap(10*m.k).Padding(10*m.k, 0, 0, 0).Children(func() {
 			components.Button{Key: "choose-folder", Label: locales.ChooseFolderEllipsis(), Style: components.OutlinedButton,
 				Animate: animate, Action: s.askFolder}.View(c, semantic)
 			if s.root != s.defaultRoot {
@@ -360,10 +361,11 @@ func (s *State) summary() [][2]string {
 // done sums up what was chosen, each line checked, and opens the notebook.
 func (s *State) done(c *ui.Context, semantic theme.Theme, m metrics, animate bool, now time.Time) {
 	if s.failure != "" {
-		ui.Column(c).Gap(4*m.k).Padding(12*m.k).Radius(m.radius).Background(semantic.Status.Danger.Background).
+		ui.Column(c).WidthPercent(100).MinWidth(0).Gap(4*m.k).Padding(12*m.k).Radius(m.radius).Background(semantic.Status.Danger.Background).
 			Border(1, semantic.Status.Danger.Border).Role(ui.RoleStatus).Children(func() {
-			components.Label(c, locales.OnboardingNotebookFailed(), theme.TextSmall, semantic.Status.Danger.Foreground).FontWeight(600)
-			components.Label(c, s.failure, theme.TextSmall, semantic.Text.Default)
+			components.Label(c, locales.OnboardingNotebookFailed(), theme.TextSmall, semantic.Status.Danger.Foreground).
+				FontWeight(600).WidthPercent(100).MinWidth(0)
+			components.Label(c, s.failure, theme.TextSmall, semantic.Text.Default).WidthPercent(100).MinWidth(0)
 		})
 	}
 	lines := s.summary()

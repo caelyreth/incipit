@@ -40,24 +40,24 @@ func (r SettingRow) View(c *ui.Context, semantic theme.Theme) ui.Element {
 			Children(func() {
 				ui.Column(c).Grow(1).MinWidth(180 * scale / theme.DefaultUIFontSize).
 					MaxWidthPercent(100).Gap(theme.Space02.DIPs(scale)).Children(func() {
-					ui.Row(c).AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
+					ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).Gap(theme.Space04.DIPs(scale)).Children(func() {
 						if r.LabelText != nil {
 							r.LabelText()
 						} else {
-							Label(c, r.Label, theme.TextDefault, semantic.Text.Default)
+							Label(c, r.Label, theme.TextDefault, semantic.Text.Default).MinWidth(0)
 						}
 						if r.Reset != nil {
 							IconButton{
 								Key: "reset", Label: locales.ResetToDefault(), Icon: r.ResetIcon,
 								Style: SubtleButton, Size: CompactButton, Action: r.Reset,
-							}.View(c, semantic)
+							}.View(c, semantic).Shrink(0)
 						}
 					})
 					switch {
 					case r.DescriptionText != nil:
 						r.DescriptionText()
 					case r.Description != "":
-						Label(c, r.Description, theme.TextSmall, semantic.Text.Muted)
+						Label(c, r.Description, theme.TextSmall, semantic.Text.Muted).WidthPercent(100).MinWidth(0)
 					}
 				})
 				if r.Control != nil {
@@ -101,12 +101,12 @@ type SectionHeader struct {
 
 func (s SectionHeader) View(c *ui.Context, semantic theme.Theme) ui.Element {
 	scale := UIFontSize(c)
-	return ui.Column(c).Shrink(0).WidthPercent(100).
+	return ui.Column(c).Shrink(0).WidthPercent(100).MinWidth(0).
 		PaddingX(theme.Space04.DIPs(scale)).Gap(theme.Space02.DIPs(scale)).
 		Role(ui.RoleHeading).Label(s.Label).Children(func() {
-		Label(c, s.Label, theme.TextDefault, semantic.Text.Heading).FontWeight(600)
+		Label(c, s.Label, theme.TextDefault, semantic.Text.Heading).FontWeight(600).WidthPercent(100).MinWidth(0)
 		if s.Description != "" {
-			Label(c, s.Description, theme.TextSmall, semantic.Text.Muted)
+			Label(c, s.Description, theme.TextSmall, semantic.Text.Muted).WidthPercent(100).MinWidth(0)
 		}
 	})
 }

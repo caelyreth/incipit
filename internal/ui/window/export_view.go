@@ -120,7 +120,7 @@ func (a *AppState) exportHeader(c *ui.Context, semantic theme.Theme, m exportMet
 		icon = components.IconFolder
 	}
 	tile := 40 * m.k
-	ui.Row(c).Gap(m.gap).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).WidthPercent(100).MinWidth(0).Gap(m.gap).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Size(tile, tile).Shrink(0).Radius(10*m.k).Background(semantic.Accent.Hint).
 			Border(1, semantic.Border.Variant).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 			ui.Icon(c, icon.SVG()).FontSize(20 * m.k).TextColor(semantic.Icon.Accent)
@@ -175,7 +175,7 @@ func panelHead(c *ui.Context, semantic theme.Theme, m exportMetrics, children fu
 func (a *AppState) exportFiles(c *ui.Context, semantic theme.Theme, m exportMetrics, job *exportJob) {
 	panel(c, semantic, m, "export-files").Width(320 * m.k).Shrink(0).Children(func() {
 		panelHead(c, semantic, m, func() {
-			components.Label(c, locales.ExportFiles(), theme.TextSmall, semantic.Text.Muted).Grow(1)
+			components.Label(c, locales.ExportFiles(), theme.TextSmall, semantic.Text.Muted).Grow(1).MinWidth(0).SingleLine()
 			a.exportPlace(c, semantic, m, job)
 		})
 		ui.Scroll(c.Key("export-tree")).Grow(1).MinHeight(0).WidthPercent(100).Children(func() {
@@ -193,12 +193,14 @@ func (a *AppState) exportPlace(c *ui.Context, semantic theme.Theme, m exportMetr
 	button := ui.ButtonBase(c.Key("export-place")).Label(locales.ExportPlace()).Disabled(job.writing).
 		Height(theme.DefaultControls.Scaled(m.scale).InlineHeight).PaddingStart(theme.Space08.DIPs(m.scale)).PaddingEnd(theme.Space06.DIPs(m.scale)).Gap(theme.Space06.DIPs(m.scale)).Radius(m.inner).
 		AlignItems(ui.Center).FocusRing(true).Shrink(1).MinWidth(0)
-	if button.Hovered() {
+	if job.writing {
+		button.Opacity(components.DisabledOpacity)
+	} else if button.Hovered() {
 		button.Background(semantic.Element.Hover)
 	}
 	button.Children(func() {
 		ui.Icon(c, components.IconFolder.SVG()).FontSize(m.inline).TextColor(semantic.Icon.Muted).Shrink(0)
-		components.CenteredLabel(c, filepath.Base(job.dir), theme.RowNote, semantic.Text.Default).MinWidth(0)
+		components.CenteredLabel(c, filepath.Base(job.dir), theme.RowNote, semantic.Text.Default).MinWidth(0).Shrink(1)
 		ui.Icon(c, components.IconChevronDown.SVG()).FontSize(12 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
 	})
 	components.Hint(c, semantic, button, shownPath(job.dir), "", components.HintBelow)
@@ -347,8 +349,8 @@ func shownFile(job *exportJob) (export.File, bool) {
 func previewText(c *ui.Context, semantic theme.Theme, m exportMetrics, plan export.Plan, f export.File) {
 	text := strings.TrimSuffix(plan.Text(f), "\n")
 	if text == "" {
-		ui.Box(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
-			components.Label(c, locales.ExportEmptyFile(), theme.TextSmall, semantic.Text.Muted)
+		ui.Box(c).Grow(1).WidthPercent(100).MinWidth(0).PaddingX(m.inset).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+			components.Label(c, locales.ExportEmptyFile(), theme.TextSmall, semantic.Text.Muted).MinWidth(0)
 		})
 		return
 	}
@@ -410,10 +412,11 @@ func previewPicture(c *ui.Context, semantic theme.Theme, m exportMetrics, job *e
 // previewFolder says what a folder holds.
 // previewTypeset says what a sheet's PDF holds: its pages and its size.
 func previewTypeset(c *ui.Context, semantic theme.Theme, m exportMetrics, plan export.Plan, f export.File) {
-	ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Gap(m.gap).Children(func() {
-		ui.Icon(c, components.IconFileText.SVG()).FontSize(36 * m.k).TextColor(semantic.Icon.Muted)
-		components.Label(c, f.Name(), theme.RowTitle, semantic.Text.Default)
-		components.Label(c, locales.PagesCount(f.Pages)+" · "+components.Bytes(plan.Size(f)), theme.RowNote, semantic.Text.Muted).FontFeatures("tnum")
+	ui.Column(c).Grow(1).WidthPercent(100).MinWidth(0).PaddingX(m.inset).AlignItems(ui.Center).Justify(ui.Center).Gap(m.gap).Children(func() {
+		ui.Icon(c, components.IconFileText.SVG()).FontSize(36 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
+		components.Label(c, f.Name(), theme.RowTitle, semantic.Text.Default).MaxWidthPercent(100).MinWidth(0)
+		components.Label(c, locales.PagesCount(f.Pages)+" · "+components.Bytes(plan.Size(f)), theme.RowNote, semantic.Text.Muted).
+			MaxWidthPercent(100).MinWidth(0).FontFeatures("tnum")
 	})
 }
 
@@ -428,10 +431,11 @@ func previewFolder(c *ui.Context, semantic theme.Theme, m exportMetrics, f expor
 	if f.Folders > 0 {
 		parts = append(parts, locales.GroupsCount(f.Folders))
 	}
-	ui.Column(c).Grow(1).AlignItems(ui.Center).Justify(ui.Center).Gap(m.gap).Children(func() {
-		ui.Icon(c, components.IconFolder.SVG()).FontSize(36 * m.k).TextColor(semantic.Icon.Muted)
-		components.Label(c, f.Name(), theme.RowTitle, semantic.Text.Default)
-		components.Label(c, strings.Join(parts, " · "), theme.RowNote, semantic.Text.Muted).FontFeatures("tnum")
+	ui.Column(c).Grow(1).WidthPercent(100).MinWidth(0).PaddingX(m.inset).AlignItems(ui.Center).Justify(ui.Center).Gap(m.gap).Children(func() {
+		ui.Icon(c, components.IconFolder.SVG()).FontSize(36 * m.k).TextColor(semantic.Icon.Muted).Shrink(0)
+		components.Label(c, f.Name(), theme.RowTitle, semantic.Text.Default).MaxWidthPercent(100).MinWidth(0)
+		components.Label(c, strings.Join(parts, " · "), theme.RowNote, semantic.Text.Muted).
+			MaxWidthPercent(100).MinWidth(0).FontFeatures("tnum")
 	})
 }
 
@@ -485,8 +489,8 @@ func (a *AppState) exportFoot(c *ui.Context, semantic theme.Theme, m exportMetri
 
 // exportFailure says why the export cannot go on, in the danger's ink.
 func exportFailure(c *ui.Context, semantic theme.Theme, m exportMetrics, err error) {
-	ui.Row(c).MinWidth(0).Gap(theme.Space06.DIPs(m.scale)).AlignItems(ui.Center).PaddingX(theme.Space08.DIPs(m.scale)).Children(func() {
+	ui.Row(c).WidthPercent(100).MinWidth(0).Gap(theme.Space06.DIPs(m.scale)).AlignItems(ui.Center).PaddingX(theme.Space08.DIPs(m.scale)).Children(func() {
 		ui.Icon(c, components.IconError.SVG()).FontSize(m.inline).TextColor(semantic.Status.Danger.Foreground).Shrink(0)
-		components.Label(c, describeNotice(err), theme.TextSmall, semantic.Status.Danger.Foreground).MinWidth(0).MaxLines(2)
+		components.Label(c, describeNotice(err), theme.TextSmall, semantic.Status.Danger.Foreground).Grow(1).MinWidth(0).MaxLines(2)
 	})
 }

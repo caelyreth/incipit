@@ -376,3 +376,47 @@ func TestLostNotebookOffersRestoreBackupAndGuardsFinish(t *testing.T) {
 		t.Fatalf("after async callback: finishing=%v failure=%q", asyncState.finishing, asyncState.failure)
 	}
 }
+
+func TestNotebookAndLostFolderBoundsStayWithinCard(t *testing.T) {
+	longRoot := filepath.Join(t.TempDir(), "VeryLongUnbrokenNotebookFolderNameForBoundsTesting")
+	w := newWalkthrough(t, true, true)
+	w.root = longRoot
+	w.at = pageNotebook
+	w.tester.Frame()
+
+	chooseBtn, ok := w.tester.Find(locales.ChooseFolderEllipsis())
+	if !ok {
+		t.Fatal("missing Choose Folder button on notebook page")
+	}
+	pathRect, ok := w.tester.Find(shortPath(longRoot))
+	if !ok {
+		t.Fatal("missing path text on notebook page")
+	}
+	if pathRect.W <= 0 || pathRect.X < chooseBtn.X {
+		t.Fatalf("notebook path rect %+v misaligned vs button %+v", pathRect, chooseBtn)
+	}
+	if defBtn, ok := w.tester.Find(locales.OnboardingNotebookDefault()); !ok || defBtn.X+defBtn.W > 1200 {
+		t.Fatalf("default folder button rect = %+v (ok=%v)", defBtn, ok)
+	}
+
+	lost := newWalkthrough(t, false, true)
+	lost.Host.Backups = func(string) []Backup {
+		return []Backup{{Path: "/tmp/b.db", Date: "Today", Size: "12 KB"}}
+	}
+	lost.Host.RestoreBackup = func(string, Backup, func(bool, error)) {}
+	lost.Lost(Lost{Root: longRoot, Reason: "database disk image is malformed with a long explanation"})
+	lost.tester.Frame()
+
+	beginBtn, ok := lost.tester.Find(locales.OnboardingLostNew())
+	if !ok {
+		t.Fatal("missing Start a New Notebook button")
+	}
+	lookBtn, ok := lost.tester.Find(locales.OnboardingLostLookAgain())
+	if !ok {
+		t.Fatal("missing Look Again button")
+	}
+	// Lost column is centered with width 560 inside 1200px viewport: [320, 880].
+	if beginBtn.X+beginBtn.W > lookBtn.X+lostMeasure+1 {
+		t.Fatalf("lost buttons overflow 560px column: look=%+v begin=%+v", lookBtn, beginBtn)
+	}
+}

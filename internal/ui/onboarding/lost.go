@@ -109,7 +109,7 @@ func (s *State) lostView(c *ui.Context, semantic theme.Theme, m metrics, animate
 			s.enter(c, ui.Text(c, locales.OnboardingLostBody()).Font(theme.ProseFontFamily).FontSize(15*m.k).
 				LineHeight(1.6).TextColor(semantic.Text.Muted), 2, animate)
 			s.enter(c, s.lostFolder(c, semantic, m, lost), 3, animate)
-			s.enter(c, ui.Row(c).Gap(10*m.k).Padding(12*m.k, 0, 0, 0).AlignItems(ui.Center).Children(func() {
+			s.enter(c, ui.Row(c).WidthPercent(100).MinWidth(0).Wrap().Gap(10*m.k).Padding(12*m.k, 0, 0, 0).AlignItems(ui.Center).Children(func() {
 				components.Button{Key: "look-again", Label: locales.OnboardingLostLookAgain(), Style: components.PrimaryButton,
 					Disabled: s.finishing, Animate: animate, Shortcut: returnKey, Action: s.lookAgain}.View(c, semantic)
 				components.Button{Key: "find-elsewhere", Label: locales.ChooseFolderEllipsis(), Style: components.OutlinedButton,
@@ -130,29 +130,30 @@ func (s *State) lostView(c *ui.Context, semantic theme.Theme, m metrics, animate
 // no notebook, or one that would not open, and why; under it what the
 // last look found.
 func (s *State) lostFolder(c *ui.Context, semantic theme.Theme, m metrics, lost *Lost) ui.Element {
-	return ui.Column(c).Key("lost-folder").WidthPercent(100).Padding(18*m.k, 22*m.k).Gap(8*m.k).
+	return ui.Column(c).Key("lost-folder").WidthPercent(100).MinWidth(0).Padding(18*m.k, 22*m.k).Gap(8*m.k).
 		Radius(m.radius).Background(semantic.Surface.Page).Border(1, semantic.Border.Variant).Children(func() {
-		ui.Row(c).Gap(10 * m.k).AlignItems(ui.Center).Children(func() {
-			ui.Icon(c, components.IconFolder.SVG()).FontSize(18 * m.k).TextColor(semantic.Text.Muted)
-			components.Label(c, filepath.Base(lost.Root), theme.TextLarge, semantic.Text.Heading).FontWeight(600).SingleLine()
+		ui.Row(c).WidthPercent(100).MinWidth(0).Gap(10 * m.k).AlignItems(ui.Center).Children(func() {
+			ui.Icon(c, components.IconFolder.SVG()).FontSize(18 * m.k).TextColor(semantic.Text.Muted).Shrink(0)
+			components.Label(c, filepath.Base(lost.Root), theme.TextLarge, semantic.Text.Heading).
+				FontWeight(600).SingleLine().Grow(1).MinWidth(0)
 		})
 		ui.Text(c, shortPath(lost.Root)).Font(theme.MonoFontFamily).FontSize(13 * m.k).LineHeight(1.5).
-			TextColor(semantic.Text.Default).Selectable()
-		status := ui.Row(c).Key("status").Gap(6 * m.k).AlignItems(ui.Center).Role(ui.RoleStatus)
+			TextColor(semantic.Text.Default).WidthPercent(100).MinWidth(0).Selectable()
+		status := ui.Row(c).Key("status").WidthPercent(100).MinWidth(0).Gap(6 * m.k).AlignItems(ui.Center).Role(ui.RoleStatus)
 		status.Children(func() {
 			ink := semantic.Status.Warning.Foreground
 			ui.Icon(c, components.IconWarning.SVG()).FontSize(14 * m.k).TextColor(ink).Shrink(0)
 			if lost.Reason == "" {
-				components.Label(c, locales.OnboardingLostMissing(), theme.TextSmall, ink)
+				components.Label(c, locales.OnboardingLostMissing(), theme.TextSmall, ink).Grow(1).MinWidth(0)
 				return
 			}
-			components.Label(c, locales.OnboardingNotebookFailed(), theme.TextSmall, ink).FontWeight(600)
+			components.Label(c, locales.OnboardingNotebookFailed(), theme.TextSmall, ink).FontWeight(600).Grow(1).MinWidth(0)
 		})
 		if lost.Reason != "" {
-			components.Label(c, lost.Reason, theme.TextSmall, semantic.Text.Default)
+			components.Label(c, lost.Reason, theme.TextSmall, semantic.Text.Default).WidthPercent(100).MinWidth(0)
 		}
 		if s.lostNote != "" {
-			components.Label(c, s.lostNote, theme.TextSmall, semantic.Text.Muted).Role(ui.RoleStatus)
+			components.Label(c, s.lostNote, theme.TextSmall, semantic.Text.Muted).WidthPercent(100).MinWidth(0).Role(ui.RoleStatus)
 		}
 	})
 }

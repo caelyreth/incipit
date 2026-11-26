@@ -312,7 +312,7 @@ func (s *State) heldRow(c *ui.Context, semantic theme.Theme, row FontRow, last b
 		},
 		Footer: func() {
 			if row.Failed != "" && !row.Wanted {
-				s.failure(c, semantic, row.Failed)
+				s.failureAt(c, semantic, row.Failed, theme.Space16.DIPs(scale)*2)
 			}
 		},
 	}.View(c, semantic)
@@ -360,7 +360,12 @@ func (s *State) progress(c *ui.Context, semantic theme.Theme, row FontRow) {
 
 // failure is why a download did not finish, under its row.
 func (s *State) failure(c *ui.Context, semantic theme.Theme, why string) {
+	s.failureAt(c, semantic, why, theme.Space16.DIPs(s.Theme.UIFontSize))
+}
+
+func (s *State) failureAt(c *ui.Context, semantic theme.Theme, why string, lead float32) {
 	scale := s.Theme.UIFontSize
 	components.Label(c, why, theme.TextSmall, semantic.Status.Danger.Foreground).
-		Padding(0, theme.Space16.DIPs(scale), theme.Space12.DIPs(scale), theme.Space16.DIPs(scale))
+		WidthPercent(100).MinWidth(0).
+		Padding(0, theme.Space16.DIPs(scale), theme.Space12.DIPs(scale), lead)
 }

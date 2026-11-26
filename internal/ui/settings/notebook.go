@@ -11,7 +11,8 @@ import (
 
 func (s *State) notebookSection(c *ui.Context, semantic theme.Theme, sec Section) {
 	scale := s.Theme.UIFontSize
-	k := scale / theme.DefaultUIFontSize
+	inset := theme.Space16.DIPs(scale)
+	controls := theme.DefaultControls.Scaled(scale)
 	animate := s.motion(c)
 	s.section(c, semantic, sec, func() {
 		components.SettingRow{
@@ -26,20 +27,33 @@ func (s *State) notebookSection(c *ui.Context, semantic theme.Theme, sec Section
 				if shown == "" {
 					return
 				}
-				ui.Column(c).WidthPercent(100).Gap(theme.Space02.DIPs(scale)).Children(func() {
-					ui.Text(c, shown).
-						Font(theme.MonoFontFamily).
-						FontSize(12 * k).
-						LineHeight(1.4).
-						TextColor(semantic.Text.Muted).
-						Selectable()
+				ui.Column(c).WidthPercent(100).MinWidth(0).
+					Padding(0, inset, theme.Space12.DIPs(scale), inset).
+					Gap(theme.Space06.DIPs(scale)).Children(func() {
+					ui.Row(c).Key("notebook-path-box").WidthPercent(100).MinWidth(0).
+						AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).
+						Padding(theme.Space08.DIPs(scale), theme.Space12.DIPs(scale)).
+						Radius(controls.InnerRadius).
+						Border(components.Rim, semantic.Border.Variant).
+						Background(semantic.Surface.Inset).Children(func() {
+						ui.Icon(c, components.IconFolder.SVG()).FontSize(controls.InlineIcon).
+							TextColor(semantic.Icon.Muted).Shrink(0)
+						ui.Text(c, shown).
+							Font(theme.MonoFontFamily).
+							FontSize(theme.TextSmall.Size(scale)).
+							LineHeight(1.4).
+							TextColor(semantic.Text.Muted).
+							Grow(1).MinWidth(0).
+							Selectable()
+					})
 					if pending {
-						components.Label(c, locales.NotebookChangedDescription(), theme.TextXSmall, semantic.Status.Info.Foreground)
+						components.Label(c, locales.NotebookChangedDescription(), theme.TextXSmall, semantic.Status.Info.Foreground).
+							WidthPercent(100).MinWidth(0)
 					}
 				})
 			},
 			Control: func() {
-				ui.Row(c).Gap(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).MinWidth(0).MaxWidthPercent(100).Wrap().Gap(theme.Space08.DIPs(scale)).AlignItems(ui.Center).Children(func() {
 					components.Button{
 						Key:      "reveal-notebook",
 						Label:    locales.ShowInFinder(),
@@ -123,7 +137,8 @@ func (s *State) backupsPanel(c *ui.Context, semantic theme.Theme, panel ui.Eleme
 	animate := s.motion(c)
 
 	components.ElevatedSurface(panel, semantic, scale, components.PopoverElevation)
-	panel.Width(320*k).Padding(pad).Border(components.Rim, semantic.Border.Default).
+	panel.Width(320*k).MaxWidthPercent(100).Padding(pad).
+		Margin(theme.Space04.DIPs(scale), 0, 0, 0).
 		Role(ui.RoleDialog).Label(locales.NotebookBackups())
 	if animate {
 		spring := components.Settle(components.MotionNormal)
@@ -136,7 +151,7 @@ func (s *State) backupsPanel(c *ui.Context, semantic theme.Theme, panel ui.Eleme
 	panel.Children(func() {
 		ui.Scroll(c).Key("backups-popover-list").WidthPercent(100).MaxHeight(260*k).
 			Scrollbars(true).ScrollbarAxes(false, true).Children(func() {
-			ui.Column(c).WidthPercent(100).Gap(theme.Space02.DIPs(scale)).Children(func() {
+			ui.Column(c).WidthPercent(100).MinWidth(0).Gap(theme.Space02.DIPs(scale)).Children(func() {
 				for i, option := range s.Backups {
 					option := option
 					row := ui.ButtonBase(c.Key(fmt.Sprintf("backup-opt-%d", i))).

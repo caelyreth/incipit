@@ -38,13 +38,13 @@ func (s *State) typefacePreview(c *ui.Context, semantic theme.Theme) {
 	k := scale / theme.DefaultUIFontSize
 	inset := theme.Space16.DIPs(scale)
 	family := s.previewFamily()
-	ui.Column(c).Key("typeface-preview").WidthPercent(100).Children(func() {
-		ui.Row(c).WidthPercent(100).Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).
+	ui.Column(c).Key("typeface-preview").WidthPercent(100).MinWidth(0).Children(func() {
+		ui.Row(c).WidthPercent(100).MinWidth(0).Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).
 			Children(func() {
-				ui.Column(c).WidthPercent(100).Padding(theme.Space12.DIPs(scale), theme.Space16.DIPs(scale)).
+				ui.Column(c).WidthPercent(100).MinWidth(0).Padding(theme.Space12.DIPs(scale), theme.Space16.DIPs(scale)).
 					Gap(theme.Space06.DIPs(scale)).
 					Radius(theme.DefaultControls.Scaled(scale).Radius).
-					Border(1, semantic.Border.Variant).
+					Border(components.Rim, semantic.Border.Variant).
 					Background(semantic.Surface.Inset).Children(func() {
 					ui.Row(c).WidthPercent(100).AlignItems(ui.Baseline).Gap(theme.Space12.DIPs(scale)).Children(func() {
 						ui.Text(c, "Ag").Font(family).FontSize(22 * k).FontWeight(600).
@@ -260,7 +260,8 @@ func (s *State) fontPickerPanel(c *ui.Context, semantic theme.Theme, panel ui.El
 	animate := s.motion(c)
 
 	components.ElevatedSurface(panel, semantic, scale, components.PopoverElevation)
-	panel.Width(310*k).Padding(pad).Border(components.Rim, semantic.Border.Default).
+	panel.Width(310*k).MaxWidthPercent(100).Padding(pad).
+		Margin(theme.Space04.DIPs(scale), 0, 0, 0).
 		Role(ui.RoleDialog).Label(locales.ProseFont())
 	if animate {
 		spring := components.Settle(components.MotionNormal)
@@ -271,7 +272,7 @@ func (s *State) fontPickerPanel(c *ui.Context, semantic theme.Theme, panel ui.El
 		})
 	}
 	panel.Children(func() {
-		ui.Column(c).WidthPercent(100).Gap(theme.Space08.DIPs(scale)).Children(func() {
+		ui.Column(c).WidthPercent(100).MinWidth(0).Gap(theme.Space08.DIPs(scale)).Children(func() {
 			components.TextField{
 				Key:         "font-picker-search",
 				Label:       locales.SearchFonts(),

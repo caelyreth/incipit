@@ -26,8 +26,8 @@ func (s *State) choiceView(c *ui.Context, semantic theme.Theme, o choiceOption) 
 	k := scale / theme.DefaultUIFontSize
 	pad := theme.Space16.DIPs(scale)
 	inner := theme.Space08.DIPs(scale)
-	ui.Column(c.Key(o.key)).WidthPercent(100).Children(func() {
-		ui.Row(c).WidthPercent(100).AlignItems(ui.Center).Gap(inner).
+	ui.Column(c.Key(o.key)).WidthPercent(100).MinWidth(0).Children(func() {
+		ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).Gap(inner).
 			Padding(0, pad-inner, 0, pad-inner).Children(func() {
 			option := ui.ButtonBase(c.Key("choose")).Role(ui.RoleRadio).Label(o.label).Checked(o.chosen).
 				Grow(1).MinWidth(0).AlignItems(ui.Center).Gap(theme.Space12.DIPs(scale)).
