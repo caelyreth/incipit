@@ -452,15 +452,18 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 				})
 		}
 		if s.field.stuck > 0 {
-			s.pillBackdrop(c, semantic, w, edge, ribbonFade, atFoot)
+			s.pillBackdrop(c, semantic, w, edge, ribbonFade, atFoot, listed)
 		}
 		s.horizonView(c, semantic, stageRect{X: w/2 - pill.W/2, Y: py, W: pill.W, H: pill.H}, rl, w, k, animate)
 	})
 }
 
 // pillBackdrop is what the stuck pill stands on, reaching from the
-// window's top, or its foot, as far as edge.
-func (s *State) pillBackdrop(c *ui.Context, semantic theme.Theme, w, edge, ribbonFade float32, foot bool) {
+// window's top, or its foot, as far as edge. In list view it also catches
+// pointer hits over the blurred strip and its expanded ribbons area so
+// clicks do not pass through to cards underneath, clearing pill focus
+// instead when no ribbon or pill control is hit.
+func (s *State) pillBackdrop(c *ui.Context, semantic theme.Theme, w, edge, ribbonFade float32, foot, listed bool) {
 	mask := ui.LinearGradient{From: ui.RGB(0, 0, 0), To: ui.Transparent, Start: 0.15, End: 1.0, Angle: 180}
 	if foot {
 		mask.Angle = 0
@@ -474,7 +477,7 @@ func (s *State) pillBackdrop(c *ui.Context, semantic theme.Theme, w, edge, ribbo
 		{glass.ScrollEdge{Bottom: foot, Background: semantic.Surface.Background}, tintOpacity},
 	} {
 		b := ui.Box(c).Key(fmt.Sprint("pill-backdrop-", i)).Absolute().Left(0).Size(w, edge).
-			Opacity(item.opacity).IgnoreInput(true).Material(item.m)
+			Opacity(item.opacity).IgnoreInput(i > 0 || !listed).Material(item.m)
 		if foot {
 			b.Bottom(0)
 		} else {

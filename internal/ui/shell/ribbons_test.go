@@ -2,6 +2,7 @@ package shell
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -198,5 +199,123 @@ func TestRibbonsComeInAtOnceWhereverThePillStands(t *testing.T) {
 				t.Fatalf("Opening the pill (list %v) should not put its ribbons away: %v.", list, state.field.away)
 			}
 		}
+	}
+}
+
+// In list view, the bottom blur strip and its expanded ribbons area catch
+// pointer hits so clicks over underlying cards do not pass through:
+// clicking an actual ribbon still works, while clicking elsewhere on the
+// blur dismisses the open pill just as clicking blank field does.
+func TestListBackdropBlocksCardPassthroughAndDismissesPill(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.extraSheets = 30
+	library.rev++
+	state.toggleList()
+	settle(tester)
+	// List view homes to the bottom when sorted by filed order; scroll to
+	// the top so cards pass under the bottom blur backdrop (stuck > 0).
+	state.field.scroll = max(state.field.lo, 0)
+	settle(tester)
+	if state.field.stuck <= 0 {
+		t.Fatalf("Expected list view to scroll under the pill backdrop, stuck=%v", state.field.stuck)
+	}
+
+	// Pick a point on the blurred strip beside the pill/wordmark that overlaps
+	// an underlying sheet row (if one sits there) or check expanded area.
+	if err := tester.Click("Search"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !state.field.open || !tester.Focused("Search") {
+		t.Fatal("Search pill should be open and focused")
+	}
+
+	// Find an expanded ribbon above the pill (e.g. "Sorted by") to locate the
+	// expanded blur band, then click an empty horizontal spot on that same row
+	// over the underlying list content.
+	sortBtn, ok := tester.Find("Sorted by")
+	if !ok {
+		t.Fatalf("Expected Sorted by ribbon when open in list view, texts: %v", tester.Texts())
+	}
+	pillRect, _ := tester.Find("Search")
+	emptyX := pillRect.X - 80
+	clickY := sortBtn.Y + sortBtn.H/2
+	// Verify an underlying sheet row actually overlaps emptyX, clickY? Or test
+	// at a spot inside the blur edge where a sheet row lies horizontally.
+	// Clicking near the center-right/left of an open sheet row inside the blur
+	// strip must NOT open any sheet onto the desk and MUST dismiss the pill.
+	tester.ClickAt(emptyX, clickY)
+	settle(tester)
+	if state.OnDesk() {
+		t.Fatal("Clicking empty space on the expanded ribbons blur passed through to open a sheet")
+	}
+	if state.field.open || tester.Focused("Search") {
+		t.Fatalf("Clicking empty space on the expanded ribbons blur should dismiss pill: open=%v focused=%v", state.field.open, tester.Focused("Search"))
+	}
+
+	// Also test directly over a visible sheet row clipped/overlapping the
+	// bottom blur strip: clicking an actual ribbon still opens its key without
+	// passing through, while clicking over a card inside the blur area does not.
+	if err := tester.Click("Search"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if err := tester.Click("Sorted by"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.field.opened == nil || state.field.opened.Name != "sort" {
+		t.Fatalf("Clicking ribbon on the blur should open sort key, got %v", state.field.opened)
+	}
+	if state.OnDesk() {
+		t.Fatal("Clicking a ribbon should not pass through to an underlying sheet")
+	}
+
+	// Find a sheet whose bounds fall inside the blur area (Y >= 850-state.field.backdrop)
+	// and click it at an X clear of the pill/ribbons: must not open the sheet.
+	blurTop := float32(850) - state.field.backdrop
+	var covered ui.Rect
+	var coveredTitle string
+	for _, a := range tester.AccessAll() {
+		if strings.HasPrefix(a.Name, "Sheet ") && a.Bounds.H > 0 && a.Bounds.Y+a.Bounds.H > blurTop+4 {
+			covered = a.Bounds
+			coveredTitle = a.Name
+			break
+		}
+	}
+	if covered.W == 0 {
+		t.Fatalf("Expected at least one sheet row to overlap the blur area (blurTop=%v)", blurTop)
+	}
+	// Click inside the overlapped card row on the right edge (under blur, clear
+	// of pill/ribbons/wordmark).
+	hitX := covered.X + covered.W - 8
+	hitY := max(blurTop+4, covered.Y+covered.H/2)
+	if hitY >= 850 {
+		hitY = 850 - 8
+	}
+	tester.ClickAt(hitX, hitY)
+	settle(tester)
+	if state.OnDesk() {
+		t.Fatalf("Clicking %q inside the blur area at (%v,%v) passed through to open it", coveredTitle, hitX, hitY)
+	}
+	if state.field.open || state.field.opened != nil {
+		t.Fatalf("Clicking empty blur over %q should dismiss pill & opened key, got open=%v opened=%v", coveredTitle, state.field.open, state.field.opened)
+	}
+
+	// Verify clicking the same sheet above the blur area still opens it normally.
+	var clearRow ui.Rect
+	for _, a := range tester.AccessAll() {
+		if strings.HasPrefix(a.Name, "Sheet ") && a.Bounds.H > 0 && a.Bounds.Y > 80 && a.Bounds.Y+a.Bounds.H < blurTop-4 {
+			clearRow = a.Bounds
+			break
+		}
+	}
+	if clearRow.W == 0 {
+		t.Fatalf("Expected a sheet row above the blur area (blurTop=%v)", blurTop)
+	}
+	tester.ClickAt(clearRow.X+clearRow.W/2, clearRow.Y+clearRow.H/2)
+	settle(tester)
+	if !state.OnDesk() {
+		t.Fatal("Clicking a sheet row above the blur strip should open it on the desk")
 	}
 }
