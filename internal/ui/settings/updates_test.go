@@ -9,6 +9,7 @@ import (
 
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
 	appupdater "github.com/caelyreth/neverland/internal/app/updater"
+	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/caelyreth/neverland/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -168,5 +169,94 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 
 	if secs := state.Sections("beta"); len(secs) != 1 || secs[0].Key != updatesPreferencesKey {
 		t.Fatalf("Sections(\"beta\") = %v, want [updates-preferences]", secs)
+	}
+}
+
+func TestUpdatesSectionMatchesSiblingCardSpacingAndBadgeBounds(t *testing.T) {
+	state := New()
+	state.Animate = false
+	state.Data = appsettings.DefaultState().Data()
+	state.Updates = appupdater.Snapshot{
+		Status:         appupdater.StatusAvailable,
+		Availability:   mygo.UpdateAvailable,
+		CurrentVersion: "1.0.0",
+		Channel:        appupdater.ChannelBeta,
+		CanCheck:       true,
+		Available: &appupdater.Release{
+			Version: "1.1.0-beta.1",
+			Channel: appupdater.ChannelBeta,
+			Notes:   "- A very long release note bullet item that should wrap cleanly inside the inset panel without overflowing",
+		},
+	}
+
+	tester := ui.NewTester(state.cards(appsettings.Appearance, appsettings.Updates), 640, 2600)
+	tester.Frame()
+
+	scale := state.Theme.UIFontSize
+	wantGap := theme.Space08.DIPs(scale)
+	sectionGap := func(title string) float32 {
+		t.Helper()
+		head, ok := tester.AccessByRole(ui.RoleHeading, title)
+		if !ok {
+			t.Fatalf("missing heading %q", title)
+		}
+		group, ok := tester.AccessByRole(ui.RoleGroup, title)
+		if !ok {
+			t.Fatalf("missing group %q", title)
+		}
+		return group.Bounds.Y - (head.Bounds.Y + head.Bounds.H)
+	}
+
+	appGap := sectionGap(locales.Interface())
+	verGap := sectionGap(locales.UpdatesVersionSection())
+	prefGap := sectionGap(locales.UpdatesPreferencesSection())
+	if abs := verGap - appGap; abs < -0.5 || abs > 0.5 {
+		t.Fatalf("Updates Version header-to-card gap = %v, want %v (same as Interface %v)", verGap, wantGap, appGap)
+	}
+	if abs := prefGap - appGap; abs < -0.5 || abs > 0.5 {
+		t.Fatalf("Updates Preferences header-to-card gap = %v, want %v (same as Interface %v)", prefGap, wantGap, appGap)
+	}
+
+	verGroup, _ := tester.AccessByRole(ui.RoleGroup, locales.UpdatesVersionSection())
+	betaRect, ok := tester.Find(locales.UpdatesChannelBeta())
+	if !ok || betaRect.W <= 0 || betaRect.H <= 0 {
+		t.Fatalf("Beta badge rect = %+v (ok=%v), want non-zero visible badge", betaRect, ok)
+	}
+	if betaRect.X < verGroup.Bounds.X || betaRect.X+betaRect.W > verGroup.Bounds.X+verGroup.Bounds.W {
+		t.Fatalf("Beta badge %+v overflows Version card %+v", betaRect, verGroup.Bounds)
+	}
+
+	dlBtn, ok := tester.AccessByRole(ui.RoleButton, locales.UpdatesButtonDownload())
+	if !ok {
+		t.Fatalf("missing button %q", locales.UpdatesButtonDownload())
+	}
+	chooseBtn, ok := tester.AccessByRole(ui.RoleButton, locales.ChooseFolderEllipsis())
+	if !ok {
+		t.Fatalf("missing button %q", locales.ChooseFolderEllipsis())
+	}
+	if d := dlBtn.Bounds.H - chooseBtn.Bounds.H; d < -0.5 || d > 0.5 {
+		t.Fatalf("Updates action button height = %v, want %v (matching sibling MediumButton)", dlBtn.Bounds.H, chooseBtn.Bounds.H)
+	}
+
+	// Narrow 400px card width must keep controls and release notes inside card bounds.
+	narrowTester := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(state.Theme.MyGoTheme())
+		semantic := state.Theme.Semantic()
+		ui.Column(c).Fill().Padding(16).Children(func() {
+			ui.Column(c).Width(400).Children(func() {
+				state.SectionView(c, semantic, appsettings.Updates.Key()+"/"+updatesVersionKey, "")
+			})
+		})
+	}, 440, 900)
+	noteText := "A very long release note bullet item that should wrap cleanly inside the inset panel without overflowing"
+	narrowTester.Frame()
+	narrowTester.Frame()
+	narrowGroup, ok := narrowTester.AccessByRole(ui.RoleGroup, locales.UpdatesVersionSection())
+	if !ok {
+		t.Fatal("missing narrow Version group")
+	}
+	if noteRect, ok := narrowTester.Find(noteText); !ok ||
+		noteRect.X+noteRect.W > narrowGroup.Bounds.X+narrowGroup.Bounds.W {
+		t.Fatalf("release note rect = %+v (ok=%v) overflows narrow card %+v", noteRect, ok, narrowGroup.Bounds)
 	}
 }

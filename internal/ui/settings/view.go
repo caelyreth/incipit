@@ -91,7 +91,7 @@ func (s *State) SectionView(c *ui.Context, semantic theme.Theme, id, words strin
 		}
 		for _, sec := range s.appendSections(nil, category, query, key) {
 			scale := s.Theme.UIFontSize
-			ui.Column(c).Key("settings-section-" + id).WidthPercent(100).Gap(theme.Space08.DIPs(scale)).Children(func() {
+			ui.Column(c).Key("settings-section-" + id).WidthPercent(100).MinWidth(0).Gap(theme.Space08.DIPs(scale)).Children(func() {
 				components.Label(c, sec.Category.Title(), theme.TextXSmall, semantic.Text.Muted).
 					PaddingX(theme.Space04.DIPs(scale))
 				switch sec.Category {
@@ -100,7 +100,7 @@ func (s *State) SectionView(c *ui.Context, semantic theme.Theme, id, words strin
 				case appsettings.Editor:
 					s.editorSection(c, semantic, sec.Key, query)
 				case appsettings.Updates:
-					s.updatesSection(c, semantic, sec.Key, query)
+					s.updatesSection(c, semantic, sec)
 				case appsettings.Keymap:
 					s.keymapSection(c, semantic, sec, query)
 				}

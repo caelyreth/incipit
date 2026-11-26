@@ -52,16 +52,16 @@ func (s *State) updatesSections(add func(key, title, description string, match f
 	}
 }
 
-func (s *State) updatesSection(c *ui.Context, semantic theme.Theme, key, _ string) {
-	switch key {
+func (s *State) updatesSection(c *ui.Context, semantic theme.Theme, sec Section) {
+	switch sec.Key {
 	case updatesPreferencesKey:
-		s.updatesPreferencesCard(c, semantic)
+		s.updatesPreferencesCard(c, semantic, sec)
 	default:
-		s.updatesVersionCard(c, semantic)
+		s.updatesVersionCard(c, semantic, sec)
 	}
 }
 
-func (s *State) updatesVersionCard(c *ui.Context, semantic theme.Theme) {
+func (s *State) updatesVersionCard(c *ui.Context, semantic theme.Theme, sec Section) {
 	scale := s.Theme.UIFontSize
 	animate := s.motion(c)
 	snap := s.Updates
@@ -69,23 +69,12 @@ func (s *State) updatesVersionCard(c *ui.Context, semantic theme.Theme) {
 		snap.CurrentVersion = mygo.App.Version()
 	}
 
-	ui.Column(c).Key("updates-version-section").WidthPercent(100).Children(func() {
-		components.SectionHeader{
-			Label:       locales.UpdatesVersionSection(),
-			Description: locales.UpdatesVersionDescription(),
-		}.View(c, semantic)
-
+	s.section(c, semantic, sec, func() {
 		hasNotes := snap.Available != nil && strings.TrimSpace(snap.Available.Notes) != ""
-		components.SettingGroup{
-			Key:   "settings-group-updates-version",
-			Label: locales.UpdatesVersionSection(),
-			Children: func() {
-				s.updateStatusRow(c, semantic, snap, !hasNotes, animate, scale)
-				if hasNotes {
-					s.updateNotesRow(c, semantic, snap.Available, animate, scale)
-				}
-			},
-		}.View(c, semantic)
+		s.updateStatusRow(c, semantic, snap, !hasNotes, animate, scale)
+		if hasNotes {
+			s.updateNotesRow(c, semantic, snap.Available, animate, scale)
+		}
 	})
 }
 
@@ -96,17 +85,24 @@ func (s *State) updateStatusRow(
 	lastRow, animate bool,
 	scale float32,
 ) {
+	k := scale / theme.DefaultUIFontSize
+	metrics := theme.DefaultControls.Scaled(scale)
 	inset := theme.Space16.DIPs(scale)
-	row := ui.Column(c).Key("updates-status-row").WidthPercent(100)
+	row := ui.Column(c).Key("updates-status-row").Shrink(0).WidthPercent(100).MinWidth(0)
 	row.Children(func() {
-		ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).
+		ui.Row(c).WidthPercent(100).MinWidth(0).
+			MinHeight(metrics.Row+theme.Space12.DIPs(scale)).
+			AlignItems(ui.Center).Wrap().Justify(ui.SpaceBetween).
 			Gap(theme.Space16.DIPs(scale)).
-			Padding(theme.Space16.DIPs(scale), inset, theme.Space16.DIPs(scale), inset).
+			Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).
 			Children(func() {
-				s.updateStatusBadge(c, semantic, snap, animate, scale)
-				ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Space02.DIPs(scale)).Children(func() {
-					s.updateHeadline(c, semantic, snap, scale)
-					s.updateSubline(c, semantic, snap, scale)
+				ui.Row(c).Grow(1).MinWidth(180 * k).MaxWidthPercent(100).
+					AlignItems(ui.Center).Gap(theme.Space12.DIPs(scale)).Children(func() {
+					s.updateStatusBadge(c, semantic, snap, animate, scale)
+					ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Space02.DIPs(scale)).Children(func() {
+						s.updateHeadline(c, semantic, snap, scale)
+						s.updateSubline(c, semantic, snap, scale)
+					})
 				})
 				s.updateActions(c, semantic, snap, animate, scale)
 			})
@@ -121,12 +117,13 @@ func (s *State) updateStatusRow(
 		}.View(c, func() {
 			s.updateProgressFooter(c, semantic, snap, animate, inset, scale)
 		})
-	})
 
-	if !lastRow {
-		components.HorizontalDivider(c, semantic, components.DefaultDivider).
-			Padding(0, inset, 0, inset)
-	}
+		if !lastRow {
+			ui.Row(c).WidthPercent(100).PaddingStart(inset).Children(func() {
+				components.HorizontalDivider(c, semantic, components.VariantDivider)
+			})
+		}
+	})
 }
 
 func (s *State) updateStatusBadge(
@@ -172,6 +169,7 @@ func (s *State) updateStatusBadge(
 		Justify(ui.Center).AlignItems(ui.Center)
 
 	if snap.Status == appupdater.StatusDownloading {
+		k := scale / theme.DefaultUIFontSize
 		box.Children(func() {
 			done := float32(0)
 			if snap.Progress > 0 {
@@ -181,7 +179,7 @@ func (s *State) updateStatusBadge(
 					done = float32(snap.Progress)
 				}
 			}
-			components.ProgressRing(c, "update-ring", iconSize+4, 2, done, semantic.Border.Default, fg, s.updateStatusText(snap))
+			components.ProgressRing(c, "update-ring", iconSize+4*k, 2*k, done, semantic.Border.Default, fg, s.updateStatusText(snap))
 		})
 		return
 	}
@@ -220,7 +218,7 @@ func (s *State) updateHeadline(c *ui.Context, semantic theme.Theme, snap appupda
 	default:
 		title = locales.UpdatesVersionSection()
 	}
-	components.Label(c, title, theme.TextDefault, semantic.Text.Heading).FontWeight(600)
+	components.Label(c, title, theme.TextDefault, semantic.Text.Heading).FontWeight(600).WidthPercent(100).MinWidth(0)
 }
 
 func (s *State) updateSubline(c *ui.Context, semantic theme.Theme, snap appupdater.Snapshot, scale float32) {
@@ -271,11 +269,12 @@ func (s *State) updateSubline(c *ui.Context, semantic theme.Theme, snap appupdat
 		}
 	}
 
-	ui.Row(c).WidthPercent(100).MinWidth(0).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
-		components.Label(c, line, theme.TextSmall, ink)
+	ui.Row(c).WidthPercent(100).MinWidth(0).Wrap().AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
+		components.Label(c, line, theme.TextSmall, ink).MinWidth(0).Shrink(1)
 		if snap.Channel == appupdater.ChannelBeta {
-			tagPad := theme.Space04.DIPs(scale)
-			components.TagChip(c, locales.UpdatesChannelBeta(), theme.TextXSmall, tagPad, 0, semantic.Accent.Tint, semantic.Accent.Foreground)
+			components.BadgeFrame(ui.Row(c), scale).Background(semantic.Accent.Tint).Children(func() {
+				components.CenteredLabel(c, locales.UpdatesChannelBeta(), theme.TextXSmall, semantic.Accent.Foreground)
+			})
 		}
 	})
 }
@@ -287,14 +286,14 @@ func (s *State) updateActions(
 	animate bool,
 	scale float32,
 ) {
-	ui.Row(c).AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Shrink(0).Children(func() {
+	ui.Row(c).MinWidth(0).MaxWidthPercent(100).Wrap().AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
 		switch snap.Status {
 		case appupdater.StatusChecking:
 			components.Button{
 				Key:     "update-cancel-check",
 				Label:   locales.UpdatesButtonCancel(),
 				Style:   components.SubtleButton,
-				Size:    components.CompactButton,
+				Size:    components.MediumButton,
 				Animate: animate,
 				Action:  callAction(s.UpdateCancel),
 			}.View(c, semantic)
@@ -304,7 +303,7 @@ func (s *State) updateActions(
 				Key:     "update-skip",
 				Label:   locales.UpdatesButtonSkip(),
 				Style:   components.SubtleButton,
-				Size:    components.CompactButton,
+				Size:    components.MediumButton,
 				Animate: animate,
 				Action:  callAction(s.UpdateSkip),
 			}.View(c, semantic)
@@ -315,7 +314,7 @@ func (s *State) updateActions(
 						Key:     "update-manual",
 						Label:   locales.UpdatesButtonDownloadManually(),
 						Style:   components.PrimaryButton,
-						Size:    components.CompactButton,
+						Size:    components.MediumButton,
 						Animate: animate,
 						Action: func() {
 							if s.UpdateOpenURL != nil {
@@ -329,7 +328,7 @@ func (s *State) updateActions(
 					Key:     "update-download",
 					Label:   locales.UpdatesButtonDownload(),
 					Style:   components.PrimaryButton,
-					Size:    components.CompactButton,
+					Size:    components.MediumButton,
 					Animate: animate,
 					Action:  callAction(s.UpdateDownload),
 				}.View(c, semantic)
@@ -340,7 +339,7 @@ func (s *State) updateActions(
 				Key:     "update-cancel-download",
 				Label:   locales.UpdatesButtonCancel(),
 				Style:   components.SubtleButton,
-				Size:    components.CompactButton,
+				Size:    components.MediumButton,
 				Animate: animate,
 				Action:  callAction(s.UpdateCancel),
 			}.View(c, semantic)
@@ -353,7 +352,7 @@ func (s *State) updateActions(
 				Key:     "update-restart",
 				Label:   locales.UpdatesButtonRestart(),
 				Style:   components.PrimaryButton,
-				Size:    components.CompactButton,
+				Size:    components.MediumButton,
 				Animate: animate,
 				Action:  callAction(s.UpdateRestart),
 			}.View(c, semantic)
@@ -364,7 +363,7 @@ func (s *State) updateActions(
 					Key:     "update-skip-err",
 					Label:   locales.UpdatesButtonSkip(),
 					Style:   components.SubtleButton,
-					Size:    components.CompactButton,
+					Size:    components.MediumButton,
 					Animate: animate,
 					Action:  callAction(s.UpdateSkip),
 				}.View(c, semantic)
@@ -372,7 +371,7 @@ func (s *State) updateActions(
 					Key:     "update-retry",
 					Label:   locales.UpdatesButtonRetry(),
 					Style:   components.PrimaryButton,
-					Size:    components.CompactButton,
+					Size:    components.MediumButton,
 					Animate: animate,
 					Action:  callAction(s.UpdateDownload),
 				}.View(c, semantic)
@@ -381,7 +380,7 @@ func (s *State) updateActions(
 					Key:      "update-check-retry",
 					Label:    locales.UpdatesButtonCheck(),
 					Style:    components.OutlinedButton,
-					Size:     components.CompactButton,
+					Size:     components.MediumButton,
 					Disabled: !snap.CanCheck,
 					Animate:  animate,
 					Action:   callAction(s.UpdateCheck),
@@ -393,7 +392,7 @@ func (s *State) updateActions(
 				Key:      "update-check",
 				Label:    locales.UpdatesButtonCheck(),
 				Style:    components.OutlinedButton,
-				Size:     components.CompactButton,
+				Size:     components.MediumButton,
 				Disabled: !snap.CanCheck,
 				Animate:  animate,
 				Action:   callAction(s.UpdateCheck),
@@ -410,8 +409,8 @@ func (s *State) updateProgressFooter(
 	inset, scale float32,
 ) {
 	box := ui.Column(c).Key("updates-progress-footer").
-		WidthPercent(100).
-		Padding(0, inset, theme.Space16.DIPs(scale), inset).
+		WidthPercent(100).MinWidth(0).
+		Padding(0, inset, theme.Space12.DIPs(scale), inset).
 		Gap(theme.Space06.DIPs(scale))
 	box.Children(func() {
 		val := snap.Progress
@@ -422,21 +421,21 @@ func (s *State) updateProgressFooter(
 		}
 		ui.Progress(c.Key("update-progress-bar"), val).
 			WidthPercent(100).
-			Height(4).
+			Height(4 * scale / theme.DefaultUIFontSize).
 			TextColor(semantic.Accent.Foreground).
 			Background(semantic.Border.Default).
 			Label(s.updateStatusText(snap))
 
 		if snap.Total > 0 {
-			ui.Row(c).WidthPercent(100).Justify(ui.SpaceBetween).Children(func() {
+			ui.Row(c).WidthPercent(100).MinWidth(0).Justify(ui.SpaceBetween).Children(func() {
 				components.Label(
 					c,
 					locales.UpdatesDownloadProgress(components.Bytes(snap.Downloaded), components.Bytes(snap.Total)),
 					theme.TextXSmall,
 					semantic.Text.Muted,
-				)
+				).MinWidth(0).Shrink(1)
 				if snap.Status == appupdater.StatusDownloading {
-					pctBox := ui.Row(c).AlignItems(ui.Center).Gap(1)
+					pctBox := ui.Row(c).AlignItems(ui.Center).Gap(theme.Space02.DIPs(scale)).Shrink(0)
 					st := ui.Local(pctBox, "pct-roll", func() components.RollingNumber { return components.RollingNumber{} })
 					pct := int(math.Round(max(0, min(1, snap.Progress)) * 100))
 					pctBox.Children(func() {
@@ -461,7 +460,7 @@ func (s *State) updateNotesRow(
 	}
 	metrics := theme.DefaultControls.Scaled(scale)
 	inset := theme.Space16.DIPs(scale)
-	row := ui.Column(c).Key("updates-notes-row").WidthPercent(100)
+	row := ui.Column(c).Key("updates-notes-row").Shrink(0).WidthPercent(100).MinWidth(0)
 	notesState := ui.Local(row, "notes-state", func() updatesNotesState {
 		return updatesNotesState{open: true, version: rel.Version}
 	})
@@ -471,14 +470,22 @@ func (s *State) updateNotesRow(
 	}
 
 	row.Children(func() {
-		toggle := ui.Row(c).Key("updates-notes-toggle").
-			WidthPercent(100).AlignItems(ui.Center).Justify(ui.SpaceBetween).
+		toggle := ui.ButtonBase(c.Key("updates-notes-toggle")).
+			Role(ui.RoleButton).Label(locales.UpdatesReleaseNotes()).Expanded(notesState.open).
+			WidthPercent(100).MinWidth(0).
+			MinHeight(metrics.Row+theme.Space08.DIPs(scale)).
+			AlignItems(ui.Center).Justify(ui.SpaceBetween).
 			Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).
-			OnClick(func() { notesState.open = !notesState.open })
+			FocusRing(true).KeepFocus()
+		hover := components.HoverAmount(toggle, toggle.Hovered(), animate)
+		toggle.Background(semantic.GhostElement.Hover.Alpha(hover))
+		if toggle.Clicked() {
+			notesState.open = !notesState.open
+		}
 		toggle.Children(func() {
-			components.Label(c, locales.UpdatesReleaseNotes(), theme.TextSmall, semantic.Text.Default).FontWeight(500)
+			components.Label(c, locales.UpdatesReleaseNotes(), theme.TextDefault, semantic.Text.Default).MinWidth(0)
 			chevron := ui.Icon(c.Key("notes-chevron"), components.IconChevronDown.SVG()).
-				FontSize(metrics.InlineIcon).TextColor(semantic.Icon.Muted)
+				FontSize(metrics.InlineIcon).TextColor(semantic.Icon.Muted).Shrink(0)
 			rot := float32(0)
 			if !notesState.open {
 				rot = -90
@@ -496,10 +503,10 @@ func (s *State) updateNotesRow(
 			Appear:  true,
 		}.View(c, func() {
 			ui.Column(c).Key("updates-notes-body").
-				WidthPercent(100).
-				Padding(0, inset, theme.Space16.DIPs(scale), inset).
+				WidthPercent(100).MinWidth(0).
+				Padding(0, inset, theme.Space12.DIPs(scale), inset).
 				Children(func() {
-					panel := ui.Column(c).WidthPercent(100).
+					panel := ui.Column(c).WidthPercent(100).MinWidth(0).
 						Background(semantic.Surface.Inset).
 						Radius(metrics.InnerRadius).
 						Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).
@@ -512,7 +519,7 @@ func (s *State) updateNotesRow(
 	})
 }
 
-func renderReleaseNotes(c *ui.Context, semantic theme.Theme, raw string, _ float32) {
+func renderReleaseNotes(c *ui.Context, semantic theme.Theme, raw string, scale float32) {
 	lines := strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n")
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -521,24 +528,27 @@ func renderReleaseNotes(c *ui.Context, semantic theme.Theme, raw string, _ float
 		}
 		switch {
 		case strings.HasPrefix(trimmed, "### "):
-			components.Label(c, strings.TrimSpace(strings.TrimPrefix(trimmed, "### ")), theme.TextSmall, semantic.Text.Heading).FontWeight(600)
+			components.Label(c, strings.TrimSpace(strings.TrimPrefix(trimmed, "### ")), theme.TextSmall, semantic.Text.Heading).
+				FontWeight(600).WidthPercent(100).MinWidth(0)
 		case strings.HasPrefix(trimmed, "## "):
-			components.Label(c, strings.TrimSpace(strings.TrimPrefix(trimmed, "## ")), theme.TextSmall, semantic.Text.Heading).FontWeight(600)
+			components.Label(c, strings.TrimSpace(strings.TrimPrefix(trimmed, "## ")), theme.TextSmall, semantic.Text.Heading).
+				FontWeight(600).WidthPercent(100).MinWidth(0)
 		case strings.HasPrefix(trimmed, "# "):
-			components.Label(c, strings.TrimSpace(strings.TrimPrefix(trimmed, "# ")), theme.TextDefault, semantic.Text.Heading).FontWeight(600)
+			components.Label(c, strings.TrimSpace(strings.TrimPrefix(trimmed, "# ")), theme.TextDefault, semantic.Text.Heading).
+				FontWeight(600).WidthPercent(100).MinWidth(0)
 		case strings.HasPrefix(trimmed, "- "), strings.HasPrefix(trimmed, "* "):
 			body := strings.TrimSpace(trimmed[2:])
-			ui.Row(c).WidthPercent(100).MinWidth(0).Gap(6).Children(func() {
+			ui.Row(c).WidthPercent(100).MinWidth(0).Gap(theme.Space06.DIPs(scale)).Children(func() {
 				components.Label(c, "•", theme.TextSmall, semantic.Text.Muted).Shrink(0)
-				components.Label(c, body, theme.TextSmall, semantic.Text.Default)
+				components.Label(c, body, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0)
 			})
 		default:
-			components.Label(c, trimmed, theme.TextSmall, semantic.Text.Default)
+			components.Label(c, trimmed, theme.TextSmall, semantic.Text.Default).WidthPercent(100).MinWidth(0)
 		}
 	}
 }
 
-func (s *State) updatesPreferencesCard(c *ui.Context, semantic theme.Theme) {
+func (s *State) updatesPreferencesCard(c *ui.Context, semantic theme.Theme, sec Section) {
 	animate := s.motion(c)
 	snap := s.Updates
 	ch := snap.Channel
@@ -546,84 +556,73 @@ func (s *State) updatesPreferencesCard(c *ui.Context, semantic theme.Theme) {
 		ch = appupdater.ChannelStable
 	}
 
-	ui.Column(c).Key("updates-preferences-section").WidthPercent(100).Children(func() {
-		components.SectionHeader{
-			Label:       locales.UpdatesPreferencesSection(),
-			Description: locales.UpdatesPreferencesDescription(),
+	s.section(c, semantic, sec, func() {
+		components.SettingRow{
+			Label:       locales.UpdatesAutomaticChecks(),
+			Description: locales.UpdatesAutomaticChecksDescription(),
+			Control: func() {
+				components.Switch{
+					Key:      "updates-auto-checks",
+					Label:    locales.UpdatesAutomaticChecks(),
+					Selected: snap.AutomaticChecks,
+					Animate:  animate,
+					Action: func(on bool) {
+						if s.UpdateSetAutoChecks != nil {
+							s.UpdateSetAutoChecks(on)
+						}
+					},
+				}.View(c, semantic)
+			},
 		}.View(c, semantic)
 
-		components.SettingGroup{
-			Key:   "settings-group-updates-preferences",
-			Label: locales.UpdatesPreferencesSection(),
-			Children: func() {
-				components.SettingRow{
-					Label:       locales.UpdatesAutomaticChecks(),
-					Description: locales.UpdatesAutomaticChecksDescription(),
-					Control: func() {
-						components.Switch{
-							Key:      "updates-auto-checks",
-							Label:    locales.UpdatesAutomaticChecks(),
-							Selected: snap.AutomaticChecks,
-							Animate:  animate,
-							Action: func(on bool) {
-								if s.UpdateSetAutoChecks != nil {
-									s.UpdateSetAutoChecks(on)
-								}
-							},
-						}.View(c, semantic)
+		components.SettingRow{
+			Label:       locales.UpdatesAutomaticDownloads(),
+			Description: locales.UpdatesAutomaticDownloadsDescription(),
+			Control: func() {
+				components.Switch{
+					Key:      "updates-auto-downloads",
+					Label:    locales.UpdatesAutomaticDownloads(),
+					Selected: snap.AutomaticDownloads,
+					Animate:  animate,
+					Action: func(on bool) {
+						if s.UpdateSetAutoDownloads != nil {
+							s.UpdateSetAutoDownloads(on)
+						}
 					},
 				}.View(c, semantic)
+			},
+		}.View(c, semantic)
 
-				components.SettingRow{
-					Label:       locales.UpdatesAutomaticDownloads(),
-					Description: locales.UpdatesAutomaticDownloadsDescription(),
-					Control: func() {
-						components.Switch{
-							Key:      "updates-auto-downloads",
-							Label:    locales.UpdatesAutomaticDownloads(),
-							Selected: snap.AutomaticDownloads,
-							Animate:  animate,
-							Action: func(on bool) {
-								if s.UpdateSetAutoDownloads != nil {
-									s.UpdateSetAutoDownloads(on)
+		components.SettingRow{
+			Label:       locales.UpdatesChannel(),
+			Description: locales.UpdatesChannelDescription(),
+			Last:        true,
+			Control: func() {
+				components.Segmented{
+					Key:     "updates-channel",
+					Label:   locales.UpdatesChannel(),
+					Animate: animate,
+					Options: []components.SegmentOption{
+						{
+							Key:      appupdater.ChannelStable,
+							Label:    locales.UpdatesChannelStable(),
+							Selected: ch == appupdater.ChannelStable,
+							Action: func() {
+								if s.UpdateSetChannel != nil {
+									s.UpdateSetChannel(appupdater.ChannelStable)
 								}
 							},
-						}.View(c, semantic)
-					},
-				}.View(c, semantic)
-
-				components.SettingRow{
-					Label:       locales.UpdatesChannel(),
-					Description: locales.UpdatesChannelDescription(),
-					Last:        true,
-					Control: func() {
-						components.Segmented{
-							Key:     "updates-channel",
-							Label:   locales.UpdatesChannel(),
-							Animate: animate,
-							Options: []components.SegmentOption{
-								{
-									Key:      appupdater.ChannelStable,
-									Label:    locales.UpdatesChannelStable(),
-									Selected: ch == appupdater.ChannelStable,
-									Action: func() {
-										if s.UpdateSetChannel != nil {
-											s.UpdateSetChannel(appupdater.ChannelStable)
-										}
-									},
-								},
-								{
-									Key:      appupdater.ChannelBeta,
-									Label:    locales.UpdatesChannelBeta(),
-									Selected: ch == appupdater.ChannelBeta,
-									Action: func() {
-										if s.UpdateSetChannel != nil {
-											s.UpdateSetChannel(appupdater.ChannelBeta)
-										}
-									},
-								},
+						},
+						{
+							Key:      appupdater.ChannelBeta,
+							Label:    locales.UpdatesChannelBeta(),
+							Selected: ch == appupdater.ChannelBeta,
+							Action: func() {
+								if s.UpdateSetChannel != nil {
+									s.UpdateSetChannel(appupdater.ChannelBeta)
+								}
 							},
-						}.View(c, semantic)
+						},
 					},
 				}.View(c, semantic)
 			},
