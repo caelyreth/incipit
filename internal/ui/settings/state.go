@@ -6,6 +6,7 @@ package settings
 import (
 	"github.com/caelyreth/neverland/internal/app/keymap"
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
+	appupdater "github.com/caelyreth/neverland/internal/app/updater"
 	"github.com/caelyreth/neverland/internal/ui/components"
 	"github.com/caelyreth/neverland/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
@@ -44,6 +45,19 @@ type State struct {
 	Languages   []string
 	Language    string
 	SetLanguage func(tag string)
+
+	// Updates holds the current updater state and callbacks wired to the
+	// background updater service.
+	Updates                  appupdater.Snapshot
+	UpdateCheck              func()
+	UpdateDownload           func()
+	UpdateCancel             func()
+	UpdateSkip               func()
+	UpdateRestart            func()
+	UpdateSetAutoChecks      func(bool)
+	UpdateSetAutoDownloads   func(bool)
+	UpdateSetChannel         func(string)
+	UpdateOpenURL            func(string)
 
 	// In any section, the command whose shortcut is being recorded and the
 	// row or sentence it was started from, and a recorded shortcut another

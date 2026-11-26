@@ -18,6 +18,9 @@ func (a *AppState) localeChanged() {
 	a.language = mygo.App.ChosenLocale()
 	mygo.App.SetMenu(a.MainMenu())
 	a.syncMenu()
+	if a.updater != nil {
+		a.updater.RefreshLocale()
+	}
 	a.refreshSettingsData()
 	a.refreshShell()
 }

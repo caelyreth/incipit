@@ -9,6 +9,7 @@ import (
 	"github.com/caelyreth/neverland/internal/app/library"
 	appsettings "github.com/caelyreth/neverland/internal/app/settings"
 	"github.com/caelyreth/neverland/internal/app/storage"
+	appupdater "github.com/caelyreth/neverland/internal/app/updater"
 	"github.com/caelyreth/neverland/internal/app/workspace"
 	"github.com/caelyreth/neverland/internal/editor/engine"
 	"github.com/caelyreth/neverland/internal/editor/vocab"
@@ -31,6 +32,7 @@ type AppState struct {
 	// Notices tells the user what happened apart from what they did, as
 	// toasts at the window's foot.
 	Notices *NoticeCenter
+	updater *appupdater.Service
 	// sessionsRev moves on whenever a session comes, goes or is summed up
 	// anew, and as the shell is refreshed; projected keeps the shell's view
 	// of the library while it and the library are unchanged. Sessions come
@@ -132,6 +134,7 @@ func newAppState(store *storage.Store) (*AppState, error) {
 		Product:  appsettings.DefaultState(),
 		fonts:    openFonts(""),
 	}
+	app.updater = app.newUpdaterService("")
 	sessions, layout, err := app.openNotebook(store)
 	if err != nil {
 		return nil, err
@@ -437,6 +440,7 @@ func (a *AppState) refreshSettingsData() {
 	a.Settings.Reserved = a.reservedKey
 	a.Settings.Fonts, a.Settings.Font = a.fonts.rows(), a.fontAct
 	a.Settings.Languages, a.Settings.Language, a.Settings.SetLanguage = mygo.App.Languages(), a.language, a.chooseLanguage
+	a.bindUpdaterSettings()
 	a.Settings.Apply = func(change appsettings.Change) {
 		outcome, err := a.Product.Apply(change)
 		if err != nil {

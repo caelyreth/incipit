@@ -1,6 +1,7 @@
 package window
 
 import (
+	"runtime"
 	"strings"
 
 	"github.com/caelyreth/neverland/internal/app/keymap"
@@ -48,6 +49,8 @@ func (a *AppState) MainMenu() *mygo.Menu {
 			Role: mygo.RoleAppMenu,
 			Submenu: []*mygo.MenuItem{
 				{Role: mygo.RoleAbout},
+				mygo.Separator(),
+				ellipsis(command(keymap.CheckUpdates)),
 				mygo.Separator(),
 				ellipsis(command(keymap.Settings)),
 				mygo.Separator(),
@@ -134,9 +137,15 @@ func (a *AppState) MainMenu() *mygo.Menu {
 		},
 		{Role: mygo.RoleWindowMenu},
 		{
-			Role:    mygo.RoleHelp,
-			Label:   locales.MenuHelp(),
-			Submenu: []*mygo.MenuItem{command(keymap.Shortcuts)},
+			Role:  mygo.RoleHelp,
+			Label: locales.MenuHelp(),
+			Submenu: func() []*mygo.MenuItem {
+				items := []*mygo.MenuItem{command(keymap.Shortcuts)}
+				if runtime.GOOS != "darwin" {
+					items = append(items, mygo.Separator(), ellipsis(command(keymap.CheckUpdates)))
+				}
+				return items
+			}(),
 		},
 	})
 	a.menu = menu

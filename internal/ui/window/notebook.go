@@ -285,6 +285,7 @@ func (a *AppState) Close() error {
 	// The index reads from the store: it stops first, and catches up on
 	// what it missed at the next launch.
 	a.closeFinder()
+	a.closeUpdater()
 	if a.notebook == nil || a.notebook.closed {
 		return nil
 	}

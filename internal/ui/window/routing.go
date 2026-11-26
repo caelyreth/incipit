@@ -55,9 +55,10 @@ var hostHandlers = map[keymap.CommandID]hostHandler{
 		a.setPresentation(appsettings.PresentationMotion, !a.Product.Presentation.Motion)
 	},
 	keymap.Field:     func(a *AppState) { a.Shell.ToggleField() },
-	keymap.Commands:  func(a *AppState) { a.Shell.SearchCommands() },
-	keymap.Settings:  func(a *AppState) { a.Shell.ShowSettings() },
-	keymap.Shortcuts: func(a *AppState) { a.Shell.ShowShortcuts() },
+	keymap.Commands:     func(a *AppState) { a.Shell.SearchCommands() },
+	keymap.Settings:     func(a *AppState) { a.Shell.ShowSettings() },
+	keymap.Shortcuts:    func(a *AppState) { a.Shell.ShowShortcuts() },
+	keymap.CheckUpdates: func(a *AppState) { a.checkForUpdates() },
 
 	keymap.CheckSpelling:   func(a *AppState) { a.toggleOption(checkSpellingKey) },
 	keymap.CheckGrammar:    func(a *AppState) { a.toggleOption(checkGrammarKey) },

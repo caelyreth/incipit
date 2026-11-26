@@ -61,6 +61,8 @@ func (s *State) appendSections(out []Section, category appsettings.Category, que
 				add(card.ID, card.Title, s.spell(card.Description), func() bool { return query == "" || s.policyMatches(card, query) })
 			}
 		}
+	case appsettings.Updates:
+		s.updatesSections(add, only, query)
 	case appsettings.Keymap:
 		if len(s.customized()) > 0 && s.Key == "" {
 			add(changedKey, locales.ResetKeys(), locales.ResetKeysDescription(), func() bool {
@@ -97,6 +99,8 @@ func (s *State) SectionView(c *ui.Context, semantic theme.Theme, id, words strin
 					s.appearanceSection(c, semantic, sec)
 				case appsettings.Editor:
 					s.editorSection(c, semantic, sec.Key, query)
+				case appsettings.Updates:
+					s.updatesSection(c, semantic, sec.Key, query)
 				case appsettings.Keymap:
 					s.keymapSection(c, semantic, sec, query)
 				}

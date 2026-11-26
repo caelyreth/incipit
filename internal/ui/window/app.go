@@ -150,6 +150,7 @@ func openApp(root, userData string) (*AppState, error) {
 	if dir, err := fonts.Dir(userData); err == nil {
 		app.useFonts(openFonts(dir))
 	}
+	app.useUpdater(userData)
 	return app, nil
 }
 
@@ -163,6 +164,9 @@ func (a *AppState) start() {
 	a.Notices.SetWake(a.wake)
 	if a.finder != nil {
 		a.finder.SetWake(a.wake)
+	}
+	if a.updater != nil {
+		a.updater.Start()
 	}
 	a.showMain()
 	mygo.App.OnSecondInstance(func([]string, string) { a.showMain() })
