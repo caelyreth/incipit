@@ -127,7 +127,11 @@ func (a *AppState) pickPictures(title string, multiple bool, then func([]page.In
 			Parent: window, Title: title, Multiple: multiple,
 			Filters: []mygo.FileFilter{{Name: locales.Pictures(), Extensions: exts}},
 		})
-		if err != nil || len(paths) == 0 {
+		if err != nil {
+			a.fail(locales.CouldntOpenDialog(), err)
+			return
+		}
+		if len(paths) == 0 {
 			return
 		}
 		pictures := make([]page.Incoming, len(paths))

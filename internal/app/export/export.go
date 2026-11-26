@@ -318,8 +318,15 @@ func (p *planner) free(parent, name, ext string) (rel, wanted string) {
 var ErrTaken = errors.New("export: a file is already where the export would write")
 
 // Write makes the plan's files, in order, telling done after each, and
-// is the path of Top.
+// is the path of Top. If any step fails, newly created files and folders
+// from this run are rolled back so a retry starts cleanly.
 func (p Plan) Write(done func(n int)) (string, error) {
+	var created []string
+	rollback := func() {
+		for i := len(created) - 1; i >= 0; i-- {
+			_ = os.Remove(created[i])
+		}
+	}
 	for i, f := range p.Files {
 		to := filepath.Join(p.Dir, filepath.FromSlash(f.Path))
 		var err error
@@ -350,8 +357,10 @@ func (p Plan) Write(done func(n int)) (string, error) {
 			err = fmt.Errorf("%w: %s", ErrTaken, f.Path)
 		}
 		if err != nil {
+			rollback()
 			return "", err
 		}
+		created = append(created, to)
 		if done != nil {
 			done(i + 1)
 		}
@@ -366,10 +375,15 @@ func writeNew(to string, write func(io.Writer) error) error {
 		return err
 	}
 	if err := write(out); err != nil {
-		out.Close()
+		_ = out.Close()
+		_ = os.Remove(to)
 		return err
 	}
-	return out.Close()
+	if err := out.Close(); err != nil {
+		_ = os.Remove(to)
+		return err
+	}
+	return nil
 }
 
 // frontMatter is a sheet's front matter: YAML between dashed lines, its

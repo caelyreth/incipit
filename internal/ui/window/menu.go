@@ -81,6 +81,7 @@ func (a *AppState) MainMenu() *mygo.Menu {
 				mygo.Separator(),
 				command(keymap.ClosePage),
 				command(keymap.CloseOthers),
+				{Role: mygo.RoleClose, Label: locales.CommandCloseWindow()},
 				mygo.Separator(),
 				command(keymap.Trash),
 				ellipsis(command(keymap.EmptyTrash)),
@@ -267,12 +268,18 @@ func (a *AppState) syncMenu() {
 	if keys := a.Product.Keymap; a.menuKeys != keys {
 		a.spellKeys(keys)
 	}
-	desk := a.Shell.OnDesk()
+	desk := a.Shell.OnDesk() && a.exportWindow == nil
+	closeWindow := !desk
 	for id, c := range a.menuItems {
 		state := a.commandState(id, c.label)
 		accelerator := ""
 		if !a.recording && (c.scope != keymap.ScopeLibrary || !desk) {
-			accelerator = c.accelerator
+			if id != keymap.ClosePage || state.Enabled {
+				accelerator = c.accelerator
+			}
+		}
+		if id == keymap.ClosePage {
+			c.item.SetVisible(!closeWindow)
 		}
 		label := state.Label
 		if c.ellipsis && !strings.HasSuffix(label, "…") {
@@ -302,12 +309,12 @@ func (a *AppState) syncMenu() {
 			accelerator = f.accelerator
 		}
 		o := offers[f.id]
-		a.showItem(f.item, menuShown{accelerator: accelerator, label: f.item.Label, enabled: o.Available, checked: o.On})
+		a.showItem(f.item, menuShown{accelerator: accelerator, label: f.item.Label, enabled: o.Available && hasPage, checked: o.On})
 	}
 	// While the field is in front, Undo and Redo are its own, named for
 	// what they take back; elsewhere, the system's, which the page and
 	// text fields answer.
-	field := a.Shell.FieldUndoes()
+	field := a.Shell.FieldUndoes() && a.exportWindow == nil
 	for _, u := range [...]struct {
 		item  *mygo.MenuItem
 		verb  string
@@ -346,7 +353,13 @@ func (a *AppState) syncMenu() {
 		}
 	}
 	for item, accelerator := range a.systemKeys {
-		if a.recording || field && (item.Role == mygo.RoleUndo || item.Role == mygo.RoleRedo) {
+		if item.Role == mygo.RoleClose {
+			item.SetVisible(closeWindow)
+			item.SetEnabled(closeWindow)
+		}
+		if a.recording ||
+			field && (item.Role == mygo.RoleUndo || item.Role == mygo.RoleRedo) ||
+			!closeWindow && item.Role == mygo.RoleClose {
 			accelerator = ""
 		}
 		setAccelerator(item, accelerator)

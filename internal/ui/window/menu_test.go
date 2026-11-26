@@ -137,6 +137,51 @@ func TestMenuStandsDownWhileRecording(t *testing.T) {
 	}
 }
 
+func TestCloseWindowFallbackAndExportModalCommandLock(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	menu := app.MainMenu()
+	var closeWin *mygo.MenuItem
+	eachMenuItem(menu, func(item *mygo.MenuItem) {
+		if item.Role == mygo.RoleClose {
+			closeWin = item
+		}
+	})
+	if closeWin == nil {
+		t.Fatal("missing RoleClose menu item")
+	}
+	closeSheet := menu.ItemByID(string(keymap.ClosePage))
+	if closeSheet == nil {
+		t.Fatal("missing ClosePage menu item")
+	}
+
+	// On Desk: ClosePage is active with its key, RoleClose yields.
+	app.Shell.ShowDesk()
+	app.syncMenu()
+	if closeSheet.Accelerator == "" || closeWin.Accelerator != "" {
+		t.Fatalf("on desk: closeSheet=%q closeWin=%q", closeSheet.Accelerator, closeWin.Accelerator)
+	}
+
+	// On Field: ClosePage yields, RoleClose takes CmdOrCtrl+W.
+	app.Shell.ShowField()
+	app.syncMenu()
+	if closeSheet.Accelerator != "" || closeWin.Accelerator == "" {
+		t.Fatalf("on field: closeSheet=%q closeWin=%q", closeSheet.Accelerator, closeWin.Accelerator)
+	}
+
+	// While exportWindow is present, background document/library commands disable.
+	app.Shell.ShowDesk()
+	app.exportWindow = &mygo.Window{}
+	app.syncMenu()
+	for _, id := range []keymap.CommandID{keymap.NewPage, keymap.ClosePage, keymap.Trash, keymap.Export} {
+		if app.commandState(id, "").Enabled {
+			t.Fatalf("command %s remained enabled while modal exportWindow was open", id)
+		}
+	}
+}
+
 func chordFor(t *testing.T, app *AppState, command keymap.CommandID) keymap.Chord {
 	t.Helper()
 	chord, ok := app.Product.Keymap.ChordFor(command)

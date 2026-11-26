@@ -136,7 +136,11 @@ func (a *AppState) exportHeader(c *ui.Context, semantic theme.Theme, m exportMet
 // exportSummary says the export's format and what it adds up to, or that
 // it is being read.
 func (a *AppState) exportSummary(job *exportJob) string {
-	parts := []string{locales.ExportMarkdown()}
+	format := locales.ExportMarkdown()
+	if a.exportPDF {
+		format = locales.Pdf()
+	}
+	parts := []string{format}
 	if job.plan == nil {
 		return strings.Join(append(parts, locales.ExportReading(job.sheets)), " · ")
 	}

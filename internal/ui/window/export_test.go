@@ -11,6 +11,8 @@ import (
 	"github.com/caelyreth/neverland/internal/editor/doc"
 	"github.com/caelyreth/neverland/internal/editor/profile"
 	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/caelyreth/neverland/locales"
+	"github.com/egoist/mygo"
 )
 
 // A group exports as a folder of its sheets, its groups folders within,
@@ -87,5 +89,32 @@ func TestAnExportTypesetsSheetsAsPDF(t *testing.T) {
 	app.exportPDF = false
 	if app.exportTypeset() != nil {
 		t.Fatal("Markdown is typeset")
+	}
+}
+
+func TestExportSummaryReflectsPDFModeAndDefaultDirFallback(t *testing.T) {
+	app, err := NewAppState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := &exportJob{name: "Notes", sheets: 2}
+	app.exportPDF = false
+	if got := app.exportSummary(job); got != locales.ExportMarkdown()+" · "+locales.ExportReading(2) {
+		t.Fatalf("markdown summary = %q", got)
+	}
+	app.exportPDF = true
+	if got := app.exportSummary(job); got != locales.Pdf()+" · "+locales.ExportReading(2) {
+		t.Fatalf("pdf summary = %q", got)
+	}
+
+	docs := t.TempDir()
+	mygo.App.SetPath(mygo.PathDesktop, filepath.Join(t.TempDir(), "no-desktop"))
+	mygo.App.SetPath(mygo.PathDocuments, docs)
+	t.Cleanup(func() {
+		mygo.App.SetPath(mygo.PathDesktop, "")
+		mygo.App.SetPath(mygo.PathDocuments, "")
+	})
+	if got := defaultExportDir(); got != docs {
+		t.Fatalf("defaultExportDir = %q, want fallback %q", got, docs)
 	}
 }

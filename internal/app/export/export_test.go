@@ -228,3 +228,34 @@ func TestExportDependsOnlyOnStructure(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteRollsBackCreatedArtifactsOnFailure(t *testing.T) {
+	dir := t.TempDir()
+	missingPic := filepath.Join(dir, "missing.png")
+	plan, err := PlanFolder(dir, Folder{
+		Name:   "Project",
+		Sheets:  []Sheet{{Title: "Note", Read: page(t, heading("Hello"))}},
+		Folders: []Folder{{
+			Name: "Sub",
+		}},
+	}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Append a picture entry whose source file does not exist mid-write.
+	plan.Files = append(plan.Files, File{
+		Path:    "Project/broken.png",
+		Kind:    KindPicture,
+		Picture: Picture{Path: missingPic, Name: "broken.png"},
+	})
+	if _, err := plan.Write(nil); err == nil {
+		t.Fatal("expected Write to fail on missing source picture")
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected rollback to remove all newly created export artifacts, remaining: %v", entries)
+	}
+}

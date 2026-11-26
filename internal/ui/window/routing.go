@@ -121,6 +121,9 @@ func (a *AppState) commandState(id keymap.CommandID, label string) shell.VerbSta
 		state.Checked = a.optionOn(predictSpellingKey)
 		state.Enabled = a.optionOn(checkSpellingKey)
 	}
+	if a.exportWindow != nil {
+		state.Enabled = false
+	}
 	return state
 }
 

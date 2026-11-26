@@ -76,11 +76,23 @@ func (a *AppState) Export(id string) {
 	}
 	job.dir = a.exportDir
 	if job.dir == "" || !isDir(job.dir) {
-		job.dir, _ = mygo.App.Path(mygo.PathDesktop)
+		job.dir = defaultExportDir()
 	}
 	a.exporting = job
 	a.openExportWindow()
 	a.planExport()
+}
+
+func defaultExportDir() string {
+	for _, kind := range []mygo.PathName{mygo.PathDesktop, mygo.PathDocuments} {
+		if dir, err := mygo.App.Path(kind); err == nil && isDir(dir) {
+			return dir
+		}
+	}
+	if home, err := os.UserHomeDir(); err == nil && isDir(home) {
+		return home
+	}
+	return ""
 }
 
 // exportJob is what exporting the object id writes.
@@ -337,10 +349,25 @@ func (a *AppState) openExportWindow() {
 		Content:         ui.View(a.exportView),
 		BackgroundColor: colorHex(a.Shell.Settings.Semantic().Surface.Background),
 	})
+	window.OnClose(func(e *mygo.CloseEvent) {
+		if job := a.exporting; job != nil && job.writing {
+			e.PreventDefault()
+			go func() {
+				_, _ = mygo.Dialog.Message(mygo.MessageOptions{
+					Parent:  window,
+					Type:    mygo.MessageInfo,
+					Title:   locales.ExportInProgressTitle(),
+					Message: locales.ExportInProgressMessage(),
+				})
+			}()
+		}
+	})
 	window.OnClosed(func() {
 		a.exporting, a.exportWindow = nil, nil
+		a.syncMenu()
 	})
 	a.exportWindow = window
+	a.syncMenu()
 }
 
 // invalidateExport redraws the export window.
@@ -371,7 +398,19 @@ func (a *AppState) chooseExportDir() {
 			Parent: window, Title: locales.ChooseExportFolder(), DefaultPath: job.dir,
 			Directory: true, CreateDirectories: true, ButtonLabel: locales.ChooseFolder(),
 		})
-		if err != nil || len(paths) == 0 {
+		if err != nil {
+			go func() {
+				_, _ = mygo.Dialog.Message(mygo.MessageOptions{
+					Parent:  window,
+					Type:    mygo.MessageError,
+					Title:   locales.CouldntOpenDialog(),
+					Message: describeNotice(err),
+				})
+			}()
+			a.fail(locales.CouldntOpenDialog(), err)
+			return
+		}
+		if len(paths) == 0 {
 			return
 		}
 		a.onUI(func() { a.exportInto(paths[0]) })
