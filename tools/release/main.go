@@ -223,6 +223,7 @@ func runDeploy(args []string) error {
 	dir := flags.String("dir", "", "directory of downloaded GitHub release assets")
 	version := flags.String("version", "", "expected release version or tag (leading v optional)")
 	dryRun := flags.Bool("dry-run", false, "verify checksums and print upload plan without performing network calls")
+	requireKV := flags.Bool("require-kv", false, "require Cloudflare Workers KV credentials instead of falling back to R2")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -230,38 +231,46 @@ func runDeploy(args []string) error {
 		return errors.New("deploy requires -dir")
 	}
 	cfg := deployConfig{
-		Dir:            *dir,
-		ExpectedVer:    strings.TrimPrefix(strings.TrimSpace(*version), "v"),
-		DryRun:         *dryRun,
-		R2Endpoint:     strings.TrimSpace(os.Getenv("R2_ENDPOINT")),
-		R2Bucket:       strings.TrimSpace(os.Getenv("R2_BUCKET")),
-		R2Prefix:       strings.Trim(strings.TrimSpace(os.Getenv("R2_PREFIX")), "/"),
-		R2Region:       firstNonEmpty(os.Getenv("R2_REGION"), os.Getenv("AWS_REGION"), "auto"),
-		R2AccessKey:    strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")),
-		R2SecretKey:    strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")),
-		ManifestURL:    strings.TrimSuffix(strings.TrimSpace(os.Getenv("MANIFEST_DEPLOY_URL")), "/"),
-		ManifestToken:  strings.TrimSpace(os.Getenv("MANIFEST_DEPLOY_TOKEN")),
-		HTTPClient:     &http.Client{Timeout: 10 * time.Minute},
-		Now:            time.Now,
+		Dir:             *dir,
+		ExpectedVer:     strings.TrimPrefix(strings.TrimSpace(*version), "v"),
+		DryRun:          *dryRun,
+		RequireKV:       *requireKV,
+		R2Endpoint:      strings.TrimSpace(os.Getenv("R2_ENDPOINT")),
+		R2Bucket:        strings.TrimSpace(os.Getenv("R2_BUCKET")),
+		R2Prefix:        strings.Trim(strings.TrimSpace(os.Getenv("R2_PREFIX")), "/"),
+		R2Region:        firstNonEmpty(os.Getenv("R2_REGION"), os.Getenv("AWS_REGION"), "auto"),
+		R2AccessKey:     strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID")),
+		R2SecretKey:     strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY")),
+		CFAccountID:     strings.TrimSpace(os.Getenv("CLOUDFLARE_ACCOUNT_ID")),
+		CFKVNamespaceID: strings.TrimSpace(os.Getenv("CLOUDFLARE_KV_NAMESPACE_ID")),
+		CFAPIToken:      strings.TrimSpace(os.Getenv("CLOUDFLARE_API_TOKEN")),
+		CFAPIBase:       strings.TrimSuffix(strings.TrimSpace(os.Getenv("CLOUDFLARE_API_BASE")), "/"),
+		HTTPClient:      &http.Client{Timeout: 10 * time.Minute},
+		Now:             time.Now,
 	}
 	return deploy(cfg, os.Stdout)
 }
 
 type deployConfig struct {
-	Dir           string
-	ExpectedVer   string
-	DryRun        bool
-	R2Endpoint    string
-	R2Bucket      string
-	R2Prefix      string
-	R2Region      string
-	R2AccessKey   string
-	R2SecretKey   string
-	ManifestURL   string
-	ManifestToken string
-	HTTPClient    *http.Client
-	Now           func() time.Time
+	Dir             string
+	ExpectedVer     string
+	DryRun          bool
+	RequireKV       bool
+	R2Endpoint      string
+	R2Bucket        string
+	R2Prefix        string
+	R2Region        string
+	R2AccessKey     string
+	R2SecretKey     string
+	CFAccountID     string
+	CFKVNamespaceID string
+	CFAPIToken      string
+	CFAPIBase       string
+	HTTPClient      *http.Client
+	Now             func() time.Time
 }
+
+const defaultCloudflareAPIBase = "https://api.cloudflare.com/client/v4"
 
 func deploy(cfg deployConfig, out io.Writer) error {
 	if cfg.HTTPClient == nil {
@@ -283,6 +292,7 @@ func deploy(cfg deployConfig, out io.Writer) error {
 
 	var immutableFiles, mutableRootFiles, historyFiles, manifestFiles []string
 	channels := map[string]string{}
+	metas := map[string]manifestMeta{}
 
 	for _, e := range entries {
 		if e.IsDir() {
@@ -299,6 +309,7 @@ func deploy(cfg deployConfig, out io.Writer) error {
 				return fmt.Errorf("%s: %w", name, err)
 			}
 			channels[name] = meta.Channel
+			metas[name] = meta
 			manifestFiles = append(manifestFiles, name)
 		case strings.HasPrefix(name, "history-") && strings.HasSuffix(name, ".json"):
 			historyFiles = append(historyFiles, name)
@@ -339,16 +350,21 @@ func deploy(cfg deployConfig, out io.Writer) error {
 	slices.Sort(historyFiles)
 	slices.Sort(manifestFiles)
 
+	hasAnyKV := cfg.CFAccountID != "" || cfg.CFKVNamespaceID != "" || cfg.CFAPIToken != ""
 	var r2 *r2Client
 	if !cfg.DryRun {
 		r2, err = newR2Client(cfg)
 		if err != nil {
 			return err
 		}
-		if cfg.ManifestURL != "" && cfg.ManifestToken == "" {
-			return errors.New("MANIFEST_DEPLOY_TOKEN is required when MANIFEST_DEPLOY_URL is set")
+		if cfg.RequireKV || hasAnyKV {
+			if cfg.CFAccountID == "" || cfg.CFKVNamespaceID == "" || cfg.CFAPIToken == "" {
+				return errors.New("Cloudflare KV deployment requires CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_KV_NAMESPACE_ID, and CLOUDFLARE_API_TOKEN")
+			}
 		}
 	}
+	kvEnabled := cfg.CFAPIToken != "" || (cfg.DryRun && (cfg.RequireKV || hasAnyKV))
+	apiBase := firstNonEmpty(cfg.CFAPIBase, defaultCloudflareAPIBase)
 
 	uploadR2 := func(key, fileName, cacheControl string) error {
 		fmt.Fprintf(out, "r2 put %s (%s)\n", key, cacheControl)
@@ -375,12 +391,18 @@ func deploy(cfg deployConfig, out io.Writer) error {
 		}
 	}
 	for _, name := range manifestFiles {
-		if cfg.ManifestURL != "" {
-			targetURL := cfg.ManifestURL + "/" + url.PathEscape(channel) + "/" + url.PathEscape(name)
-			fmt.Fprintf(out, "worker put %s\n", targetURL)
-			if !cfg.DryRun {
-				if err := putWorkerManifest(cfg.HTTPClient, targetURL, cfg.ManifestToken, filepath.Join(cfg.Dir, name)); err != nil {
-					return err
+		if kvEnabled {
+			meta := metas[name]
+			keys := []string{
+				"manifest:" + meta.Channel + ":" + meta.Target + ":" + meta.Version,
+				"latest:" + meta.Channel + ":" + meta.Target,
+			}
+			for _, key := range keys {
+				fmt.Fprintf(out, "kv put %s\n", key)
+				if !cfg.DryRun {
+					if err := putCloudflareKV(cfg.HTTPClient, apiBase, cfg.CFAccountID, cfg.CFKVNamespaceID, cfg.CFAPIToken, key, filepath.Join(cfg.Dir, name)); err != nil {
+						return err
+					}
 				}
 			}
 			continue
@@ -432,25 +454,42 @@ func readManifestMeta(path, wantVer string) (manifestMeta, error) {
 	return m, nil
 }
 
-func putWorkerManifest(client *http.Client, targetURL, token, path string) error {
+func putCloudflareKV(client *http.Client, apiBase, accountID, namespaceID, token, key, path string) error {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
+	targetURL := strings.TrimSuffix(apiBase, "/") +
+		"/accounts/" + url.PathEscape(accountID) +
+		"/storage/kv/namespaces/" + url.PathEscape(namespaceID) +
+		"/values/" + url.PathEscape(key)
 	req, err := http.NewRequest(http.MethodPut, targetURL, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<10))
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("PUT %s: %s: %s", targetURL, resp.Status, strings.TrimSpace(string(body)))
+		return fmt.Errorf("KV PUT %s: %s: %s", key, resp.Status, strings.TrimSpace(string(body)))
+	}
+	var apiResp struct {
+		Success bool `json:"success"`
+		Errors  []struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal(body, &apiResp); err != nil {
+		return fmt.Errorf("KV PUT %s: invalid response %q: %w", key, strings.TrimSpace(string(body)), err)
+	}
+	if !apiResp.Success {
+		return fmt.Errorf("KV PUT %s failed: %+v", key, apiResp.Errors)
 	}
 	return nil
 }

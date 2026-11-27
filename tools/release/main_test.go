@@ -154,25 +154,29 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 	}))
 	defer r2Srv.Close()
 
-	workerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	kvSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
-		ops = append(ops, "worker:"+r.Method+":"+r.URL.Path+":"+r.Header.Get("Authorization"))
+		ops = append(ops, "kv:"+r.Method+":"+r.URL.Path+":"+r.Header.Get("Authorization"))
 		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success":true,"errors":[]}`))
 	}))
-	defer workerSrv.Close()
+	defer kvSrv.Close()
 
 	cfg := deployConfig{
-		Dir:           dir,
-		ExpectedVer:   "1.0.0-alpha.1",
-		R2Endpoint:    r2Srv.URL,
-		R2Bucket:      "incipit-dl",
-		R2Prefix:      "incipit",
-		R2Region:      "auto",
-		R2AccessKey:   "testkey",
-		R2SecretKey:   "testsecret",
-		ManifestURL:   workerSrv.URL,
-		ManifestToken: "secret-token",
+		Dir:             dir,
+		ExpectedVer:     "1.0.0-alpha.1",
+		RequireKV:       true,
+		R2Endpoint:      r2Srv.URL,
+		R2Bucket:        "incipit-dl",
+		R2Prefix:        "incipit",
+		R2Region:        "auto",
+		R2AccessKey:     "testkey",
+		R2SecretKey:     "testsecret",
+		CFAccountID:     "acct-123",
+		CFKVNamespaceID: "ns-456",
+		CFAPIToken:      "cf-secret-token",
+		CFAPIBase:       kvSrv.URL,
 	}
 
 	// Corrupted file must abort BEFORE any network upload occurs.
@@ -181,12 +185,17 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 		t.Fatalf("expected checksum mismatch abort before network calls; err=%v ops=%v", err, ops)
 	}
 
-	// Fix checksum and deploy cleanly.
+	// Fix checksum; incomplete KV credentials must also abort BEFORE R2 uploads occur.
 	if err := os.WriteFile(filepath.Join(dir, checksumsName), formatChecksums(map[string]string{
 		"incipit-1.0.0-alpha.1-arm64.dmg":                   shaHex(dmg),
 		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-arm64.delta": shaHex(delta),
 	}), 0o644); err != nil {
 		t.Fatal(err)
+	}
+	incompleteCfg := cfg
+	incompleteCfg.CFAPIToken = ""
+	if err := deploy(incompleteCfg, &logBuf); err == nil || len(ops) != 0 {
+		t.Fatalf("expected missing KV token abort before network calls; err=%v ops=%v", err, ops)
 	}
 	if err := deploy(cfg, &logBuf); err != nil {
 		t.Fatalf("deploy: %v", err)
@@ -197,7 +206,8 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 		"r2:PUT:/incipit-dl/incipit/incipit-1.0.0-to-1.0.0-alpha.1-darwin-arm64.delta:public, max-age=31536000, immutable",
 		"r2:PUT:/incipit-dl/incipit/SHA256SUMS:no-cache",
 		"r2:PUT:/incipit-dl/incipit/prerelease/history-darwin-arm64.json:no-cache",
-		"worker:PUT:/prerelease/update-darwin-arm64.json:Bearer secret-token",
+		"kv:PUT:/accounts/acct-123/storage/kv/namespaces/ns-456/values/manifest:prerelease:darwin-arm64:1.0.0-alpha.1:Bearer cf-secret-token",
+		"kv:PUT:/accounts/acct-123/storage/kv/namespaces/ns-456/values/latest:prerelease:darwin-arm64:Bearer cf-secret-token",
 	}
 	if !slices.Equal(ops, wantOps) {
 		t.Fatalf("deploy sequence:\ngot:  %v\nwant: %v", ops, wantOps)

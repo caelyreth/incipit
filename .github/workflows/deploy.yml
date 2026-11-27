@@ -44,7 +44,7 @@ jobs:
           mkdir -p release-assets
           gh release download "$tag" --dir release-assets
 
-      - name: verify checksums and deploy to r2 and manifest worker
+      - name: verify checksums and deploy to r2 and manifest kv
         shell: bash
         env:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
@@ -52,6 +52,7 @@ jobs:
           R2_PREFIX: ${{ vars.R2_PREFIX || '' }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          MANIFEST_DEPLOY_URL: ${{ secrets.MANIFEST_DEPLOY_URL }}
-          MANIFEST_DEPLOY_TOKEN: ${{ secrets.MANIFEST_DEPLOY_TOKEN }}
-        run: go tool release deploy -dir release-assets -version "$DEPLOY_TAG"
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_KV_NAMESPACE_ID: ${{ secrets.CLOUDFLARE_KV_NAMESPACE_ID || vars.CLOUDFLARE_KV_NAMESPACE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: go tool release deploy -dir release-assets -version "$DEPLOY_TAG" -require-kv
