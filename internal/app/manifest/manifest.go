@@ -4,8 +4,8 @@ package manifest
 
 import (
 	"github.com/caelyreth/incipit/internal/editor/policies/blocks"
-	"github.com/caelyreth/incipit/internal/editor/policies/code"
 	"github.com/caelyreth/incipit/internal/editor/policies/cjk"
+	"github.com/caelyreth/incipit/internal/editor/policies/code"
 	"github.com/caelyreth/incipit/internal/editor/policies/core"
 	"github.com/caelyreth/incipit/internal/editor/policies/deletion"
 	"github.com/caelyreth/incipit/internal/editor/policies/feedback"
