@@ -119,6 +119,11 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	// The closing fence ends the code: what is typed in it is the code's
 	// last, and deleting a backtick of it unfences the block.
 	policy.On(p, "type-in-closing-fence", policy.Typed(), k.fences.Inside(), typeBeforeFence)
+	// Return past the code's end, in its closing fence or right after it,
+	// goes on after the block, in a paragraph opened there.
+	policy.On(p, "break-in-closing-fence", policy.Intent[vocab.Break](), k.fences.Inside(), breakInFence)
+	policy.On(p, "break-after-closing-fence", policy.Intent[vocab.Break](), policy.Node(profile.Code).Own(), breakAfterFence).
+		When(policy.Behind(k.fences))
 	policy.On(p, "step-down-in-closing-fence", back, k.fences.Inside(), stepClosingFence)
 
 	// Among a marker's glyphs, they are the marker's to edit: deleting one
@@ -573,6 +578,32 @@ func stepClosingFence(c *policy.Ctx, _ vocab.Delete, at policy.At[closingFence])
 		return policy.Select(doc.Collapsed(doc.Caret{Pos: doc.At(at.Slot, at.Fact.Outer.From.At)}))
 	}
 	return policy.Do(stepBlock(c, at.Node, vocab.Backward))
+}
+
+func breakInFence(c *policy.Ctx, _ vocab.Break, at policy.At[closingFence]) policy.Result {
+	return breakAfter(c, at.Node)
+}
+
+func breakAfterFence(c *policy.Ctx, _ vocab.Break, at policy.At[*doc.Node]) policy.Result {
+	return breakAfter(c, at.Data)
+}
+
+// breakAfter opens a paragraph after a code block, the caret in it.
+func breakAfter(c *policy.Ctx, block *doc.Node) policy.Result {
+	if !c.Selection().IsCollapsed() {
+		return policy.Pass
+	}
+	parent, slot, index, ok := vocab.Index(c.Doc(), block.ID())
+	if ps, ok2 := vocab.SlotSpec(c.Doc(), doc.SlotRef{Node: parent, Slot: slot}); !ok || !ok2 || ps.Accepts == nil || !ps.Accepts(profile.Paragraph) {
+		// Where no paragraph may follow the block, nothing is broken.
+		return policy.Swallow
+	}
+	res := policy.Do(vocab.Ops(doc.Insert{Parent: parent, Slot: slot, Index: index + 1, Nodes: []*doc.Node{profile.NewParagraph()}}))
+	res.Then = func(r doc.Reader) doc.Selection {
+		c, _ := vocab.BlockCaret(r, doc.Pos{Node: parent, Slot: slot, Offset: index + 1}, vocab.Backward)
+		return doc.Collapsed(c)
+	}
+	return res
 }
 
 func ptr[T any](v T) *T { return &v }

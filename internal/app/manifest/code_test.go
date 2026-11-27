@@ -17,6 +17,18 @@ func openCode(t *testing.T, text string) *page {
 	return p
 }
 
+// Return past the code's end, in its closing fence, opens a paragraph
+// after the block rather than a line in it.
+func TestReturnInTheClosingFenceLeavesTheCode(t *testing.T) {
+	p := openCode(t, "x")
+	for range 4 {
+		p.do(right)
+	}
+	p.do(vocab.Break{})
+	p.typeText("after")
+	p.want("page(code(x) paragraph(after))")
+}
+
 // SelectScope in code selects the code, then the block with its fences,
 // whole, as a node: a delete takes it at once, as it takes a figure.
 func TestSelectAllInCodeSelectsTheCodeThenTheBlock(t *testing.T) {
