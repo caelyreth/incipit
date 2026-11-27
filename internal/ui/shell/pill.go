@@ -197,6 +197,11 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stageRect, acts 
 		c.AnimationFrame()
 	}
 	focused := input.Focused()
+	// The host stands the menu's keys down while the pill takes them.
+	if pressing := focused && s.pressesKeys(); pressing != s.field.pressing && s.AppSettings != nil {
+		s.field.pressing = pressing
+		s.AppSettings.Pressing(pressing)
+	}
 	// Open, the pill shows what it can narrow by around it; let go of, only
 	// what the query holds. Scrolling never opens or closes it, so what
 	// the field makes room for stays as it is under the hand.
@@ -226,10 +231,36 @@ func (s *State) pillView(c *ui.Context, semantic theme.Theme, r stageRect, acts 
 	pill.Border(1, components.Blend(semantic.Border.Variant, semantic.Border.Focused, active))
 }
 
+// pressesKeys reports whether the pill takes the keys pressed as the open
+// key's value: $key's, opened among the settings, finds the actions a
+// shortcut runs by pressing it, as the Keymap's rows record one. What is
+// typed still narrows its values.
+func (s *State) pressesKeys() bool {
+	k := s.completing()
+	return k != nil && k == s.field.opened && k.Name == "key" && s.InSettings() && s.AppSettings != nil
+}
+
+// pressedChord reports a key the pill takes as a shortcut pressed: one
+// held with a modifier past Shift, or a function key, which neither types
+// nor moves in the pill.
+func pressedChord(key ui.TextKey) bool {
+	if key.Mods&^ui.Shift != 0 {
+		return true
+	}
+	switch key.Key {
+	case ui.KeyF1, ui.KeyF2, ui.KeyF3, ui.KeyF4, ui.KeyF5, ui.KeyF6,
+		ui.KeyF7, ui.KeyF8, ui.KeyF9, ui.KeyF10, ui.KeyF11, ui.KeyF12:
+		return true
+	}
+	return false
+}
+
 // pillPlaceholder is what the pill says with nothing written: what an
 // open key takes, or where to go.
 func (s *State) pillPlaceholder() string {
 	switch {
+	case s.pressesKeys():
+		return locales.PressKeys()
 	case s.field.opened != nil:
 		// What the key says of its value: "Title has…", "Updated…".
 		return s.field.opened.Prompt()
@@ -255,6 +286,12 @@ const ribbonH, ribbonGap = 28, 6
 // can be narrowed by, or a value of the key being written, either idle
 // until pressed; or how many more there are than stand.
 func (s *State) pillKey(key ui.TextKey) bool {
+	if s.pressesKeys() && pressedChord(key) {
+		if name, ok := s.AppSettings.KeyName(key.Mods, key.Key); ok {
+			s.toggleValue(s.field.opened, name)
+		}
+		return true
+	}
 	plain := key.Mods == 0
 	if plain && s.actionKey(key.Key) {
 		return true

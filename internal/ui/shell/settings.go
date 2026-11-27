@@ -32,6 +32,13 @@ type AppSettings interface {
 	// Away is told the field shows no settings, so that nothing in them,
 	// as a shortcut being recorded, goes on unseen.
 	Away()
+	// KeyName is the $key value a key pressed names, spelled as the Keymap
+	// spells the actions' keys; false for a key that names none.
+	KeyName(mods ui.Modifiers, key ui.Key) (string, bool)
+	// Pressing is told whether the pill takes the keys pressed as $key's
+	// value, for the menu to stand its keys down meanwhile, so a chord it
+	// holds, as ⌘N, reaches the pill.
+	Pressing(on bool)
 }
 
 // SettingsFind is what the query asks of the settings: the words written,

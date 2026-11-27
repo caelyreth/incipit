@@ -74,6 +74,9 @@ type fieldState struct {
 	completedFor string
 	dismissed    string
 	found        found
+	// pressing is whether the host was last told the pill takes the keys
+	// pressed (pressesKeys).
+	pressing bool
 	// rerank has found ranked again, as the window comes back to the
 	// field; settleAt is when the field settles as the writing in the pill
 	// pauses, zero while nothing is being written, and settled that it

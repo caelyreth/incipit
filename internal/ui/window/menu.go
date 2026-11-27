@@ -424,10 +424,16 @@ func setAccelerator(item *mygo.MenuItem, accelerator string) {
 	}
 }
 
-// setRecording stands the menu's keys down while a shortcut is recorded.
-func (a *AppState) setRecording(recording bool) {
-	if a.recording != recording {
-		a.recording = recording
+// setRecording stands the menu's keys down while a shortcut is recorded,
+// and setPressing while the pill takes the keys pressed as $key's value.
+func (a *AppState) setRecording(recording bool) { a.recordingKey = recording; a.standKeysDown() }
+
+func (a *AppState) setPressing(pressing bool) { a.pressingKey = pressing; a.standKeysDown() }
+
+// standKeysDown stands the menu's keys down while anything takes them.
+func (a *AppState) standKeysDown() {
+	if down := a.recordingKey || a.pressingKey; a.recording != down {
+		a.recording = down
 		a.syncMenu()
 	}
 }

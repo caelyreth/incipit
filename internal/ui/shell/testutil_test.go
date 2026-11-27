@@ -437,6 +437,7 @@ type fakeSettings struct {
 	grow        float32
 	drawn       map[string]time.Time
 	away        int
+	pressing    bool
 	themeClicks int
 	showTheme   bool
 }
@@ -498,3 +499,10 @@ func (f *fakeSettings) SectionView(c *ui.Context, _ theme.Theme, id string, _ Se
 }
 
 func (f *fakeSettings) Away() { f.away++ }
+
+// KeyName spells a chord by its modifiers' bits and its key's number.
+func (f *fakeSettings) KeyName(mods ui.Modifiers, key ui.Key) (string, bool) {
+	return fmt.Sprintf("m%dk%d", mods, key), true
+}
+
+func (f *fakeSettings) Pressing(on bool) { f.pressing = on }

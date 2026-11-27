@@ -441,3 +441,39 @@ func TestTheKeyRibbonStaysAsThePillSticks(t *testing.T) {
 		t.Fatalf("The stuck pill should still offer Key: %v", tester.Texts())
 	}
 }
+
+// Key pressed open, the pill takes a shortcut pressed as the key's value,
+// the menu's keys standing down meanwhile, while what is typed still
+// writes; closed, the menu has its keys back.
+func TestPressingAShortcutFindsItsActions(t *testing.T) {
+	state, settings, tester := settingsState(t)
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if err := tester.Click("Key"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if !settings.pressing || state.pillPlaceholder() != "Press keys…" {
+		t.Fatalf("Key open should take the keys pressed (%v), saying %q.", settings.pressing, state.pillPlaceholder())
+	}
+	tester.Key(ui.Cmd, ui.KeyK)
+	settle(tester)
+	name, _ := settings.KeyName(ui.Cmd, ui.KeyK)
+	if !slices.ContainsFunc(state.field.conditions, func(c string) bool { return strings.Contains(c, name) }) {
+		t.Fatalf("The chord pressed should be the key's value, but the query holds %v.", state.field.conditions)
+	}
+	tester.Type("q")
+	settle(tester)
+	if state.field.words != "q" {
+		t.Fatalf("Typing should still write, but the pill holds %q.", state.field.words)
+	}
+	for i := 0; i < 3 && state.field.opened != nil; i++ {
+		tester.Key(0, ui.KeyEscape)
+		settle(tester)
+	}
+	if settings.pressing {
+		t.Fatal("Key closed, the menu should have its keys back.")
+	}
+}

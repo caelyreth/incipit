@@ -55,7 +55,8 @@ type AppState struct {
 	exportFrontMatter bool
 	exportPDF         bool
 	// menu is the application menu; recording stands its keys down while
-	// the settings record a shortcut.
+	// the settings record a shortcut (recordingKey) or the pill takes the
+	// keys pressed (pressingKey).
 	menu       *mygo.Menu
 	systemKeys map[*mygo.MenuItem]string
 	// menuItems are the menu's items by the command each runs,
@@ -74,7 +75,8 @@ type AppState struct {
 	undoItem, redoItem *mygo.MenuItem
 	// undoField is whether Undo and Redo were last the field's.
 	undoField *bool
-	recording bool
+	// recording is whether the menu's keys stand down (standKeysDown).
+	recording, recordingKey, pressingKey bool
 	// colors carries every window through a theme or accent change at once.
 	colors theme.Transition
 	// systemDark is whether the system's appearance is dark, which the
