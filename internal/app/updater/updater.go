@@ -536,12 +536,12 @@ func (s *Service) runCheck(ctx context.Context, gen uint64, channel, locale stri
 	snap := s.snapshotLocked()
 	s.mu.Unlock()
 
-	for _, w := range waiters {
-		w <- snap
-	}
 	s.emitChange(snap)
 	if notice != 0 {
 		s.emitNotice(notice, snap)
+	}
+	for _, w := range waiters {
+		w <- snap
 	}
 	if autoDownload {
 		s.DownloadAndInstall()
@@ -676,12 +676,12 @@ func (s *Service) runInstall(ctx context.Context, rel *Release) {
 	snap := s.snapshotLocked()
 	s.mu.Unlock()
 
-	for _, w := range waiters {
-		w <- snap
-	}
 	s.emitChange(snap)
 	if notice != 0 {
 		s.emitNotice(notice, snap)
+	}
+	for _, w := range waiters {
+		w <- snap
 	}
 }
 
@@ -804,10 +804,10 @@ func (s *Service) SetChannel(channel string) error {
 	if cancelOld != nil {
 		cancelOld()
 	}
+	s.emitChange(snap)
 	for _, w := range oldWait {
 		w <- snap
 	}
-	s.emitChange(snap)
 	return err
 }
 
