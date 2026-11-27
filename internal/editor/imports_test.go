@@ -30,7 +30,7 @@ var allowed = map[string][]string{
 
 // profiled are the policies whose behaviour is about the profile's kinds.
 var profiled = map[string]bool{
-	"blocks": true, "find": true, "figures": true, "formats": true, "formulas": true,
+	"blocks": true, "code": true, "find": true, "figures": true, "formats": true, "formulas": true,
 	"lists": true, "markdown": true, "notation": true, "spelling": true, "tables": true, "tags": true, "words": true,
 }
 

@@ -1634,6 +1634,14 @@
   "@policiesFindDescription": {
     "description": "What a group of editor settings does, under its name in Settings."
   },
+  "policiesCode": "Code",
+  "@policiesCode": {
+    "description": "The name of a group of editor settings, in Settings."
+  },
+  "policiesCodeDescription": "A code block colours the keywords, strings, numbers and comments of the language named after its opening ```.",
+  "@policiesCodeDescription": {
+    "description": "What a group of editor settings does, under its name in Settings."
+  },
   "policiesStatistics": "Statistics",
   "@policiesStatistics": {
     "description": "The name of a group of editor settings, in Settings."

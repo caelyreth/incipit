@@ -4,6 +4,7 @@ package manifest
 
 import (
 	"github.com/caelyreth/incipit/internal/editor/policies/blocks"
+	"github.com/caelyreth/incipit/internal/editor/policies/code"
 	"github.com/caelyreth/incipit/internal/editor/policies/cjk"
 	"github.com/caelyreth/incipit/internal/editor/policies/core"
 	"github.com/caelyreth/incipit/internal/editor/policies/deletion"
@@ -38,7 +39,7 @@ import (
 var Manifest = policy.Manifest{
 	Enabled: []*policy.Policy{core.Policy, notation.Policy, pairs.Policy, markdown.Policy, formulas.Policy,
 		typography.Policy, cjk.Policy, navigation.Policy, scopes.Policy, deletion.Policy, formats.Policy,
-		blocks.Policy, lists.Policy, figures.Policy, tables.Policy, tags.Policy, words.Policy, spelling.Policy, history.Policy, feedback.Policy, find.Policy, guides.Policy,
+		blocks.Policy, code.Policy, lists.Policy, figures.Policy, tables.Policy, tags.Policy, words.Policy, spelling.Policy, history.Policy, feedback.Policy, find.Policy, guides.Policy,
 		statistics.Policy},
 	Profile: profile.Profile,
 	Resolve: []policy.Order{

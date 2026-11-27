@@ -426,6 +426,8 @@
   "policiesFeedbackDescription": "西文或中日韓排版自動調整後，會以微光脈動顯示變動之處；復原時反向播放，重做時正向播放。",
   "policiesFind": "尋找",
   "policiesFindDescription": "在文稿中尋找時會隨輸入即時標示所有相符處，並可逐一跳轉。",
+  "policiesCode": "程式碼",
+  "policiesCodeDescription": "程式碼區塊會依開頭 ``` 後寫明的語言，為關鍵字、字串、數字與註解上色。",
   "policiesStatistics": "字數統計",
   "policiesStatisticsDescription": "在頁尾顯示整份文稿與選取範圍的詞數、字元數與中日韓字數。",
   "settingsMarkdownAsterisksDescription": "輸入 *斜體* 與 **粗體** 會轉為強調與粗體格式。",

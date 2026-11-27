@@ -27,6 +27,17 @@ var (
 	GroupCellHeader    = vocab.NewGroup("cell.header", GroupCell)
 )
 
+// The highlight groups of what code is written in its language: each
+// colours the code's text, as a mark does.
+var (
+	GroupCodeKeyword  = vocab.NewGroup("code.keyword", 0)
+	GroupCodeType     = vocab.NewGroup("code.type", 0)
+	GroupCodeConstant = vocab.NewGroup("code.constant", 0)
+	GroupCodeNumber   = vocab.NewGroup("code.number", 0)
+	GroupCodeString   = vocab.NewGroup("code.string", 0)
+	GroupCodeComment  = vocab.NewGroup("code.comment", 0)
+)
+
 // MarkGroup is the group of a mark kind.
 func MarkGroup(k doc.MarkKind) vocab.Group {
 	switch k {

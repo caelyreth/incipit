@@ -426,6 +426,8 @@
   "policiesFeedbackDescription": "西文或中日韩排版自动调整后，会以微光脉冲提示改动位置；撤销时反向回放，重做时正向重现。",
   "policiesFind": "查找",
   "policiesFindDescription": "在文稿中查找时会随输入实时高亮所有匹配项，并可在匹配间跳转。",
+  "policiesCode": "代码",
+  "policiesCodeDescription": "代码块会按开头 ``` 后写明的语言，为关键字、字符串、数字和注释着色。",
   "policiesStatistics": "字数统计",
   "policiesStatisticsDescription": "在底部状态栏显示当前文稿及所选内容的词数、字符数和中日韩字数。",
   "settingsMarkdownAsterisksDescription": "输入 *斜体* 和 **粗体** 会分别转为强调与加粗。",

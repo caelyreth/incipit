@@ -34,6 +34,14 @@ func Theme(t theme.Theme) present.Theme {
 		vocab.GroupGhost:           {Set: present.SetColor, Color: pack(t.Prose.Notation)},
 		profile.GroupCode:          {Set: present.SetFont | present.SetSize | present.SetPanel, Font: present.FontMono, Size: 0.9, Panel: true},
 		profile.GroupFormulaSource: {Set: present.SetFont | present.SetColor, Font: present.FontMono, Color: pack(t.Accent.Foreground)},
+		// Code in a language is coloured by what each piece is, in the
+		// families' inks, its comments set back as notes are.
+		profile.GroupCodeKeyword:  {Set: present.SetColor, Color: pack(t.Families[theme.Halo].Foreground)},
+		profile.GroupCodeType:     {Set: present.SetColor, Color: pack(t.Families[theme.Regolith].Foreground)},
+		profile.GroupCodeConstant: {Set: present.SetColor, Color: pack(t.Families[theme.Afterglow].Foreground)},
+		profile.GroupCodeNumber:   {Set: present.SetColor, Color: pack(t.Families[theme.Afterglow].Foreground)},
+		profile.GroupCodeString:   {Set: present.SetColor, Color: pack(t.Families[theme.Life].Foreground)},
+		profile.GroupCodeComment:  {Set: present.SetColor | present.SetItalic, Color: pack(t.Text.Muted), Italic: true},
 		profile.GroupQuote:         {Set: present.SetColor, Color: pack(t.Text.Muted)},
 		profile.GroupListMarker:    {Set: present.SetColor, Color: pack(t.Prose.Notation)},
 		// A caption is set smaller than the text, so it reads as the

@@ -6001,6 +6001,34 @@ func (msgs Messages) PoliciesFindDescription() string {
 	return Catalog.Format(msgs.locale, "policiesFindDescription", nil)
 }
 
+// PoliciesCode says "Code"
+// in the language the app shows.
+//
+// The name of a group of editor settings, in Settings.
+func PoliciesCode() string { return In(i18n.Locale()).PoliciesCode() }
+
+// PoliciesCode says "Code"
+// in the language of msgs.
+//
+// The name of a group of editor settings, in Settings.
+func (msgs Messages) PoliciesCode() string {
+	return Catalog.Format(msgs.locale, "policiesCode", nil)
+}
+
+// PoliciesCodeDescription says "A code block colours the keywords, strings, numbers and comments of the language named after its opening ```."
+// in the language the app shows.
+//
+// What a group of editor settings does, under its name in Settings.
+func PoliciesCodeDescription() string { return In(i18n.Locale()).PoliciesCodeDescription() }
+
+// PoliciesCodeDescription says "A code block colours the keywords, strings, numbers and comments of the language named after its opening ```."
+// in the language of msgs.
+//
+// What a group of editor settings does, under its name in Settings.
+func (msgs Messages) PoliciesCodeDescription() string {
+	return Catalog.Format(msgs.locale, "policiesCodeDescription", nil)
+}
+
 // PoliciesStatistics says "Statistics"
 // in the language the app shows.
 //

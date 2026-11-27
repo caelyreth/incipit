@@ -426,6 +426,8 @@
   "policiesFeedbackDescription": "タイポグラフィや CJK の自動調整による変更箇所をパルス表示で知らせます。取り消しで逆再生、やり直しで順再生されます。",
   "policiesFind": "検索",
   "policiesFindDescription": "シート内検索では入力に合わせてすべての一致箇所をハイライトし、順にジャンプできます。",
+  "policiesCode": "コード",
+  "policiesCodeDescription": "コードブロックは、開始の ``` の後に書いた言語に合わせて、キーワード・文字列・数値・コメントを色分けします。",
   "policiesStatistics": "文字数カウント",
   "policiesStatisticsDescription": "ページ全体と選択範囲の語数・文字数・CJK 文字数をフッターに表示します。",
   "settingsMarkdownAsterisksDescription": "*文字* を強調、**文字** を太字にします。",
