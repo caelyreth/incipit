@@ -63,7 +63,7 @@ jobs:
       matrix:
         include:
           - name: macos
-            os: macos-latest
+            os: xcode-27
             target: darwin/arm64,darwin/amd64
             artifact: dist-darwin
           - name: linux
@@ -86,20 +86,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: select working xcode for icon composer
-        if: matrix.os == 'macos-latest'
-        shell: bash
-        run: |
-          # Xcode 26.5/26.6 actool crashes with NSPlaceholderArray nil exception on .icon bundles;
-          # macos-26-arm64 pre-installs Xcode 26.4.1 which compiles Icon Composer catalogs cleanly.
-          if xcodebuild -version | grep -qE '^Xcode 26\.[56]'; then
-            if [ -d /Applications/Xcode_26.4.1.app/Contents/Developer ]; then
-              sudo xcode-select -s /Applications/Xcode_26.4.1.app/Contents/Developer
-            fi
-          fi
-          xcodebuild -version
-          xcrun actool --version
-
       - name: fetch and generate assets
         shell: bash
         run: |
@@ -108,7 +94,7 @@ jobs:
 
       - name: import macos signing and notary credentials
         id: macos_creds
-        if: matrix.os == 'macos-latest'
+        if: matrix.name == 'macos'
         shell: bash
         env:
           APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
@@ -201,7 +187,7 @@ jobs:
             fi
           fi
           args=(-platform "${{ matrix.target }}" -version "$ver")
-          if [ "${{ matrix.os }}" = "macos-latest" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+          if [ "${{ matrix.name }}" = "macos" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
             args+=(-sign "$APPLE_SIGNING_IDENTITY")
             if [ "${{ steps.macos_creds.outputs.notarize }}" != "true" ]; then
               args+=(-skip-notarize)
@@ -210,7 +196,7 @@ jobs:
             args+=(-skip-notarize)
           fi
           go tool mygo build "${args[@]}"
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+          if [ "${{ matrix.name }}" = "macos" ]; then
             find dist -maxdepth 3 -type d -name '*.app' -exec rm -rf {} +
           fi
 
