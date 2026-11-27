@@ -8,7 +8,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -19,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -74,7 +74,7 @@ func repositoryRoot() (string, error) {
 	}
 	for {
 		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-		if err == nil && bytes.Contains(data, []byte("module github.com/caelyreth/incipit\n")) {
+		if err == nil && isModuleRoot(data, "github.com/caelyreth/incipit") {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -83,6 +83,16 @@ func repositoryRoot() (string, error) {
 		}
 		dir = parent
 	}
+}
+
+func isModuleRoot(gomod []byte, module string) bool {
+	want := "module " + module
+	for _, line := range strings.Split(string(gomod), "\n") {
+		if strings.TrimSpace(line) == want {
+			return true
+		}
+	}
+	return false
 }
 
 // fetch installs a, unless it is there and verified: downloaded, retried a

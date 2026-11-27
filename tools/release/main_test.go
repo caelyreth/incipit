@@ -95,23 +95,23 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 	dir := t.TempDir()
 	dmg := []byte("dmg bytes")
 	delta := []byte("delta bytes")
-	history := []byte(`{"target":"darwin-universal","channel":"beta","history":[]}`)
-	payload := base64.StdEncoding.EncodeToString([]byte(`{"version":"1.0.0-alpha.1","target":"darwin-universal","channel":"beta"}`))
+	history := []byte(`{"target":"darwin-arm64","channel":"beta","history":[]}`)
+	payload := base64.StdEncoding.EncodeToString([]byte(`{"version":"1.0.0-alpha.1","target":"darwin-arm64","channel":"beta"}`))
 	manifest := []byte(fmt.Sprintf(`{"v":2,"payload":%q,"signatures":[{"kid":"k1","sig":"c2ln"},{"kid":"k2","sig":"c2lnMg=="}]}`, payload))
 
 	for name, data := range map[string][]byte{
-		"incipit-1.0.0-alpha.1-universal.dmg":               dmg,
-		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta": delta,
-		"history-darwin-universal.json":                         history,
-		"update-darwin-universal.json":                          manifest,
+		"incipit-1.0.0-alpha.1-arm64.dmg":                       dmg,
+		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-arm64.delta":     delta,
+		"history-darwin-arm64.json":                             history,
+		"update-darwin-arm64.json":                              manifest,
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), data, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if err := os.WriteFile(filepath.Join(dir, checksumsName), formatChecksums(map[string]string{
-		"incipit-1.0.0-alpha.1-universal.dmg":                   "0000000000000000000000000000000000000000000000000000000000000000",
-		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta": shaHex(delta),
+		"incipit-1.0.0-alpha.1-arm64.dmg":                   "0000000000000000000000000000000000000000000000000000000000000000",
+		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-arm64.delta": shaHex(delta),
 	}), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -159,8 +159,8 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 
 	// Fix checksum and deploy cleanly.
 	if err := os.WriteFile(filepath.Join(dir, checksumsName), formatChecksums(map[string]string{
-		"incipit-1.0.0-alpha.1-universal.dmg":                   shaHex(dmg),
-		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta": shaHex(delta),
+		"incipit-1.0.0-alpha.1-arm64.dmg":                   shaHex(dmg),
+		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-arm64.delta": shaHex(delta),
 	}), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -169,11 +169,11 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 	}
 
 	wantOps := []string{
-		"r2:PUT:/incipit-dl/incipit/incipit-1.0.0-alpha.1-universal.dmg:public, max-age=31536000, immutable",
-		"r2:PUT:/incipit-dl/incipit/incipit-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta:public, max-age=31536000, immutable",
+		"r2:PUT:/incipit-dl/incipit/incipit-1.0.0-alpha.1-arm64.dmg:public, max-age=31536000, immutable",
+		"r2:PUT:/incipit-dl/incipit/incipit-1.0.0-to-1.0.0-alpha.1-darwin-arm64.delta:public, max-age=31536000, immutable",
 		"r2:PUT:/incipit-dl/incipit/SHA256SUMS:no-cache",
-		"r2:PUT:/incipit-dl/incipit/beta/history-darwin-universal.json:no-cache",
-		"worker:PUT:/beta/update-darwin-universal.json:Bearer secret-token",
+		"r2:PUT:/incipit-dl/incipit/beta/history-darwin-arm64.json:no-cache",
+		"worker:PUT:/beta/update-darwin-arm64.json:Bearer secret-token",
 	}
 	if !slices.Equal(ops, wantOps) {
 		t.Fatalf("deploy sequence:\ngot:  %v\nwant: %v", ops, wantOps)

@@ -62,10 +62,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: darwin-universal
+          - name: macos
             os: macos-latest
-            target: darwin/universal
-            artifact: dist-darwin-universal
+            target: darwin/arm64,darwin/amd64
+            artifact: dist-darwin
           - name: linux
             os: ubuntu-latest
             target: linux/amd64,linux/arm64
@@ -86,9 +86,11 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: fetch assets
+      - name: fetch and generate assets
         shell: bash
-        run: go tool fetch
+        run: |
+          go tool fetch
+          go tool icon assets/profile.icon assets/icon.png
 
       - name: import macos signing and notary credentials
         id: macos_creds
@@ -159,18 +161,18 @@ jobs:
             exit 1
           fi
           args=(-platform "${{ matrix.target }}" -version "${{ needs.version.outputs.version }}")
-          if [ "${{ matrix.os }}" = "macos-latest" ]; then
-            if [ -n "$APPLE_SIGNING_IDENTITY" ]; then
-              args+=(-sign "$APPLE_SIGNING_IDENTITY")
-              if [ "${{ steps.macos_creds.outputs.notarize }}" != "true" ]; then
-                args+=(-skip-notarize)
-              fi
-            else
+          if [ "${{ matrix.os }}" = "macos-latest" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            args+=(-sign "$APPLE_SIGNING_IDENTITY")
+            if [ "${{ steps.macos_creds.outputs.notarize }}" != "true" ]; then
               args+=(-skip-notarize)
             fi
+          else
+            args+=(-skip-notarize)
           fi
           go tool mygo build "${args[@]}"
-          find dist -maxdepth 3 -type d -name '*.app' -exec rm -rf {} +
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
+            find dist -maxdepth 3 -type d -name '*.app' -exec rm -rf {} +
+          fi
 
       - name: upload artifact
         uses: actions/upload-artifact@v7
