@@ -27,7 +27,8 @@ type page struct {
 func open(t *testing.T, lang, text string) *page {
 	t.Helper()
 	prog, err := policy.Compile(policy.Manifest{Profile: profile.Profile,
-		Enabled: []*policy.Policy{core.Policy, notation.Policy, markdown.Policy, Policy}, Strict: true}, nil)
+		Enabled: []*policy.Policy{core.Policy, notation.Policy, markdown.Policy, Policy}, Strict: true,
+		Resolve: []policy.Order{policy.Over(notation.Policy, Policy, vocab.IntentBreak)}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

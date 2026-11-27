@@ -17,6 +17,23 @@ func openCode(t *testing.T, text string) *page {
 	return p
 }
 
+// Return starts the new line where the line it leaves starts, a level in
+// after an opening bracket, whose closer goes on a line of its own.
+func TestReturnInCodeKeepsTheIndentation(t *testing.T) {
+	p := openCode(t, "func f() {\n    x := 1")
+	p.do(vocab.Break{})
+	p.typeText("y")
+	p.want("page(code(func f() {\n    x := 1\n    y))")
+
+	p = open(t)
+	p.typeText("```go")
+	p.do(vocab.Break{})
+	p.typeText("if x {")
+	p.do(vocab.Break{})
+	p.typeText("y")
+	p.want("page(code(if x {\n    y\n}))")
+}
+
 // Return past the code's end, in its closing fence, opens a paragraph
 // after the block rather than a line in it.
 func TestReturnInTheClosingFenceLeavesTheCode(t *testing.T) {

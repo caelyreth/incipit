@@ -6,9 +6,12 @@
 package code
 
 import (
+	"strings"
+
 	"github.com/caelyreth/incipit/internal/editor/doc"
 	"github.com/caelyreth/incipit/internal/editor/policy"
 	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // ID is the policy's id.
@@ -47,7 +50,52 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		m, ok := u.Context.(profile.Marker)
 		return ok && u.Owner.Kind() == profile.Code && lexiconOf(profile.CodeLanguage(m.Info)) != nil
 	}))
+
+	// Return in code starts the new line where the line it leaves starts,
+	// a level in after an opening bracket.
+	policy.On(p, "indent-new-line", policy.Intent[vocab.Break](), policy.Node(profile.Code).Own(), newLine)
 }, policy.Label("policies.code"), policy.Description("policies.code.description"))
+
+// closers are the brackets a line ending in an opener is a level in after,
+// and the closer that ends that level.
+var closers = map[byte]byte{'{': '}', '(': ')', '[': ']'}
+
+// newLine breaks the line at the selection, the new line indented as the
+// line it leaves: one level further after an opening bracket, and with
+// the bracket's closer right after the caret, that closer put on a line of
+// its own at the line's indentation. Without indentation to carry, the
+// line break is core's, which leaves the block from its empty last lines.
+func newLine(c *policy.Ctx, _ vocab.Break, _ policy.At[*doc.Node]) policy.Result {
+	from, to := c.Range()
+	in, ok := c.Inline(from.Ref())
+	if !ok || to.Ref() != from.Ref() {
+		return policy.Pass
+	}
+	text := in.Flat()
+	start := strings.LastIndexByte(text[:from.Offset], '\n') + 1
+	head := text[start:from.Offset]
+	indent := head[:len(head)-len(strings.TrimLeft(head, " \t"))]
+	before := strings.TrimRight(head, " \t")
+	next := indent
+	var after string
+	if n := len(before); n > 0 {
+		if closer, ok := closers[before[n-1]]; ok {
+			next += profile.SourceIndent
+			if to.Offset < len(text) && text[to.Offset] == closer {
+				after = "\n" + indent
+			}
+		}
+	}
+	if next == "" {
+		return policy.Pass
+	}
+	line := "\n" + next
+	res := policy.Do(vocab.Ops(doc.EditText{At: from.Ref(), From: from.Offset, To: to.Offset,
+		Items: []doc.Item{doc.TextItem(line+after, nil)}}))
+	sel := doc.Collapsed(doc.CaretAt(doc.At(from.Ref(), from.Offset+len(line))))
+	res.Selection = &sel
+	return res
+}
 
 // Language is the language a code block is coloured as, by its info
 // string; false where none is known.
