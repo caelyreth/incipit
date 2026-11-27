@@ -12,6 +12,7 @@ import (
 	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -259,5 +260,46 @@ func TestUpdatesSectionMatchesSiblingCardSpacingAndBadgeBounds(t *testing.T) {
 	if noteRect, ok := narrowTester.Find(noteText); !ok ||
 		noteRect.X+noteRect.W > narrowGroup.Bounds.X+narrowGroup.Bounds.W {
 		t.Fatalf("release note rect = %+v (ok=%v) overflows narrow card %+v", noteRect, ok, narrowGroup.Bounds)
+	}
+}
+
+func TestUpdatesLocalizedReleaseNotes(t *testing.T) {
+	t.Cleanup(func() { i18n.SetLocaleFunc(nil) })
+
+	loc := "ja"
+	i18n.SetLocaleFunc(func() string { return loc })
+
+	state := New()
+	state.Data = appsettings.DefaultState().Data()
+	state.Updates = appupdater.Snapshot{
+		Status:         appupdater.StatusAvailable,
+		Availability:   mygo.UpdateAvailable,
+		CurrentVersion: "1.0.0",
+		Channel:        appupdater.ChannelPrerelease,
+		CanCheck:       true,
+		Available: &appupdater.Release{
+			Version: "1.0.1-alpha.1",
+			Channel: appupdater.ChannelPrerelease,
+			Notes:   "- English fallback bullet",
+			NotesFor: func(lang string) string {
+				if lang == "ja" {
+					return "- 日本語のリリースノート"
+				}
+				return ""
+			},
+		},
+	}
+
+	tester := ui.NewTester(state.cards(appsettings.Updates), 700, 1400)
+	tester.Frame()
+	if !tester.HasText("日本語のリリースノート") {
+		t.Fatalf("expected Japanese release notes in %v", tester.Texts())
+	}
+
+	// Missing locale translation falls back cleanly to English Notes.
+	loc = "zh-Hant"
+	tester.Frame()
+	if !tester.HasText("English fallback bullet") {
+		t.Fatalf("expected English fallback release notes in %v", tester.Texts())
 	}
 }

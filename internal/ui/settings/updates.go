@@ -11,6 +11,7 @@ import (
 	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -512,7 +513,7 @@ func (s *State) updateNotesRow(
 						Padding(theme.Space12.DIPs(scale), inset, theme.Space12.DIPs(scale), inset).
 						Gap(theme.Space06.DIPs(scale))
 					panel.Children(func() {
-						renderReleaseNotes(c, semantic, rel.Notes, scale)
+						renderReleaseNotes(c, semantic, rel.LocalizedNotes(i18n.Locale()), scale)
 					})
 				})
 		})
