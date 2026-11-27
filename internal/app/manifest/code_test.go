@@ -77,6 +77,20 @@ func TestSelectAllInCodeSelectsTheCodeThenTheBlock(t *testing.T) {
 	p.want("page(paragraph(after))")
 }
 
+// A delete of the code selected whole takes the code and keeps its block,
+// as a range takes the text it covers.
+func TestDeletingTheSelectedCodeKeepsTheBlock(t *testing.T) {
+	p := openCode(t, "a\nb")
+	for range 3 {
+		p.do(vocab.Break{})
+	}
+	p.typeText("after")
+	p.do(vocab.Place{Stop: doc.CaretAt(doc.At(doc.SlotRef{Node: p.e.Snapshot().Root().Slot(0).Child(0).ID()}, 1))})
+	p.do(vocab.SelectScope{})
+	p.do(backspace)
+	p.want("page(code() paragraph(after))")
+}
+
 // Backspace after a code block holds it first, whole, as after a figure;
 // the next takes it.
 func TestBackspaceAfterCodeHoldsItFirst(t *testing.T) {

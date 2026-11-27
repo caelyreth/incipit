@@ -1,7 +1,6 @@
 // Package deletion is the deletion policy: what is deleted as one is first
 // shown as one. Deleting toward a whole, from beside it or from its inner
-// edge, holds what it covers for the next delete, which removes it; so
-// does a range selecting a node's content exactly. A whole is
+// edge, holds what it covers for the next delete, which removes it. A whole is
 // anything providing Structure, which says what it covers and how it goes:
 // a node, a pair's two sides, a mark's signs.
 package deletion
@@ -30,10 +29,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	scopes := policy.Role(vocab.RoleLeavable)
 	policy.On(p, "toward", policy.Intent[vocab.Delete](), policy.Or(wholes.Behind(), wholes.Ahead()), toward)
 	policy.On(p, "out", policy.Intent[vocab.Delete](), policy.Or(scopes.StartEdge(), scopes.EndEdge()), out)
-	// A range over a node's content exactly holds the node. An object
-	// selected as a node already shows itself whole: core deletes it at
-	// once.
-	policy.On(p, "selected", policy.Intent[vocab.Delete](), wholes.Nodes().Selected(), toward).Range()
+	// A range deletes the text it covers, however much of a whole's: a
+	// whole is selected as a node, which shows itself whole, and core
+	// deletes it at once.
 }, policy.Label("policies.deletion"), policy.Description("policies.deletion.description"))
 
 func toward(c *policy.Ctx, _ vocab.Delete, at policy.At[vocab.Structure]) policy.Result {

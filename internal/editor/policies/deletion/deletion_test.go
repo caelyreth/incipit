@@ -99,17 +99,24 @@ func TestDeletingASelectedObjectRemovesItAtOnce(t *testing.T) {
 	}
 }
 
+// A range over a formula's source deletes the source, as a range does;
+// selected again, the formula is selected whole, and the delete removes it.
 func TestDeletingASelectedFormulaRemovesTheInlineStructure(t *testing.T) {
 	p := open(t)
 	p.typeText("a $x")
 	p.do(vocab.SelectScope{})
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
-	if p.count(profile.Formula) != 1 || p.armed() != 1 {
-		t.Fatalf("first delete left %d formulas and %d arms", p.count(profile.Formula), p.armed())
+	if p.count(profile.Formula) != 1 || p.armed() != 0 {
+		t.Fatalf("the range's delete left %d formulas and %d arms", p.count(profile.Formula), p.armed())
+	}
+	p.do(vocab.Undo{})
+	p.do(vocab.SelectScope{})
+	if v, _ := p.e.View(1); v.Selection.Kind != doc.SelectNode {
+		t.Fatalf("second select %+v, want the formula as a node", v.Selection)
 	}
 	p.do(vocab.Delete{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
 	if p.count(profile.Formula) != 0 {
-		t.Fatal("the second delete kept the formula")
+		t.Fatal("the delete kept the formula")
 	}
 	para := p.e.Snapshot().Root().Slot(0).Child(0)
 	if got := para.Slot(0).Content().Text(); got != "a " {
