@@ -363,3 +363,22 @@ func TestPairsRespectMarkBoundariesAndWrapping(t *testing.T) {
 	p.typeText("(")
 	p.want("page(paragraph(a <(bc)>))")
 }
+
+// In code a pair is the language's: it closes and is stepped over as
+// typed, but Tab, Leave's key, nests the line rather than leaving it.
+func TestAPairInCodeIsNoScopeToLeave(t *testing.T) {
+	p := open(t)
+	p.typeText("```go")
+	p.do(vocab.Break{})
+	p.typeText("f(\"x")
+	p.want("page(code(f(\"x\")))")
+	out, err := p.e.Preview(1, vocab.Input{Intent: vocab.Leave{}, At: p.now})
+	if err != nil || out.Available {
+		t.Fatalf("leave available in code: %+v %v", out, err)
+	}
+	if p.guideCount("core.leave") != 0 || p.guideCount("core.return") != 0 {
+		t.Fatalf("guides in code %+v", p.e.Decorations(1).Guides)
+	}
+	p.typeText("\")")
+	p.want("page(code(f(\"x\")))")
+}

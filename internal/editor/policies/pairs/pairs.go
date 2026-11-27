@@ -60,8 +60,20 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		roles = append(roles, vocab.RoleCloser)
 	}
 	span := policy.Facts[pair](p, "pair", policy.Provides(bound, roles...))
-	policy.Scan[string](p, scanner{kind: span, kinds: kinds}, []policy.FactID{span.Kind()})
+	policy.Scan[string](p, scanner{kind: span, kinds: kinds}, []policy.FactID{span.Kind()},
+		policy.Where(func(u *policy.Unit) bool { return !source(u.Spec) }))
 	p.Paint(vocab.GroupPairMatch, span.Inside())
+	// In source text, as code, a pair is the language's: it matches and
+	// closes as typed, but it is no scope Tab leaves, whose Tab indents,
+	// and no whole a delete arms.
+	sourceRoles := []vocab.AnyRole{vocab.RolePair}
+	if over {
+		sourceRoles = append(sourceRoles, vocab.RoleCloser)
+	}
+	inSource := policy.Facts[pair](p, "source-pair", policy.Provides(bound, sourceRoles...))
+	policy.Scan[string](p, scanner{kind: inSource, kinds: kinds}, []policy.FactID{inSource.Kind()},
+		policy.Where(func(u *policy.Unit) bool { return source(u.Spec) }))
+	p.Paint(vocab.GroupPairMatch, inSource.Inside())
 
 	for _, k := range kinds {
 		// A selection is wrapped in the pair, opener or not auto-closing:
@@ -90,6 +102,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 }, policy.Label("policies.pairs"), policy.Description("policies.pairs.description"))
 
 // --- recognising ---------------------------------------------------------------
+
+// source reports source text: a literal slot keeping lines, as code is.
+func source(spec doc.SlotSpec) bool { return spec.Literal && spec.Lines }
 
 // scanner finds balanced pairs in a slot. Its state is the stack of open
 // sides, each "kind@offset;", so it stays comparable.
