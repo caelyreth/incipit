@@ -173,6 +173,15 @@ func outdent(c *policy.Ctx, in profile.Nest, _ policy.At[doc.SlotRef]) policy.Re
 // which is the container's to outdent.
 func indent(c *policy.Ctx, in profile.Nest) (policy.Result, bool) {
 	from, to := c.Range()
+	if b, ok := wholeBlock(c.Doc(), from, to); ok {
+		// A source block selected whole, its fences and all, nests every
+		// line it holds.
+		if ref, ok := vocab.FirstTextSlot(b); ok && ref.Node == b.ID() {
+			if in, ok := c.Inline(ref); ok {
+				from, to = doc.At(ref, 0), doc.At(ref, in.Len())
+			}
+		}
+	}
 	ref := from.Ref()
 	spec, ok := vocab.SlotSpec(c.Doc(), ref)
 	content, ok2 := c.Inline(ref)
@@ -235,4 +244,23 @@ func indent(c *policy.Ctx, in profile.Nest) (policy.Result, bool) {
 	res := policy.Do(edits...)
 	res.Selection = &sel
 	return res, true
+}
+
+// wholeBlock is the one block a range covers whole: from the gap before
+// it to the gap after it or its text's end, as a selection from before
+// its marker reaches.
+func wholeBlock(r doc.Reader, from, to doc.Pos) (*doc.Node, bool) {
+	n, ok := r.Node(from.Node)
+	if !ok || from.Slot >= n.NumSlots() || n.Slot(from.Slot).IsInline() || from.Offset >= n.Slot(from.Slot).Len() {
+		return nil, false
+	}
+	b := n.Slot(from.Slot).Child(from.Offset)
+	if to.Ref() == from.Ref() && to.Offset == from.Offset+1 {
+		return b, true
+	}
+	ref, ok := vocab.LastTextSlot(b)
+	if !ok || ref.Node != b.ID() || to.Ref() != ref || to.Offset != b.Slot(ref.Slot).Len() {
+		return nil, false
+	}
+	return b, true
 }

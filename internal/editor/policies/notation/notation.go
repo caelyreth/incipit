@@ -69,10 +69,15 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 		spans: policy.KeyedFacts(p, "span", func(s markSpan) doc.MarkKind { return s.Mark.Kind },
 			policy.Provides(boundSpan, vocab.RolePair, vocab.RoleLeavable, vocab.RoleCloser, vocab.RoleStructure)),
 		markers: policy.KeyedFacts(p, "marker", func(g markerGhost) doc.Kind { return g.Marker.Kind }, policy.Projects()),
+		fences:  policy.Facts[closingFence](p, "fence", policy.Projects()),
 	}
 	p.Paint(vocab.GroupPairMatch, k.spans.Inside())
+	// A code block's text is literal: notation spells only its fences,
+	// drawn whatever the reveal mode, as every block's marker is.
 	p.Analyze(policy.Lines, analyze(sp, k), k.all(), policy.Config(sp),
-		policy.Where(func(u *policy.Unit) bool { return !u.Spec.Literal && u.Spec.Marks != nil }))
+		policy.Where(func(u *policy.Unit) bool {
+			return (!u.Spec.Literal && u.Spec.Marks != nil) || u.Owner.Kind() == profile.Code
+		}))
 
 	// Backspace or Delete inside a sign or a marker, between its glyphs,
 	// steps it down a level, from either side alike: the ghost is
@@ -102,6 +107,20 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 			policy.On(p, "overtype-in"+name, typed, sign.Inside(), stepOver)
 		}
 	}
+	// A code block's fence holds its info string, which is the fence's to
+	// edit: between the fence's backticks and its line's end, typing writes
+	// it, deleting takes from it, and Return goes on into the code. Before
+	// the info string the fence is the marker it is for every block.
+	fence := k.markers.Key(profile.Code)
+	policy.On(p, "write-info", policy.Typed(), fence.Inside(), writeInfo)
+	policy.On(p, "delete-info", back, fence.Inside(), deleteInfo(vocab.Backward))
+	policy.On(p, "delete-info-ahead", fwd, fence.Inside(), deleteInfo(vocab.Forward))
+	policy.On(p, "leave-info", policy.Intent[vocab.Break](), fence.Inside(), leaveInfo)
+	// The closing fence ends the code: what is typed in it is the code's
+	// last, and deleting a backtick of it unfences the block.
+	policy.On(p, "type-in-closing-fence", policy.Typed(), k.fences.Inside(), typeBeforeFence)
+	policy.On(p, "step-down-in-closing-fence", back, k.fences.Inside(), stepClosingFence)
+
 	// Among a marker's glyphs, they are the marker's to edit: deleting one
 	// behind or ahead steps it down, and a glyph typed there or before the
 	// first reshapes it. At the block's edges, deleting into the marker is
@@ -143,6 +162,8 @@ type kinds struct {
 	spans policy.KeyedKind[markSpan, doc.MarkKind]
 	// markers are block markers, keyed by block kind.
 	markers policy.KeyedKind[markerGhost, doc.Kind]
+	// fences are code blocks' closing fences.
+	fences *policy.FactKind[closingFence]
 }
 
 // delimiters are the characters a mark kind's spellings are written in.
@@ -157,7 +178,24 @@ func delimiters(m doc.MarkKind) []string {
 }
 
 func (k kinds) all() []policy.FactID {
-	return []policy.FactID{k.signs.Kind(), k.spans.Kind(), k.markers.Kind()}
+	return []policy.FactID{k.signs.Kind(), k.spans.Kind(), k.markers.Kind(), k.fences.Kind()}
+}
+
+// analyzeFences spells a code block's fences, each on a line of its own:
+// its marker, the opening fence with its info string, before its first
+// line, and the closing fence after its last.
+func analyzeFences(k kinds) func(u *policy.Unit, e *policy.Emit) {
+	ghost := []vocab.Group{vocab.GroupGhost}
+	return func(u *policy.Unit, e *policy.Emit) {
+		if m, ok := u.Context.(profile.Marker); ok && u.From == 0 && m.Kind == profile.Code {
+			k.markers.Glyph(e, 0, policy.Glyph{Spelling: m.Spelling(), Attach: policy.AttachBefore, Groups: ghost, Block: true},
+				markerGhost{Marker: m})
+		}
+		// The last line is the one no line break ends.
+		if u.To == u.Content.Len() && (u.To == u.From || u.Content.FlatRange(u.To-1, u.To) != "\n") {
+			k.fences.Glyph(e, u.To, policy.Glyph{Spelling: profile.ClosingFence, Attach: policy.AttachAfter, Groups: ghost}, closingFence{})
+		}
+	}
 }
 
 // --- recognising ---------------------------------------------------------
@@ -197,7 +235,12 @@ func depth(k doc.MarkKind) int {
 // signs. A line break is unmarked, so marks spanning lines are spelled on
 // each line they cover.
 func analyze(sp spelling, k kinds) func(u *policy.Unit, e *policy.Emit) {
+	fences := analyzeFences(k)
 	return func(u *policy.Unit, e *policy.Emit) {
+		if u.Owner.Kind() == profile.Code {
+			fences(u, e)
+			return
+		}
 		end := u.To
 		if end > u.From && u.Content.FlatRange(end-1, end) == "\n" {
 			end--
@@ -434,6 +477,114 @@ func (s markSpan) Entry() doc.Caret { return s.close.From.Caret(s.slot) }
 // stale.
 type markerGhost struct {
 	Marker profile.Marker
+}
+
+// closingFence is a code block's closing fence, after its text.
+type closingFence struct{}
+
+// infoStops are where a code block's info string stands in its opening
+// fence: the stop after the fence's backticks and the stop before its
+// line's end, so the caret at stop s is (s - from) graphemes into it.
+func infoStops(f *policy.Fact) (from, to int) {
+	return f.Outer.From.Stop + vocab.GraphemeCount(string(profile.FenceSpelling)), f.Outer.To.Stop - 1
+}
+
+// setInfo gives a code block another info string. The fence stops number
+// up to the text, so the caret keeps its stop where it stands among them
+// as the string grows or shrinks before it (keep), or one nearer the text
+// as a grapheme ahead of it goes (ahead).
+func setInfo(c *policy.Ctx, block *doc.Node, info string, ahead bool) policy.Result {
+	attrs := doc.MakeAttrs(doc.Field{Num: profile.FieldInfo, Value: doc.Text(info)})
+	head := c.Head()
+	if ahead {
+		head.Stop++
+	}
+	sel := doc.Collapsed(head)
+	return policy.Result{Edits: []vocab.Edit{vocab.SetAttrs(block.ID(), c.Doc().Schema().Canonical(profile.Code, attrs))}, Selection: &sel}
+}
+
+// writeInfo writes typed text into a code block's info string where the
+// caret stands in it. Among the fence's backticks a typed backtick steps
+// over the next and anything else is kept out, as the fence is not text.
+func writeInfo(c *policy.Ctx, in vocab.Type, at policy.At[markerGhost]) policy.Result {
+	from, to := infoStops(at.Fact)
+	s := c.Head().Stop
+	if s < from {
+		if in.Text == string(profile.FenceSpelling[:1]) {
+			return stepOver(c, in, at)
+		}
+		return policy.Swallow
+	}
+	if !profile.ValidInfo(in.Text) || s > to {
+		return policy.Swallow
+	}
+	info := at.Data.Marker.Info
+	cut := graphemeOffset(info, s-from)
+	return setInfo(c, at.Node, info[:cut]+in.Text+info[cut:], false)
+}
+
+// deleteInfo deletes the info string's grapheme behind or ahead of the
+// caret. Behind the info string are the fence's backticks, and ahead of
+// its end the fence's line break: deleting into those is the marker's.
+func deleteInfo(dir vocab.Direction) func(c *policy.Ctx, in vocab.Delete, at policy.At[markerGhost]) policy.Result {
+	return func(c *policy.Ctx, in vocab.Delete, at policy.At[markerGhost]) policy.Result {
+		from, to := infoStops(at.Fact)
+		s := c.Head().Stop
+		k := s - from
+		if dir == vocab.Backward {
+			k--
+		}
+		switch {
+		case s < from || (dir == vocab.Backward && s == from):
+			return policy.Pass
+		case dir == vocab.Forward && s >= to:
+			return policy.Swallow
+		}
+		info := at.Data.Marker.Info
+		start, end := graphemeOffset(info, k), graphemeOffset(info, k+1)
+		return setInfo(c, at.Node, info[:start]+info[end:], dir == vocab.Forward)
+	}
+}
+
+// leaveInfo goes on from the fence into the code, at its start.
+func leaveInfo(c *policy.Ctx, _ vocab.Break, at policy.At[markerGhost]) policy.Result {
+	from, _ := infoStops(at.Fact)
+	if c.Head().Stop < from {
+		return policy.Pass
+	}
+	return policy.Select(doc.Collapsed(doc.Caret{Pos: doc.At(at.Slot, 0)}))
+}
+
+// typeBeforeFence writes text typed in a code block's closing fence at
+// the code's end, before the fence, the caret after it.
+func typeBeforeFence(c *policy.Ctx, in vocab.Type, at policy.At[closingFence]) policy.Result {
+	end := at.Fact.Outer.From.At
+	return policy.Result{
+		Edits:     []vocab.Edit{vocab.Ops(doc.EditText{At: at.Slot, From: end, To: end, Items: []doc.Item{doc.TextItem(in.Text, nil)}})},
+		Selection: ptr(doc.Collapsed(doc.Caret{Pos: doc.At(at.Slot, end+len(in.Text))})),
+	}
+}
+
+// stepClosingFence takes a backtick of the closing fence: the block is
+// unfenced. Behind the fence's first backtick is its line break, and
+// deleting that only goes back to the code's end.
+func stepClosingFence(c *policy.Ctx, _ vocab.Delete, at policy.At[closingFence]) policy.Result {
+	if c.Head().Stop <= at.Fact.Outer.From.Stop+1 {
+		return policy.Select(doc.Collapsed(doc.Caret{Pos: doc.At(at.Slot, at.Fact.Outer.From.At)}))
+	}
+	return policy.Do(stepBlock(c, at.Node, vocab.Backward))
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// graphemeOffset is the byte offset after the first k graphemes of s.
+func graphemeOffset(s string, k int) int {
+	off := 0
+	for ; k > 0 && off < len(s); k-- {
+		_, _, end, _ := vocab.GraphemeAt(s, off)
+		off = end
+	}
+	return off
 }
 
 // stepBlock steps the block a marker spells, as the block's own level

@@ -27,6 +27,7 @@ const (
 	SetSpace
 	SetOutline
 	SetAfter
+	SetPanel
 )
 
 // LineKind is the line a style draws under its text.
@@ -69,6 +70,9 @@ type Style struct {
 	// Outline is how a decoration marks an object it holds whole, which
 	// it draws around rather than over, 0xRRGGBBAA; unset, its background.
 	Outline uint32
+	// Panel stands a text unit of the group inset on a panel as wide as
+	// the column, as code is set apart from prose.
+	Panel bool
 }
 
 // Theme maps highlight groups to styles.
@@ -113,6 +117,9 @@ func (s *Style) over(o Style) {
 	}
 	if o.Set&SetAfter != 0 {
 		s.After = o.After
+	}
+	if o.Set&SetPanel != 0 {
+		s.Panel = o.Panel
 	}
 	s.Set |= o.Set
 }

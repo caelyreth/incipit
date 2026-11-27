@@ -80,6 +80,16 @@ type seg struct {
 type segFace struct {
 	face   ui.Span
 	shaped *ui.TextLayout
+	// lines are a ghost's further lines, where its spelling breaks the
+	// line, as a code block's fence stands on its own.
+	lines []ghostLine
+}
+
+// ghostLine is a line of a ghost after its first: where it starts in the
+// surface's text, and it shaped.
+type ghostLine struct {
+	u      int
+	shaped *ui.TextLayout
 }
 
 // decoSpec records a surface decoration range and its highlight groups so
@@ -183,6 +193,9 @@ type surfaceLayout struct {
 	// its lines' text goes, kept as it is laid out so what measures the page
 	// never shapes a layout let go (release.go).
 	x, y, w, h, fontSize, reach float32
+	// inset is how far a text unit's surface stands in on its panel from
+	// the panel's top and bottom edges, zero for an object's panel.
+	inset float32
 	// open is the presentation's: a main flow, or an object's own slot
 	// while the object is held. shown is whether the surface is drawn and
 	// takes room, which its object's renderer decides from open: a closed

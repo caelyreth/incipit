@@ -106,14 +106,17 @@ func ParseOrdered(s string) (int, bool) {
 }
 
 // Marker is what a block's structure spells before its text: a heading's
-// level, or an item's list style, number and task. Notation always spells
-// it as a ghost; it is the one marker a block has (§13.6).
+// level, an item's list style, number and task, or a code block's fence
+// and its language. Notation always spells it as a ghost; it is the one
+// marker a block has (§13.6).
 type Marker struct {
 	Kind    doc.Kind
 	Level   int
 	Style   ListStyle
 	Ordinal int
 	Task    Task
+	// Info is a code block's info string, its language first.
+	Info string
 }
 
 // MarkerOf is the marker of block n, where its structure spells one.
@@ -121,6 +124,8 @@ func MarkerOf(r doc.Reader, n *doc.Node) (Marker, bool) {
 	switch n.Kind() {
 	case Heading:
 		return Marker{Kind: Heading, Level: HeadingLevel(n)}, true
+	case Code:
+		return Marker{Kind: Code, Info: CodeInfo(n)}, true
 	case Item:
 		m := Marker{Kind: Item, Task: TaskOf(n)}
 		list, slot, index, ok := vocab.Index(r, n.ID())
@@ -138,10 +143,14 @@ func MarkerOf(r doc.Reader, n *doc.Node) (Marker, bool) {
 }
 
 // Spelling is the marker as notation spells it, with the separator after
-// it: "## ", "- ", "3. ", "- [ ] ".
+// it: "## ", "- ", "3. ", "- [ ] ", and a code block's fence on a line of
+// its own, "```go\n".
 func (m Marker) Spelling() Spelling {
-	if m.Kind == Heading {
+	switch m.Kind {
+	case Heading:
 		return HeadingSpelling(m.Level) + " "
+	case Code:
+		return FenceSpelling + Spelling(m.Info) + "\n"
 	}
 	s := BulletSpellings[0]
 	if m.Style == Ordered {
@@ -158,7 +167,34 @@ func (m Marker) Spelling() Spelling {
 
 // Glyphs is how many glyphs the marker spells before its separator.
 func (m Marker) Glyphs() int {
-	return vocab.GraphemeCount(strings.TrimSuffix(string(m.Spelling()), " "))
+	return vocab.GraphemeCount(string(m.Spelling())) - 1
+}
+
+// ClosingFence is how notation spells the end of a code block: its fence
+// on a line of its own.
+var ClosingFence = "\n" + FenceSpelling
+
+// CodeInfo is a code block's info string.
+func CodeInfo(n *doc.Node) string {
+	return Schema().Attr(n, FieldInfo).Text()
+}
+
+// CodeLanguage is the language a code block's info string names: its
+// first word, lower-cased.
+func CodeLanguage(info string) string {
+	lang, _, _ := strings.Cut(strings.TrimSpace(info), " ")
+	return strings.ToLower(lang)
+}
+
+// ValidInfo reports text a code block's info string may take: one line,
+// and no backtick, which would end its fence.
+func ValidInfo(text string) bool {
+	for _, r := range text {
+		if r == '`' || r < ' ' || r == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // TableRow reads a line written as a table's row, "| a | b |", as its

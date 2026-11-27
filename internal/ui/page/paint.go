@@ -72,7 +72,9 @@ func (el *Element) paint(p *ui.Painter, r ui.Rect, focused bool) {
 			bx := ox + listIndent(u.pres.Context.Indent, m) + float32(q)*m.Indent + m.Indent*0.3
 			p.Fill(ui.Rect{X: bx, Y: uy - m.Gap/2, W: 2, H: u.h + m.Gap}, t.Prose.Subtle, 1)
 		}
-		panel := float32(0)
+		// A text unit's panel shows whole; an object's as strongly as it
+		// draws it.
+		panel := float32(1)
 		if u.kind != nil {
 			panel = u.kind.paint(el, p, u, ux, uy)
 		}
@@ -313,7 +315,7 @@ func (el *Element) paintLeft(p *ui.Painter, l left, ox, oy, top, bottom float32)
 	area := el.unitArea(u, ox, uy)
 	area.H = l.clip
 	p.Clip(area, 0, func() {
-		panel := float32(0)
+		panel := float32(1)
 		if u.kind != nil {
 			panel = u.kind.paint(el, p, u, ux, uy)
 		}
@@ -336,6 +338,10 @@ func (el *Element) paintLeft(p *ui.Painter, l left, ox, oy, top, bottom float32)
 // panelArea is the inset a panel surface stands on.
 func (el *Element) panelArea(s *surfaceLayout, ux, uy float32) ui.Rect {
 	m := el.Editor.metrics
+	if s.inset > 0 {
+		// A text unit's panel is as wide as the column.
+		return ui.Rect{X: ux, Y: uy + s.y - s.inset, W: s.w + 2*s.x, H: s.h + 2*s.inset}
+	}
 	return ui.Rect{X: ux + s.x - cardPad(m)/2, Y: uy + s.y - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}
 }
 
@@ -386,18 +392,27 @@ func (el *Element) paintGhosts(p *ui.Painter, s *surfaceLayout, sx, sy float32) 
 		if sg.kind != segGhost || sg.segFace == nil || sg.shaped == nil {
 			continue
 		}
-		line, _, _ := s.lineOf(sg.u0)
-		r := s.caretRect(sg.u0)
-		gb := float32(0)
-		if gl := sg.shaped.Lines(); len(gl) > 0 {
-			gb = gl[0].Baseline
-		}
 		ink := styleColor(el.Editor.theme.Resolve(sg.groups))
 		if ink == (ui.Color{}) {
 			ink = el.Theme.Prose.Text
 		}
-		paintText(p, sg.shaped, sx+r.X, sy+line.Baseline-gb, ink)
+		paintGhostLine(p, s, sg.u0, sg.shaped, sx, sy, ink)
+		for _, l := range sg.lines {
+			paintGhostLine(p, s, l.u, l.shaped, sx, sy, ink)
+		}
 	}
+}
+
+// paintGhostLine draws a line of a ghost where the surface's text, at u,
+// puts it, on that line's baseline.
+func paintGhostLine(p *ui.Painter, s *surfaceLayout, u int, shaped *ui.TextLayout, sx, sy float32, ink ui.Color) {
+	line, _, _ := s.lineOf(u)
+	r := s.caretRect(u)
+	gb := float32(0)
+	if gl := shaped.Lines(); len(gl) > 0 {
+		gb = gl[0].Baseline
+	}
+	paintText(p, shaped, sx+r.X, sy+line.Baseline-gb, ink)
 }
 
 // paintBoxes draws closed inline nodes in their object boxes: a formula

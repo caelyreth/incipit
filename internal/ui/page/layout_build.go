@@ -358,7 +358,7 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 		u.kind.lay(lc, u, p, comp, th, m, width, in)
 		return u
 	}
-	lc.layStack(u, p, comp, th, m, width, false)
+	lc.layStack(u, p, comp, th, m, width, th.Resolve([]vocab.Group{p.Group}).Panel)
 	return u
 }
 
@@ -369,7 +369,10 @@ func (lc *layoutCache) layUnit(p *present.Presentation, comp *policy.Composition
 func (lc *layoutCache) layStack(u *unitLayout, p *present.Presentation, comp *policy.Composition, th present.Theme, m Metrics, width float32, panel bool) {
 	for i, s := range p.Surfaces {
 		w := width
-		if s.Card || panel {
+		switch {
+		case panel && !p.Object && !s.Card:
+			w = width - 2*panelInset(m)*panelAcross
+		case s.Card || panel:
 			w = width - 2*cardPad(m)
 		}
 		var formulaNode *doc.Node
@@ -388,6 +391,13 @@ func (lc *layoutCache) layStack(u *unitLayout, p *present.Presentation, comp *po
 		u.surfaces = append(u.surfaces, sl)
 	}
 	y := float32(0)
+	// A text unit on a panel, as a code block, stands inset on it, the
+	// panel as wide as the column.
+	inset := float32(0)
+	if panel && !p.Object {
+		inset = panelInset(m)
+		y = inset
+	}
 	for _, s := range u.surfaces {
 		if s.card {
 			if !s.shown {
@@ -403,11 +413,17 @@ func (lc *layoutCache) layStack(u *unitLayout, p *present.Presentation, comp *po
 			y += s.h + cardPad(m)*1.5
 			continue
 		}
-		s.x, s.y = 0, y
+		s.x, s.y, s.inset = inset*panelAcross, y, inset
 		y += s.h
 	}
-	u.h = y
+	u.h = y + inset
 }
+
+// panelInset is how far a text unit's text stands in from the panel it
+// stands on, above and below; across it stands panelAcross times as far.
+func panelInset(m Metrics) float32 { return m.Body * 0.55 }
+
+const panelAcross = 1.6
 
 // cardMin is the least a card's text is given, in body sizes.
 const cardMin = 8
@@ -547,12 +563,29 @@ func (lc *layoutCache) laySurface(index int, s present.Surface, p *present.Prese
 			// in its group's ink resolved at paint time.
 			// TODO(ghosts): a setting to draw ghosts over the text, without
 			// taking room, once the page can keep their stops visible.
-			sp := span(string(it.Spelling), style, m)
-			face := sp
-			lay := ui.ShapeRichTextWith([]ui.Span{face}, ui.Font{Family: face.Font, Size: face.Size, Weight: face.Weight, Italic: face.Italic}, ui.TextShape{})
+			// A line break in its spelling breaks the line, and each line
+			// of it is drawn where the line puts it.
+			spelling := string(it.Spelling)
+			sp := span(spelling, style, m)
+			first, rest, broken := strings.Cut(spelling, "\n")
+			face := span(first, style, m)
+			shape := func(text string) *ui.TextLayout {
+				f := face
+				f.Text = text
+				return ui.ShapeRichTextWith([]ui.Span{f}, ui.Font{Family: f.Font, Size: f.Size, Weight: f.Weight, Italic: f.Italic}, ui.TextShape{})
+			}
+			sf := &segFace{face: face, shaped: shape(first)}
+			for at := u + utf16Len(first) + 1; broken; {
+				var line string
+				line, rest, broken = strings.Cut(rest, "\n")
+				if line != "" {
+					sf.lines = append(sf.lines, ghostLine{u: at, shaped: shape(line)})
+				}
+				at += utf16Len(line) + 1
+			}
 			sp.Color = invisible
-			add(seg{kind: segGhost, from: it.From, to: it.From, text: string(it.Spelling), stopFrom: it.StopFrom, stops: it.StopTo - it.StopFrom,
-				segFace: &segFace{face: face, shaped: lay}}, sp, style, it.Groups)
+			add(seg{kind: segGhost, from: it.From, to: it.From, text: spelling, stopFrom: it.StopFrom, stops: it.StopTo - it.StopFrom,
+				segFace: sf}, sp, style, it.Groups)
 		case present.BoxItem:
 			if compAt == it.From {
 				addComp(it.Groups)

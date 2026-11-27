@@ -32,7 +32,7 @@ func Theme(t theme.Theme) present.Theme {
 			Size: 0.9, Background: pack(t.Surface.Inset)},
 		profile.GroupStrike:        {Set: present.SetStrike | present.SetColor, Strike: true, Color: pack(t.Text.Muted)},
 		vocab.GroupGhost:           {Set: present.SetColor, Color: pack(t.Prose.Notation)},
-		profile.GroupCode:          {Set: present.SetFont | present.SetSize, Font: present.FontMono, Size: 0.9},
+		profile.GroupCode:          {Set: present.SetFont | present.SetSize | present.SetPanel, Font: present.FontMono, Size: 0.9, Panel: true},
 		profile.GroupFormulaSource: {Set: present.SetFont | present.SetColor, Font: present.FontMono, Color: pack(t.Accent.Foreground)},
 		profile.GroupQuote:         {Set: present.SetColor, Color: pack(t.Text.Muted)},
 		profile.GroupListMarker:    {Set: present.SetColor, Color: pack(t.Prose.Notation)},
