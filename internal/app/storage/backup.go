@@ -322,7 +322,7 @@ func (s *Store) prune() error {
 // verifyFile opens a database file read-only and checks it is a sound
 // notebook compatible with this build's schema.
 func verifyFile(ctx context.Context, path string) error {
-	db, err := sql.Open("sqlite", path+"?_pragma=query_only(1)")
+	db, err := sql.Open("sqlite", path+"?_pragma=query_only(1)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return err
 	}

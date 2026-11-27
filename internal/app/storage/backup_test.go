@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -226,5 +227,52 @@ func TestRestoreBackupLocksMovesWithRollbackAndPreservesMedia(t *testing.T) {
 	defer reopened.Close()
 	if _, err := os.Stat(mediaFile); err != nil {
 		t.Fatalf("post-backup media file was wiped immediately after RestoreBackup: %v", err)
+	}
+}
+
+func TestConcurrentListBackupsOnCopiedWALBackup(t *testing.T) {
+	root := t.TempDir()
+	s := openStore(t, root)
+	saver := s.Autosave()
+	saver.Page(1, Summary{Title: "seeded"})
+	if err := saver.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	dbBytes, err := os.ReadFile(filepath.Join(root, databaseName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	copied := filepath.Join(root, backupDir, "notebook-20261126-120000.db")
+	if err := os.WriteFile(copied, dbBytes, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	const workers = 4
+	var wg sync.WaitGroup
+	errs := make(chan error, workers)
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 10 {
+				list, err := ListBackups(root)
+				if err != nil {
+					errs <- err
+					return
+				}
+				if len(list) != 2 {
+					errs <- errors.New("concurrent ListBackups dropped a backup")
+					return
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatal(err)
 	}
 }

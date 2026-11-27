@@ -76,6 +76,7 @@ func (a *AppState) refreshBackupsAsync(root string) {
 	a.backupsMu.Lock()
 	a.backupsSeq++
 	seq := a.backupsSeq
+	a.backupsRoot = root
 	a.backupsMu.Unlock()
 	a.backupsWg.Add(1)
 	go func() {
@@ -84,7 +85,6 @@ func (a *AppState) refreshBackupsAsync(root string) {
 		a.backupsMu.Lock()
 		changed := a.backupsSeq == seq
 		if changed {
-			a.backupsRoot = root
 			a.backupsCached = opts
 		}
 		a.backupsMu.Unlock()
