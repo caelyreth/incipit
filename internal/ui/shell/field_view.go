@@ -114,7 +114,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		view.Jump("pill-w", targetPillW)
 	}
 	pill := stageSize{W: pillW, H: 40 * k}
-	rl := s.ribbons(c, k, w/2, targetPillW, pill.H)
+	rl := s.ribbons(c, k, w/2, targetPillW, pill.H, -1)
 	z := m.horizon
 	z.Above += rl.above
 	z.Below += rl.below
@@ -298,6 +298,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		away = [2]bool{bound > h-foot-pill.H-rl.below, bound < top+rl.above}
 		fieldPy = max(top+rl.heldAbove, min(free, footY))
 		s.field.fieldPillY = fieldPy
+		// Stuck at one edge, what the pill offers toward it stands on
+		// the side with room instead.
+		if away[0] != away[1] {
+			blocked := s.ribbons(c, k, w/2, targetPillW, pill.H, map[bool]int{true: 1}[away[1]])
+			rl.places, rl.above, rl.below = blocked.places, blocked.above, blocked.below
+		}
 	}
 	pin := float32(0)
 	if listed {

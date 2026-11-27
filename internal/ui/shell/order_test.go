@@ -109,7 +109,7 @@ func TestOnlyAChosenOrderStands(t *testing.T) {
 	}
 	state.SetFieldQuery("$sort:updated")
 	settle(tester)
-	if !slices.ContainsFunc(state.ribbons(nil, 1, 630, 400, 40).places, func(p ribbonPlace) bool { return p.text == "$sort:updated" }) {
+	if !slices.ContainsFunc(state.ribbons(nil, 1, 630, 400, 40, -1).places, func(p ribbonPlace) bool { return p.text == "$sort:updated" }) {
 		t.Fatal("A sort chosen should stand as its ribbon.")
 	}
 }

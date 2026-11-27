@@ -420,16 +420,13 @@ func TestTheKeyRibbonStaysAsThePillSticks(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(tester)
-	if _, ok := tester.Find("Key"); !ok {
-		t.Fatalf("The open pill should offer Key: %v", tester.Texts())
-	}
 	for range 20 {
 		tester.Scroll(600, 600, 0, 60)
 		tester.Frame()
 	}
 	settle(tester)
-	if state.field.stuck < 0.99 {
-		t.Fatalf("The pill should stand stuck, but stands %v so.", state.field.stuck)
+	if state.field.stuck < 0.99 || state.field.stuckFoot {
+		t.Fatalf("The pill should stand stuck at the top, but stands %v so (foot %v).", state.field.stuck, state.field.stuckFoot)
 	}
 	if !state.field.open {
 		t.Fatal("Scrolling should leave the pill open.")
@@ -439,6 +436,44 @@ func TestTheKeyRibbonStaysAsThePillSticks(t *testing.T) {
 	}
 	if _, ok := tester.Find("Key"); !ok {
 		t.Fatalf("The stuck pill should still offer Key: %v", tester.Texts())
+	}
+}
+
+// Stuck at the foot, with no room under the pill, what it offers there
+// stands over it instead, its conditions keeping their places; the room
+// the ribbons hold stays the unblocked layout's.
+func TestOffersStandOnTheSideWithRoom(t *testing.T) {
+	state, _, tester := settingsState(t)
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if err := tester.Click("Search"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	at := func(rl ribbonLayout, kind ribbonKind) (float32, bool) {
+		for _, p := range rl.places {
+			if p.kind == kind {
+				return p.y, true
+			}
+		}
+		return 0, false
+	}
+	free := state.ribbons(nil, 1, 630, 400, 40, -1)
+	blocked := state.ribbons(nil, 1, 630, 400, 40, 0)
+	key, ok1 := at(free, ribbonKey)
+	moved, ok2 := at(blocked, ribbonKey)
+	cond, _ := at(free, ribbonCondition)
+	kept, _ := at(blocked, ribbonCondition)
+	if !ok1 || !ok2 || key <= 0 || moved >= 0 {
+		t.Fatalf("Key should stand under the pill (%v), and over it with no room under it (%v).", key, moved)
+	}
+	if cond != kept {
+		t.Fatalf("The conditions should keep their places, but went from %v to %v.", cond, kept)
+	}
+	if again := state.ribbons(nil, 1, 630, 400, 40, -1); again.above != free.above || again.below != free.below {
+		t.Fatalf("The room held should stay %v/%v, but became %v/%v.", free.above, free.below, again.above, again.below)
 	}
 }
 

@@ -68,7 +68,14 @@ const keysOffered = 4
 // moves only those on its side; each side in rows as wide as the pill,
 // the conditions nearest it. While a key's value is being written, its
 // values stand in rows of their own under all of them.
-func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
+//
+// blocked is the side with no room, the pill stuck at the window's edge
+// there, or -1: what is offered on it stands on the other side, after
+// what stands there, as a list's offers stand over its pill at the foot;
+// the query's conditions keep their places. Such a layout is only drawn:
+// the room the ribbons hold is the unblocked one's, so where the pill
+// stands never turns on where its offers went.
+func (s *State) ribbons(c *ui.Context, k, mid, w, h float32, blocked int) ribbonLayout {
 	var out ribbonLayout
 	rh, gap := ribbonH*k, ribbonGap*k
 	// What the ribbons hold changes as it is written or taken, and the
@@ -108,6 +115,9 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 		if listed {
 			side = 1
 		}
+		if p.kind != ribbonCondition && side == blocked {
+			side = 1 - side
+		}
 		sides[side] = s.flow(c, sides[side], p, k, w)
 	}
 	var values [][]ribbonPlace
@@ -135,7 +145,7 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	}
 	switch {
 	case len(values) == 0:
-	case listed:
+	case listed || blocked == 0:
 		// A step further out, so the values read as the key's, apart.
 		place(values, -(out.above + 3*gap + rh), -(rh + gap))
 		out.above += 2*gap + float32(len(values))*(rh+gap)
@@ -146,6 +156,9 @@ func (s *State) ribbons(c *ui.Context, k, mid, w, h float32) ribbonLayout {
 	if acting {
 		reach := actionsReach(len(s.fieldActions()), h, rh, gap)
 		out.above, out.below = max(out.above, reach), max(out.below, reach)
+	}
+	if blocked >= 0 {
+		return out
 	}
 	hold.above, hold.below = max(hold.above, out.above), max(hold.below, out.below)
 	out.above, out.below = hold.above, hold.below
