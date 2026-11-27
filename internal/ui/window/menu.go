@@ -4,10 +4,10 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	"github.com/caelyreth/neverland/internal/editor/engine"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/editor/engine"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 )
 

@@ -1,7 +1,7 @@
 package search
 
 import (
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 
 	"slices"
 	"strconv"
@@ -9,8 +9,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 )
 
 // Content is what the index reads of a page's own text: its texts of each

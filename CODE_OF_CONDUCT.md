@@ -50,8 +50,8 @@ decisions when appropriate.
 
 #### Scope
 
-This Code of Conduct applies within all community spaces of Neverland
-(including https://github.com/caelyreth/neverland), and also applies when an
+This Code of Conduct applies within all community spaces of Incipit
+(including https://github.com/caelyreth/incipit), and also applies when an
 individual is officially representing the community in public spaces. Examples
 of representing our community include using an official email address, posting
 via an official social media account, or acting as an appointed representative
@@ -61,7 +61,7 @@ at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the project maintainers responsible for enforcement at
-neverland@elm.fm.
+incipit@elm.fm.
 All complaints will be reviewed and investigated promptly and fairly.
 
 All project maintainers are obligated to respect the privacy and security of the

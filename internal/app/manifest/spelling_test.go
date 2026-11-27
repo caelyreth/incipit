@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/engine"
-	"github.com/caelyreth/neverland/internal/editor/policies/spelling"
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/internal/editor/present"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/engine"
+	"github.com/caelyreth/incipit/internal/editor/policies/spelling"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/editor/present"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // knows is a checker that knows every word but its own.

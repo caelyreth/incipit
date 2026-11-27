@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/library"
+	"github.com/caelyreth/incipit/internal/app/library"
 )
 
 func openStore(t *testing.T, root string) *Store {
@@ -105,7 +105,7 @@ func TestOneProcessHoldsTheNotebook(t *testing.T) {
 // TestMain lets a test run the notebook in a process of its own, which it
 // can then kill.
 func TestMain(m *testing.M) {
-	if root := os.Getenv("NEVERLAND_CRASH_ROOT"); root != "" {
+	if root := os.Getenv("INCIPIT_CRASH_ROOT"); root != "" {
 		crashWhileWriting(root)
 		return
 	}
@@ -129,7 +129,7 @@ func crashWhileWriting(root string) {
 func TestACrashKeepsWhatWasWritten(t *testing.T) {
 	root := t.TempDir()
 	command := exec.Command(os.Args[0], "-test.run=^$")
-	command.Env = append(os.Environ(), "NEVERLAND_CRASH_ROOT="+root)
+	command.Env = append(os.Environ(), "INCIPIT_CRASH_ROOT="+root)
 	err := command.Run()
 	var exit *exec.ExitError
 	if !errors.As(err, &exit) || exit.ExitCode() != 1 {
@@ -406,8 +406,8 @@ func TestXDGDataHomeAndRoot(t *testing.T) {
 		t.Fatalf("XDGDataHome() with absolute XDG_DATA_HOME = %q, %v; want %q", got, err, xdg)
 	}
 	root, err := Root(got, "linux")
-	if err != nil || root != filepath.Join(xdg, "neverland") {
-		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(xdg, "neverland"))
+	if err != nil || root != filepath.Join(xdg, "incipit") {
+		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(xdg, "incipit"))
 	}
 
 	// Relative XDG_DATA_HOME is ignored per the XDG Base Directory specification.
@@ -424,8 +424,8 @@ func TestXDGDataHomeAndRoot(t *testing.T) {
 		t.Fatalf("XDGDataHome() default = %q, %v; want %q", got, err, wantFallback)
 	}
 	root, err = Root(got, "linux")
-	if err != nil || root != filepath.Join(wantFallback, "neverland") {
-		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(wantFallback, "neverland"))
+	if err != nil || root != filepath.Join(wantFallback, "incipit") {
+		t.Fatalf("Root(%q) = %q, %v; want %q", got, root, err, filepath.Join(wantFallback, "incipit"))
 	}
 
 	override := t.TempDir()

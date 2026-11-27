@@ -3,10 +3,10 @@ package window
 import (
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/workspace"
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
-	"github.com/caelyreth/neverland/internal/ui/page"
+	"github.com/caelyreth/incipit/internal/app/workspace"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/ui/page"
 )
 
 // captureViews records every open column's selection and scroll in the

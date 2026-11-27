@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
-	"github.com/caelyreth/neverland/internal/ui/page"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/ui/page"
 )
 
 func TestToolbarActionsPublishPresentation(t *testing.T) {

@@ -5,10 +5,10 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/settings"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/settings"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/i18n"
 )

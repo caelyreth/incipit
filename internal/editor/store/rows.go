@@ -7,7 +7,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // Row is one stored node: a node held in a block slot, or the root.

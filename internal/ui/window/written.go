@@ -3,7 +3,7 @@ package window
 import (
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/app/storage"
 )
 
 // written counts the words written each day (storage.DayOf): what writing

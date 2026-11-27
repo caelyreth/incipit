@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/locales"
 )
 
 var (

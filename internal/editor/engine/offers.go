@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // Offered is a command offered for a view's selection (policy.Offer): the

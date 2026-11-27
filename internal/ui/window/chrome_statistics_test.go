@@ -3,7 +3,7 @@ package window
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/policies/statistics"
+	"github.com/caelyreth/incipit/internal/editor/policies/statistics"
 )
 
 // TestFooterSaysPageAndSelectionTotals spells the page's counts, and a

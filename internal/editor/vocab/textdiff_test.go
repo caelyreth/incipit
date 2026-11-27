@@ -3,7 +3,7 @@ package vocab
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 func TestMinimalTextChangesKeepsInsertionsToTheirText(t *testing.T) {

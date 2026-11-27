@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // TestFarUnitsLetTheirShapingGo keeps the text near the view shaped and

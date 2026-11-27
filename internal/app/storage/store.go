@@ -16,12 +16,12 @@ import (
 )
 
 var (
-	// ErrLocked reports a notebook another Neverland process holds.
-	ErrLocked = errors.New("storage: the notebook is open in another Neverland window")
-	// ErrForeign reports a database that is not a Neverland notebook.
+	// ErrLocked reports a notebook another Incipit process holds.
+	ErrLocked = errors.New("storage: the notebook is open in another Incipit window")
+	// ErrForeign reports a database that is not a Incipit notebook.
 	ErrForeign = errors.New("storage: the notebook file belongs to another application")
-	// ErrNewer reports a notebook written by a newer Neverland.
-	ErrNewer = errors.New("storage: the notebook was written by a newer Neverland")
+	// ErrNewer reports a notebook written by a newer Incipit.
+	ErrNewer = errors.New("storage: the notebook was written by a newer Incipit")
 	// ErrClosed reports use of a closed store.
 	ErrClosed = errors.New("storage: the notebook is closed")
 )

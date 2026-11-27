@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	uisettings "github.com/caelyreth/neverland/internal/ui/settings"
-	"github.com/caelyreth/neverland/internal/ui/shell"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/fonts"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	uisettings "github.com/caelyreth/incipit/internal/ui/settings"
+	"github.com/caelyreth/incipit/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -87,7 +87,7 @@ func (s *State) welcome(c *ui.Context, semantic theme.Theme, m metrics, animate 
 			s.mark.Paint(p, r, semantic.Text.Heading, drawn)
 		})
 		s.enter(c, ui.Box(c).Padding(28*m.k, 0, 0, 0).Children(func() {
-			components.Wordmark(c, "wordmark", semantic, m.wordmark).Role(ui.RoleHeading).Label("Neverland")
+			components.Wordmark(c, "wordmark", semantic, m.wordmark).Role(ui.RoleHeading).Label("Incipit")
 		}), 1, animate)
 		// The line is the song's the name is taken from, and under it the
 		// song's title, as a lyric is credited.
@@ -313,7 +313,7 @@ func (s *State) mac(c *ui.Context, semantic theme.Theme, m metrics, animate bool
 			drawn          bool
 		}{
 			{"menus-native", locales.MenusNative(), locales.OnboardingMenusNativeCaption(), false},
-			{"menus-neverland", locales.MenusNeverland(), locales.OnboardingMenusNeverlandCaption(), true},
+			{"menus-incipit", locales.MenusIncipit(), locales.OnboardingMenusIncipitCaption(), true},
 		}
 		for i, k := range kinds {
 			components.Specimen{
@@ -353,7 +353,7 @@ func (s *State) summary() [][2]string {
 		{locales.Typeface(), pick(s.values.Appearance.Typeface == fonts.Sans, locales.StyleSans(), locales.StyleSerif())},
 	}
 	if s.Platform.Mac {
-		lines = append(lines, [2]string{locales.Menus(), pick(s.values.Appearance.DrawnMenus, locales.MenusNeverland(), locales.MenusNative())})
+		lines = append(lines, [2]string{locales.Menus(), pick(s.values.Appearance.DrawnMenus, locales.MenusIncipit(), locales.MenusNative())})
 	}
 	return lines
 }

@@ -7,10 +7,10 @@ package page
 import (
 	"cmp"
 
-	"github.com/caelyreth/neverland/internal/editor/present"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/editor/present"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 

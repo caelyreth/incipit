@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/parser"
@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	kindMathBlock     = ast.NewNodeKind("NeverlandMathBlock")
-	kindInlineFormula = ast.NewNodeKind("NeverlandInlineFormula")
+	kindMathBlock     = ast.NewNodeKind("IncipitMathBlock")
+	kindInlineFormula = ast.NewNodeKind("IncipitInlineFormula")
 	mathBlockInfoKey  = parser.NewContextKey()
 )
 
@@ -193,7 +193,7 @@ func isFormulaSpace(b byte) bool {
 
 type mathExtension struct{}
 
-var neverlandMath = &mathExtension{}
+var incipitMath = &mathExtension{}
 
 func (e *mathExtension) Extend(m goldmark.Markdown) {
 	m.Parser().AddOptions(

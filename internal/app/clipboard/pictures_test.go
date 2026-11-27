@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 )
 
 func acceptTestMedia(path string) bool {

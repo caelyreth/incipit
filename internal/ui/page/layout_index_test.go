@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // A caret's place is found through its unit, as an index of every stop of

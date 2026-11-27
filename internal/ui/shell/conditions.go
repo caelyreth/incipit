@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 )
 
 // The query's conditions are a set (field-and-desk.md §4.5): what the

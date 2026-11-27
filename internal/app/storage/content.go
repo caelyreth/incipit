@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/store"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/store"
 )
 
 // ErrFormat reports a page encoded in a format this build does not read;

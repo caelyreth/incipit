@@ -3,8 +3,8 @@ package manifest
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // Matching Pair goes between a pair's two inner ends: from inside to its

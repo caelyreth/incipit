@@ -1,7 +1,7 @@
 package search
 
 import (
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 
 	"errors"
 	"fmt"
@@ -17,14 +17,14 @@ import (
 	"github.com/blevesearch/bleve/v2/index/scorch"
 	"github.com/blevesearch/bleve/v2/mapping"
 	"github.com/blevesearch/bleve/v2/registry"
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 )
 
 // layoutVersion names how pages are read into the index: the analyzer and
 // the fields. An index kept by another is rebuilt, never migrated.
 const layoutVersion = "2"
 
-const versionKey = "neverland.layout"
+const versionKey = "incipit.layout"
 
 // Page is what the index keeps of one page.
 type Page struct {
@@ -236,8 +236,8 @@ func domainSuffixes(d string) []string {
 // --- mapping --------------------------------------------------------------
 
 const (
-	analyzerIndexed = "neverland"
-	analyzerQueried = "neverland-query"
+	analyzerIndexed = "incipit"
+	analyzerQueried = "incipit-query"
 )
 
 type tokenizer struct{ mode query.Mode }

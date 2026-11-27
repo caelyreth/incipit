@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/locales"
 )
 
 var reference = regexp.MustCompile(`\{[A-Za-z0-9.]+\}`)

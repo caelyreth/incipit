@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 func TestHostEffectsReachTheHost(t *testing.T) {

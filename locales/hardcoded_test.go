@@ -25,7 +25,7 @@ var shownFrom = []string{"internal/ui", "internal/app/keymap", "internal/app/set
 
 // sameInEveryLanguage are the strings shown as they are in every language.
 var sameInEveryLanguage = map[string]string{
-	"Neverland":         "the app's name",
+	"Incipit":         "the app's name",
 	"Noto Serif":        "a font family's name",
 	"Noto Sans":         "a font family's name",
 	"NewCMMath-Book":    "a font's name",

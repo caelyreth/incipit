@@ -1,6 +1,6 @@
 package page
 
-import "github.com/caelyreth/neverland/internal/editor/doc"
+import "github.com/caelyreth/incipit/internal/editor/doc"
 
 // A text unit whose size changes, as a paragraph becomes a heading or a
 // heading steps a level, grows or shrinks to it rather than jumping: its

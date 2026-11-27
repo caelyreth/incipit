@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // TagSpelling opens a tag written in text.

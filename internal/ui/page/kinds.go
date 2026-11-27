@@ -3,12 +3,12 @@ package page
 import (
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/internal/editor/present"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/editor/present"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 

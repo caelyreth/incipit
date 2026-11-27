@@ -156,10 +156,10 @@ func ResolveFamily(base, primary string, fallbacks ...*Face) string {
 
 // HomeVariable is the variable that moves the notebook, and with it the
 // fonts, for development and tests (storage.HomeVariable).
-const HomeVariable = "NEVERLAND_HOME"
+const HomeVariable = "INCIPIT_HOME"
 
 // Dir is where downloaded faces are kept: a Fonts folder in
-// NEVERLAND_HOME when it is set, or in userData, the app's folder of the
+// INCIPIT_HOME when it is set, or in userData, the app's folder of the
 // user's application support, which no sync carries, as the notebook's may
 // be.
 func Dir(userData string) (string, error) {

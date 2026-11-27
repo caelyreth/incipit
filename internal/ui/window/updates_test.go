@@ -7,10 +7,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	appupdater "github.com/caelyreth/neverland/internal/app/updater"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	appupdater "github.com/caelyreth/incipit/internal/app/updater"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 )
 

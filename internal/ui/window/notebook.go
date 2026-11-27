@@ -3,9 +3,9 @@ package window
 import (
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/library"
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/internal/app/workspace"
+	"github.com/caelyreth/incipit/internal/app/library"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/app/workspace"
 )
 
 // notebook ties the workspace's pages to their store. Memory stays the

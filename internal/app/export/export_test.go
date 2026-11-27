@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 func page(t *testing.T, blocks ...*doc.Node) func() (*doc.Snapshot, error) {
@@ -214,7 +214,7 @@ func TestExportDependsOnlyOnStructure(t *testing.T) {
 				t.Fatal(err)
 			}
 			for _, imp := range f.Imports {
-				p, ok := strings.CutPrefix(strings.Trim(imp.Path.Value, `"`), "github.com/caelyreth/neverland/")
+				p, ok := strings.CutPrefix(strings.Trim(imp.Path.Value, `"`), "github.com/caelyreth/incipit/")
 				if !ok {
 					continue
 				}

@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/text/query"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/text/query"
+	"github.com/caelyreth/incipit/locales"
 )
 
 // What may be written next stands around the pill as idle ribbons

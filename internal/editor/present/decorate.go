@@ -3,9 +3,9 @@ package present
 import (
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // Paint is an extent the view shows in a group's style: the selection,

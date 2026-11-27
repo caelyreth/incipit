@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // Format is the encoding version pages.format records.

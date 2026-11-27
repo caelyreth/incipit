@@ -5,11 +5,11 @@ import (
 	"errors"
 	"log"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/ui/settings"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/fonts"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/ui/settings"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 

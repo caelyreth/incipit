@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 var groups = struct {

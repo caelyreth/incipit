@@ -1,12 +1,12 @@
 package settings
 
-// PresentationState contains Neverland's app-wide writing modes.
+// PresentationState contains Incipit's app-wide writing modes.
 type PresentationState struct {
 	Motion     bool
 	Typewriter bool
 }
 
-// DefaultPresentation matches Neverland: motion on, typewriter off.
+// DefaultPresentation matches Incipit: motion on, typewriter off.
 func DefaultPresentation() PresentationState {
 	return PresentationState{Motion: true}
 }

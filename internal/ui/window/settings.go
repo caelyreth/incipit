@@ -1,8 +1,8 @@
 package window
 
 import (
-	"github.com/caelyreth/neverland/internal/ui/shell"
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 

@@ -15,7 +15,7 @@ dictionaries, plus PiG's application-specific strip state and WTF-8
 adapter.
 
 The dictionary is no longer PiG's: `tools/dictionary` builds it from ICU's
-own word list, in Neverland's format (described in that command), and
+own word list, in Incipit's format (described in that command), and
 `go tool fetch` runs it. The index's words and costs are those of
 PiG's former `cjk_dictionary.bin`, byte for byte, after the format's
 header.
@@ -26,7 +26,7 @@ Pinned data:
 ICU release-78.3 cjdict.txt sha256:
 e73fd72048981d0cc13e9dc436a7eaba07ffb6eff58c8a59dc75c1df746663a0
 
-cjk_dictionary.bin (Neverland format, version 1) sha256:
+cjk_dictionary.bin (Incipit format, version 1) sha256:
 35ca601ac1c6fbc9900ee1d692c32c2a958254f6a9f31c77e841ee09863db577
 ```
 

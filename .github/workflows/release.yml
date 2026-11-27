@@ -102,7 +102,7 @@ jobs:
             echo "APPLE_CERTIFICATE_P12 not set; skipping keychain import"
             exit 0
           fi
-          kc="$RUNNER_TEMP/neverland-build.keychain-db"
+          kc="$RUNNER_TEMP/incipit-build.keychain-db"
           echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$kc"
           security set-keychain-settings -lut 21600 "$kc"

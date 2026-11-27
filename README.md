@@ -1,4 +1,4 @@
-### Neverland
+### Incipit
 
 Frictionless and minimalist native writing app for desktop.
 
@@ -6,4 +6,4 @@ Frictionless and minimalist native writing app for desktop.
 
 Copyright 2026 Yu (Caelyreth)
 
-Neverland is licensed under the [AGPL-3.0](/LICENSE).
+Incipit is licensed under the [AGPL-3.0](/LICENSE).

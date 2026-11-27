@@ -3,8 +3,8 @@ package settings
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	"github.com/caelyreth/neverland/internal/app/phrases"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/app/phrases"
 )
 
 // Everything a policy declares for people to read has words, every key a

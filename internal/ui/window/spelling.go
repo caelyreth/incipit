@@ -1,11 +1,11 @@
 package window
 
 import (
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/editor/policies/spelling"
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/editor/policies/spelling"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 )
 

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/app/keymap"
 )
 
 func TestCategoryOrderAndMetadata(t *testing.T) {

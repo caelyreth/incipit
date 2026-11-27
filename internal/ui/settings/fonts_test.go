@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/app/fonts"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
 	"github.com/egoist/mygo/ui"
 )
 

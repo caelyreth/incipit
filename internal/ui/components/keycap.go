@@ -4,7 +4,7 @@ import (
 	"math"
 	"unicode/utf8"
 
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 

@@ -7,11 +7,11 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
+	"github.com/caelyreth/incipit/internal/app/fonts"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	"github.com/caelyreth/neverland/internal/app/manifest"
-	"github.com/caelyreth/neverland/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/app/manifest"
+	"github.com/caelyreth/incipit/internal/editor/policy"
 )
 
 // ErrNewerVersion reports a settings record created by a newer build whose

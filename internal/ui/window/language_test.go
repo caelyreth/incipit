@@ -6,8 +6,8 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/i18n"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	"github.com/caelyreth/neverland/internal/app/phrases"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/app/phrases"
 )
 
 // A language chosen while the app runs names every command of the menu bar

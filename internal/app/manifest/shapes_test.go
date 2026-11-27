@@ -9,19 +9,19 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/engine"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/engine"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // The invariants again, from documents typing seldom builds: the shapes a
 // notebook comes to hold over months of editing (adjacent lists of one
 // style, empty and deep lists, tasks, quotes holding lists, figures,
 // tables, math, code), with every command of the catalog among the
-// intents. A trace that fails names its seed; NEVERLAND_SEEDS runs more.
-// NEVERLAND_NOTEBOOK names a notebook folder whose pages, opened from a
+// intents. A trace that fails names its seed; INCIPIT_SEEDS runs more.
+// INCIPIT_NOTEBOOK names a notebook folder whose pages, opened from a
 // copy, start traces too.
 
 // shapeWords are what generated text is drawn from.
@@ -140,7 +140,7 @@ func commandIntent(commands []vocab.CommandID) func(*rand.Rand, *engine.Engine) 
 
 func TestRandomShapesKeepTheInvariants(t *testing.T) {
 	seeds := 24
-	if s := os.Getenv("NEVERLAND_SEEDS"); s != "" {
+	if s := os.Getenv("INCIPIT_SEEDS"); s != "" {
 		seeds, _ = strconv.Atoi(s)
 	}
 	length := 120
@@ -171,12 +171,12 @@ func catalogIntent(t *testing.T) func(*rand.Rand, *engine.Engine) vocab.Intent {
 }
 
 // TestANotebooksPagesKeepTheInvariants runs traces from every page of the
-// notebook NEVERLAND_NOTEBOOK names, as they are: the shapes months of
+// notebook INCIPIT_NOTEBOOK names, as they are: the shapes months of
 // writing left. The notebook is copied first; opening takes a backup.
 func TestANotebooksPagesKeepTheInvariants(t *testing.T) {
-	src := os.Getenv("NEVERLAND_NOTEBOOK")
+	src := os.Getenv("INCIPIT_NOTEBOOK")
 	if src == "" {
-		t.Skip("NEVERLAND_NOTEBOOK names no notebook")
+		t.Skip("INCIPIT_NOTEBOOK names no notebook")
 	}
 	dir := t.TempDir()
 	for _, name := range []string{"notebook.db", "notebook.db-wal", "notebook.db-shm"} {

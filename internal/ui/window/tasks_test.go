@@ -3,7 +3,7 @@ package window
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/ui/shell"
 	"github.com/egoist/mygo/ui"
 )
 

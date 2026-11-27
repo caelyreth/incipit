@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 	"github.com/clipperhouse/uax29/v2/graphemes"
 )
 

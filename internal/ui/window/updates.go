@@ -1,8 +1,8 @@
 package window
 
 import (
-	appupdater "github.com/caelyreth/neverland/internal/app/updater"
-	"github.com/caelyreth/neverland/locales"
+	appupdater "github.com/caelyreth/incipit/internal/app/updater"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 )
 

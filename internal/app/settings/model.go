@@ -1,10 +1,10 @@
 package settings
 
 import (
-	"github.com/caelyreth/neverland/internal/app/fonts"
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/fonts"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/locales"
 )
 
 // Category is one top-level settings page.

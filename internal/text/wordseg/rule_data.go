@@ -1,5 +1,5 @@
 // Generated from Unicode 17.0.0 ICU data. The Southeast Asian complex-context
-// table was removed for Neverland's initial Latin/CJK scope.
+// table was removed for Incipit's initial Latin/CJK scope.
 
 package wordseg
 

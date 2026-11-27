@@ -3,10 +3,10 @@ package shell
 import (
 	"slices"
 
-	"github.com/caelyreth/neverland/internal/text/query"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/text/query"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 

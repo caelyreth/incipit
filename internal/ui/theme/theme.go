@@ -1,4 +1,4 @@
-// Package theme maps Neverland's semantic materials and independent prose
+// Package theme maps Incipit's semantic materials and independent prose
 // metrics into values MyGo paints. It is the only package that translates the
 // product palette into MyGo's control theme.
 package theme
@@ -8,7 +8,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/locales"
 )
 
 type Appearance uint8
@@ -317,7 +317,7 @@ func (s Settings) Semantic() Theme {
 	}
 }
 
-// MyGoTheme overlays the Neverland semantic colors onto MyGo's control theme.
+// MyGoTheme overlays the Incipit semantic colors onto MyGo's control theme.
 func (s Settings) MyGoTheme() *ui.Theme {
 	return s.MyGoThemeFor(s.Normalized().Semantic())
 }

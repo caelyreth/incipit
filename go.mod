@@ -1,4 +1,4 @@
-module github.com/caelyreth/neverland
+module github.com/caelyreth/incipit
 
 go 1.27.3
 
@@ -62,12 +62,12 @@ require (
 )
 
 tool (
-	github.com/caelyreth/neverland/tools/dictionary
-	github.com/caelyreth/neverland/tools/fetch
-	github.com/caelyreth/neverland/tools/fonts
-	github.com/caelyreth/neverland/tools/icon
-	github.com/caelyreth/neverland/tools/locales
-	github.com/caelyreth/neverland/tools/release
+	github.com/caelyreth/incipit/tools/dictionary
+	github.com/caelyreth/incipit/tools/fetch
+	github.com/caelyreth/incipit/tools/fonts
+	github.com/caelyreth/incipit/tools/icon
+	github.com/caelyreth/incipit/tools/locales
+	github.com/caelyreth/incipit/tools/release
 	github.com/egoist/mygo/cmd/mygo
 )
 

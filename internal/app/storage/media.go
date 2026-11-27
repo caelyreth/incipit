@@ -46,8 +46,8 @@ const (
 )
 
 var (
-	// ErrMediaFormat reports bytes that are not a picture Neverland shows.
-	ErrMediaFormat = errors.New("storage: not a picture Neverland can show")
+	// ErrMediaFormat reports bytes that are not a picture Incipit shows.
+	ErrMediaFormat = errors.New("storage: not a picture Incipit can show")
 	// ErrMediaSize reports a picture too large to keep.
 	ErrMediaSize = errors.New("storage: the picture is too large")
 )

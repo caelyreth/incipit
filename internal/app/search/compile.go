@@ -1,7 +1,7 @@
 package search
 
 import (
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 
 	"math"
 	"slices"
@@ -13,7 +13,7 @@ import (
 	"github.com/blevesearch/bleve/v2"
 	"github.com/blevesearch/bleve/v2/mapping"
 	bq "github.com/blevesearch/bleve/v2/search/query"
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 )
 
 // Env is what a query reads from the notebook as it runs.

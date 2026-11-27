@@ -3,7 +3,7 @@ package policy
 import (
 	"slices"
 
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // A command a policy declares may be offered (vocab.OfferGroup): put

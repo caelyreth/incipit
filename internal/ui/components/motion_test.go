@@ -7,7 +7,7 @@ import (
 	"github.com/egoist/mygo/ui"
 )
 
-func TestSmoothstepMatchesNeverlandChromeCurve(t *testing.T) {
+func TestSmoothstepMatchesIncipitChromeCurve(t *testing.T) {
 	for _, test := range []struct {
 		input float32
 		want  float32

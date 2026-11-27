@@ -3,9 +3,9 @@ package search
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/text/query"
 )
 
 func TestTheFirstMatchIsFoundInReadingOrder(t *testing.T) {

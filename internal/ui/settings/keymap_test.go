@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/ui/components"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -229,7 +229,7 @@ func TestRecordingRefusesKeysTheMenuKeeps(t *testing.T) {
 	state, changes := keymapState()
 	quit := keymap.NewChord("q", keymap.ModifiersPrimary)
 	state.Reserved = func(target keymap.Chord) (string, bool) {
-		return "Quit Neverland", target == quit
+		return "Quit Incipit", target == quit
 	}
 	recording := make([]bool, 0)
 	state.Recording = func(on bool) { recording = append(recording, on) }
@@ -243,7 +243,7 @@ func TestRecordingRefusesKeysTheMenuKeeps(t *testing.T) {
 	tester.Key(primary(), ui.KeyQ)
 	tester.Frame()
 	tester.Advance(time.Second)
-	if len(*changes) != 0 || !textContaining(tester, "is kept by “Quit Neverland” in the app menu.") {
+	if len(*changes) != 0 || !textContaining(tester, "is kept by “Quit Incipit” in the app menu.") {
 		t.Fatalf("reserved key: %#v %#v", *changes, tester.Texts())
 	}
 	// The line stays live: another chord is simply tried instead.

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 

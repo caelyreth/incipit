@@ -3,8 +3,8 @@ package window
 import (
 	"errors"
 
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 )
 

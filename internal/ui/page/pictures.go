@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/clipboard"
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/app/clipboard"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )

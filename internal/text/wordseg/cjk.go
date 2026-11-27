@@ -15,7 +15,7 @@ import (
 )
 
 // cjkDictionary is ICU release-78.3's cjdict.txt as tools/dictionary
-// indexes it, in Neverland's format: "NVCJ", the format's version, the
+// indexes it, in Incipit's format: "NVCJ", the format's version, the
 // count of words, their offsets, a cost for each, and the words, sorted.
 // Lookup borrows its embedded bytes; it builds no map on the input loop.
 //

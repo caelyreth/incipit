@@ -1,6 +1,6 @@
 package profile
 
-import "github.com/caelyreth/neverland/internal/editor/vocab"
+import "github.com/caelyreth/incipit/internal/editor/vocab"
 
 // The profile's offer groups (vocab.OfferGroup), which its policies put
 // their commands forward in; the selection's own are vocab's

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/text/wordseg"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/text/wordseg"
 	"github.com/clipperhouse/uax29/v2/sentences"
 )
 

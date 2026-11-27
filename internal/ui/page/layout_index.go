@@ -4,8 +4,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/present"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/present"
 	"github.com/clipperhouse/uax29/v2/graphemes"
 	"github.com/egoist/mygo/ui"
 )

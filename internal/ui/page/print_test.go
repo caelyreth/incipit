@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/manifest"
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/engine"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
-	"github.com/caelyreth/neverland/internal/ui/pdf"
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/app/manifest"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/engine"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/ui/pdf"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -69,7 +69,7 @@ func TestAPagePrintsWhatItShows(t *testing.T) {
 	if _, err := pdf.Write(&out, d, pdf.Options{Title: "The tide"}); err != nil {
 		t.Fatal(err)
 	}
-	if dir := os.Getenv("NEVERLAND_PDF_OUT"); dir != "" {
+	if dir := os.Getenv("INCIPIT_PDF_OUT"); dir != "" {
 		os.WriteFile(dir+"/page.pdf", out.Bytes(), 0o644)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/app/storage"
 	"github.com/egoist/mygo"
 )
 
@@ -22,7 +22,7 @@ func TestNotebookBaseByPlatform(t *testing.T) {
 		t.Fatalf("notebookBase(\"linux\") = %q, %v; want %q", base, err, xdg)
 	}
 	root, err := storage.Root(base, "linux")
-	if want := filepath.Join(xdg, "neverland"); err != nil || root != want {
+	if want := filepath.Join(xdg, "incipit"); err != nil || root != want {
 		t.Fatalf("linux root = %q, %v; want %q", root, err, want)
 	}
 
@@ -31,8 +31,8 @@ func TestNotebookBaseByPlatform(t *testing.T) {
 		if err != nil || base != docs {
 			t.Fatalf("notebookBase(%q) = %q, %v; want %q", goos, base, err, docs)
 		}
-		if root, err := storage.Root(base, goos); err != nil || root != filepath.Join(docs, "Neverland") {
-			t.Fatalf("%s root = %q, %v; want %q", goos, root, err, filepath.Join(docs, "Neverland"))
+		if root, err := storage.Root(base, goos); err != nil || root != filepath.Join(docs, "Incipit") {
+			t.Fatalf("%s root = %q, %v; want %q", goos, root, err, filepath.Join(docs, "Incipit"))
 		}
 	}
 }
@@ -46,9 +46,9 @@ func TestAppFoldersOnLinux(t *testing.T) {
 	config, _ := os.UserConfigDir()
 	cache, _ := os.UserCacheDir()
 	want := map[mygo.PathName]string{
-		mygo.PathUserData: filepath.Join(config, "neverland"),
-		mygo.PathLogs:     filepath.Join(config, "neverland", "logs"),
-		mygo.PathCache:    filepath.Join(cache, "neverland"),
+		mygo.PathUserData: filepath.Join(config, "incipit"),
+		mygo.PathLogs:     filepath.Join(config, "incipit", "logs"),
+		mygo.PathCache:    filepath.Join(cache, "incipit"),
 	}
 	for name := range want {
 		t.Cleanup(func() { mygo.App.SetPath(name, "") })

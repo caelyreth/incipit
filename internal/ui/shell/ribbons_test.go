@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 	"github.com/egoist/mygo/ui"
 )
 

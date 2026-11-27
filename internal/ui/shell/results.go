@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 )
 
 // The library is the field's first source: what its query finds, in

@@ -1,6 +1,6 @@
 package keymap
 
-import "github.com/caelyreth/neverland/internal/app/manifest"
+import "github.com/caelyreth/incipit/internal/app/manifest"
 
 // declared is the product's commands.
 func declared() []Command {

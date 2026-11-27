@@ -15,7 +15,7 @@ package phrases
 import (
 	"strings"
 
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/i18n"
 )
 

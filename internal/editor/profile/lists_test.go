@@ -3,7 +3,7 @@ package profile
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // TestIntoListJoinsAChainOfLists turns the block after two adjacent lists

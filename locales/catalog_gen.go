@@ -889,11 +889,11 @@ func (msgs Messages) ScopeApp() string {
 	return Catalog.Format(msgs.locale, "scopeApp", nil)
 }
 
-// ScopeAppDescription says "Open Neverland's own tools."
+// ScopeAppDescription says "Open Incipit's own tools."
 // in the language the app shows.
 func ScopeAppDescription() string { return In(i18n.Locale()).ScopeAppDescription() }
 
-// ScopeAppDescription says "Open Neverland's own tools."
+// ScopeAppDescription says "Open Incipit's own tools."
 // in the language of msgs.
 func (msgs Messages) ScopeAppDescription() string {
 	return Catalog.Format(msgs.locale, "scopeAppDescription", nil)
@@ -1428,24 +1428,24 @@ func (msgs Messages) Downloading(family string, percent string) string {
 // Interface says "Interface"
 // in the language the app shows.
 //
-// A section of Settings: how Neverland's own windows look and read, apart
+// A section of Settings: how Incipit's own windows look and read, apart
 // from the sheets.
 func Interface() string { return In(i18n.Locale()).Interface() }
 
 // Interface says "Interface"
 // in the language of msgs.
 //
-// A section of Settings: how Neverland's own windows look and read, apart
+// A section of Settings: how Incipit's own windows look and read, apart
 // from the sheets.
 func (msgs Messages) Interface() string {
 	return Catalog.Format(msgs.locale, "interface", nil)
 }
 
-// InterfaceDescription says "The colors, size and language of Neverland's own windows; sheets keep theirs."
+// InterfaceDescription says "The colors, size and language of Incipit's own windows; sheets keep theirs."
 // in the language the app shows.
 func InterfaceDescription() string { return In(i18n.Locale()).InterfaceDescription() }
 
-// InterfaceDescription says "The colors, size and language of Neverland's own windows; sheets keep theirs."
+// InterfaceDescription says "The colors, size and language of Incipit's own windows; sheets keep theirs."
 // in the language of msgs.
 func (msgs Messages) InterfaceDescription() string {
 	return Catalog.Format(msgs.locale, "interfaceDescription", nil)
@@ -1543,25 +1543,25 @@ func (msgs Messages) ThemeSystem() string {
 // in the language the app shows.
 //
 // Settings › Appearance › Interface, macOS only: whether menus are the
-// system's or Neverland's own.
+// system's or Incipit's own.
 func Menus() string { return In(i18n.Locale()).Menus() }
 
 // Menus says "Menus"
 // in the language of msgs.
 //
 // Settings › Appearance › Interface, macOS only: whether menus are the
-// system's or Neverland's own.
+// system's or Incipit's own.
 func (msgs Messages) Menus() string {
 	return Catalog.Format(msgs.locale, "menus", nil)
 }
 
-// MenusDescription says "Native, or Neverland's own, as on Windows and Linux."
+// MenusDescription says "Native, or Incipit's own, as on Windows and Linux."
 // in the language the app shows.
 //
 // Explains the Menus choice.
 func MenusDescription() string { return In(i18n.Locale()).MenusDescription() }
 
-// MenusDescription says "Native, or Neverland's own, as on Windows and Linux."
+// MenusDescription says "Native, or Incipit's own, as on Windows and Linux."
 // in the language of msgs.
 //
 // Explains the Menus choice.
@@ -1583,18 +1583,18 @@ func (msgs Messages) MenusNative() string {
 	return Catalog.Format(msgs.locale, "menusNative", nil)
 }
 
-// MenusNeverland says "Neverland"
+// MenusIncipit says "Incipit"
 // in the language the app shows.
 //
-// The Menus choice that has Neverland draw its own menus. The app's name.
-func MenusNeverland() string { return In(i18n.Locale()).MenusNeverland() }
+// The Menus choice that has Incipit draw its own menus. The app's name.
+func MenusIncipit() string { return In(i18n.Locale()).MenusIncipit() }
 
-// MenusNeverland says "Neverland"
+// MenusIncipit says "Incipit"
 // in the language of msgs.
 //
-// The Menus choice that has Neverland draw its own menus. The app's name.
-func (msgs Messages) MenusNeverland() string {
-	return Catalog.Format(msgs.locale, "menusNeverland", nil)
+// The Menus choice that has Incipit draw its own menus. The app's name.
+func (msgs Messages) MenusIncipit() string {
+	return Catalog.Format(msgs.locale, "menusIncipit", nil)
 }
 
 // UiFontSize says "UI Font Size"
@@ -2413,7 +2413,7 @@ func (msgs Messages) SheetLeftClosed() string {
 	return Catalog.Format(msgs.locale, "sheetLeftClosed", nil)
 }
 
-// SheetLeftClosedDescription says "Neverland quit while opening “{title}”, so it was not opened again this time. Open it when you're ready."
+// SheetLeftClosedDescription says "Incipit quit while opening “{title}”, so it was not opened again this time. Open it when you're ready."
 // in the language the app shows.
 //
 // Under A sheet was left closed; title is the sheet's title.
@@ -2421,7 +2421,7 @@ func SheetLeftClosedDescription(title string) string {
 	return In(i18n.Locale()).SheetLeftClosedDescription(title)
 }
 
-// SheetLeftClosedDescription says "Neverland quit while opening “{title}”, so it was not opened again this time. Open it when you're ready."
+// SheetLeftClosedDescription says "Incipit quit while opening “{title}”, so it was not opened again this time. Open it when you're ready."
 // in the language of msgs.
 //
 // Under A sheet was left closed; title is the sheet's title.
@@ -10103,13 +10103,13 @@ func (msgs Messages) LengthOver(n string) string {
 	return Catalog.Format(msgs.locale, "lengthOver", map[string]any{"n": n})
 }
 
-// ErrorPermission says "Neverland isn't allowed to use the file. Check its permissions."
+// ErrorPermission says "Incipit isn't allowed to use the file. Check its permissions."
 // in the language the app shows.
 //
 // Under a notice: why it failed.
 func ErrorPermission() string { return In(i18n.Locale()).ErrorPermission() }
 
-// ErrorPermission says "Neverland isn't allowed to use the file. Check its permissions."
+// ErrorPermission says "Incipit isn't allowed to use the file. Check its permissions."
 // in the language of msgs.
 //
 // Under a notice: why it failed.
@@ -10159,13 +10159,13 @@ func (msgs Messages) ErrorNotebookClosed() string {
 	return Catalog.Format(msgs.locale, "errorNotebookClosed", nil)
 }
 
-// ErrorNotebookLocked says "The notebook is open in another Neverland window."
+// ErrorNotebookLocked says "The notebook is open in another Incipit window."
 // in the language the app shows.
 //
 // Under a notice: why it failed.
 func ErrorNotebookLocked() string { return In(i18n.Locale()).ErrorNotebookLocked() }
 
-// ErrorNotebookLocked says "The notebook is open in another Neverland window."
+// ErrorNotebookLocked says "The notebook is open in another Incipit window."
 // in the language of msgs.
 //
 // Under a notice: why it failed.
@@ -10173,13 +10173,13 @@ func (msgs Messages) ErrorNotebookLocked() string {
 	return Catalog.Format(msgs.locale, "errorNotebookLocked", nil)
 }
 
-// ErrorMediaFormat says "It isn't a picture Neverland can show."
+// ErrorMediaFormat says "It isn't a picture Incipit can show."
 // in the language the app shows.
 //
 // Under a notice: why a picture could not be added.
 func ErrorMediaFormat() string { return In(i18n.Locale()).ErrorMediaFormat() }
 
-// ErrorMediaFormat says "It isn't a picture Neverland can show."
+// ErrorMediaFormat says "It isn't a picture Incipit can show."
 // in the language of msgs.
 //
 // Under a notice: why a picture could not be added.
@@ -11533,13 +11533,13 @@ func (msgs Messages) MenuSpelling() string {
 	return Catalog.Format(msgs.locale, "menuSpelling", nil)
 }
 
-// OnboardingTitle says "Welcome to Neverland"
+// OnboardingTitle says "Welcome to Incipit"
 // in the language the app shows.
 //
 // The onboarding window's title, shown on first launch.
 func OnboardingTitle() string { return In(i18n.Locale()).OnboardingTitle() }
 
-// OnboardingTitle says "Welcome to Neverland"
+// OnboardingTitle says "Welcome to Incipit"
 // in the language of msgs.
 //
 // The onboarding window's title, shown on first launch.
@@ -11563,18 +11563,18 @@ func (msgs Messages) OnboardingStep(step string, count string) string {
 	return Catalog.Format(msgs.locale, "onboardingStep", map[string]any{"step": step, "count": count})
 }
 
-// OnboardingWelcomeHeadline says "Find my way to Neverland"
+// OnboardingWelcomeHeadline says "Find my way to Incipit"
 // in the language the app shows.
 //
 // Onboarding, cover: under the app's name, a line of the song
-// “Constellation”, which Neverland is named from.
+// “Constellation”, which Incipit is named from.
 func OnboardingWelcomeHeadline() string { return In(i18n.Locale()).OnboardingWelcomeHeadline() }
 
-// OnboardingWelcomeHeadline says "Find my way to Neverland"
+// OnboardingWelcomeHeadline says "Find my way to Incipit"
 // in the language of msgs.
 //
 // Onboarding, cover: under the app's name, a line of the song
-// “Constellation”, which Neverland is named from.
+// “Constellation”, which Incipit is named from.
 func (msgs Messages) OnboardingWelcomeHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingWelcomeHeadline", nil)
 }
@@ -11665,13 +11665,13 @@ func (msgs Messages) OnboardingNotebookNew() string {
 	return Catalog.Format(msgs.locale, "onboardingNotebookNew", nil)
 }
 
-// OnboardingNotebookFound says "A notebook is already here. Neverland will open it as it is."
+// OnboardingNotebookFound says "A notebook is already here. Incipit will open it as it is."
 // in the language the app shows.
 //
 // Onboarding, notebook page: the folder chosen already holds a notebook.
 func OnboardingNotebookFound() string { return In(i18n.Locale()).OnboardingNotebookFound() }
 
-// OnboardingNotebookFound says "A notebook is already here. Neverland will open it as it is."
+// OnboardingNotebookFound says "A notebook is already here. Incipit will open it as it is."
 // in the language of msgs.
 //
 // Onboarding, notebook page: the folder chosen already holds a notebook.
@@ -12313,20 +12313,20 @@ func (msgs Messages) OnboardingMenusNativeCaption() string {
 	return Catalog.Format(msgs.locale, "onboardingMenusNativeCaption", nil)
 }
 
-// OnboardingMenusNeverlandCaption says "Drawn to match the page."
+// OnboardingMenusIncipitCaption says "Drawn to match the page."
 // in the language the app shows.
 //
-// Onboarding: explains Neverland's own menus.
-func OnboardingMenusNeverlandCaption() string {
-	return In(i18n.Locale()).OnboardingMenusNeverlandCaption()
+// Onboarding: explains Incipit's own menus.
+func OnboardingMenusIncipitCaption() string {
+	return In(i18n.Locale()).OnboardingMenusIncipitCaption()
 }
 
-// OnboardingMenusNeverlandCaption says "Drawn to match the page."
+// OnboardingMenusIncipitCaption says "Drawn to match the page."
 // in the language of msgs.
 //
-// Onboarding: explains Neverland's own menus.
-func (msgs Messages) OnboardingMenusNeverlandCaption() string {
-	return Catalog.Format(msgs.locale, "onboardingMenusNeverlandCaption", nil)
+// Onboarding: explains Incipit's own menus.
+func (msgs Messages) OnboardingMenusIncipitCaption() string {
+	return Catalog.Format(msgs.locale, "onboardingMenusIncipitCaption", nil)
 }
 
 // OnboardingDoneHeadline says "Ready to write."
@@ -12387,11 +12387,11 @@ func (msgs Messages) CategoryUpdates() string {
 	return Catalog.Format(msgs.locale, "categoryUpdates", nil)
 }
 
-// CategoryUpdatesDescription says "Keep Neverland current and choose how updates arrive."
+// CategoryUpdatesDescription says "Keep Incipit current and choose how updates arrive."
 // in the language the app shows.
 func CategoryUpdatesDescription() string { return In(i18n.Locale()).CategoryUpdatesDescription() }
 
-// CategoryUpdatesDescription says "Keep Neverland current and choose how updates arrive."
+// CategoryUpdatesDescription says "Keep Incipit current and choose how updates arrive."
 // in the language of msgs.
 func (msgs Messages) CategoryUpdatesDescription() string {
 	return Catalog.Format(msgs.locale, "categoryUpdatesDescription", nil)
@@ -12427,16 +12427,16 @@ func (msgs Messages) UpdatesVersionDescription() string {
 	return Catalog.Format(msgs.locale, "updatesVersionDescription", nil)
 }
 
-// UpdatesAppVersion says "Neverland {version}"
+// UpdatesAppVersion says "Incipit {version}"
 // in the language the app shows.
 //
-// Heading showing Neverland with its version number.
+// Heading showing Incipit with its version number.
 func UpdatesAppVersion(version string) string { return In(i18n.Locale()).UpdatesAppVersion(version) }
 
-// UpdatesAppVersion says "Neverland {version}"
+// UpdatesAppVersion says "Incipit {version}"
 // in the language of msgs.
 //
-// Heading showing Neverland with its version number.
+// Heading showing Incipit with its version number.
 func (msgs Messages) UpdatesAppVersion(version string) string {
 	return Catalog.Format(msgs.locale, "updatesAppVersion", map[string]any{"version": version})
 }
@@ -12467,11 +12467,11 @@ func (msgs Messages) UpdatesChecking() string {
 	return Catalog.Format(msgs.locale, "updatesChecking", nil)
 }
 
-// UpdatesUpToDate says "Neverland is up to date."
+// UpdatesUpToDate says "Incipit is up to date."
 // in the language the app shows.
 func UpdatesUpToDate() string { return In(i18n.Locale()).UpdatesUpToDate() }
 
-// UpdatesUpToDate says "Neverland is up to date."
+// UpdatesUpToDate says "Incipit is up to date."
 // in the language of msgs.
 func (msgs Messages) UpdatesUpToDate() string {
 	return Catalog.Format(msgs.locale, "updatesUpToDate", nil)
@@ -12487,13 +12487,13 @@ func (msgs Messages) UpdatesUpToDateTitle() string {
 	return Catalog.Format(msgs.locale, "updatesUpToDateTitle", nil)
 }
 
-// UpdatesAvailableTitle says "Neverland {version} is Available"
+// UpdatesAvailableTitle says "Incipit {version} is Available"
 // in the language the app shows.
 func UpdatesAvailableTitle(version string) string {
 	return In(i18n.Locale()).UpdatesAvailableTitle(version)
 }
 
-// UpdatesAvailableTitle says "Neverland {version} is Available"
+// UpdatesAvailableTitle says "Incipit {version} is Available"
 // in the language of msgs.
 func (msgs Messages) UpdatesAvailableTitle(version string) string {
 	return Catalog.Format(msgs.locale, "updatesAvailableTitle", map[string]any{"version": version})
@@ -12509,13 +12509,13 @@ func (msgs Messages) UpdatesAvailablePrompt() string {
 	return Catalog.Format(msgs.locale, "updatesAvailablePrompt", nil)
 }
 
-// UpdatesDownloading says "Downloading Neverland {version}… {percent}%"
+// UpdatesDownloading says "Downloading Incipit {version}… {percent}%"
 // in the language the app shows.
 func UpdatesDownloading(version string, percent string) string {
 	return In(i18n.Locale()).UpdatesDownloading(version, percent)
 }
 
-// UpdatesDownloading says "Downloading Neverland {version}… {percent}%"
+// UpdatesDownloading says "Downloading Incipit {version}… {percent}%"
 // in the language of msgs.
 func (msgs Messages) UpdatesDownloading(version string, percent string) string {
 	return Catalog.Format(msgs.locale, "updatesDownloading", map[string]any{"version": version, "percent": percent})
@@ -12543,21 +12543,21 @@ func (msgs Messages) UpdatesInstalling() string {
 	return Catalog.Format(msgs.locale, "updatesInstalling", nil)
 }
 
-// UpdatesReadyTitle says "Neverland {version} is Ready to Install"
+// UpdatesReadyTitle says "Incipit {version} is Ready to Install"
 // in the language the app shows.
 func UpdatesReadyTitle(version string) string { return In(i18n.Locale()).UpdatesReadyTitle(version) }
 
-// UpdatesReadyTitle says "Neverland {version} is Ready to Install"
+// UpdatesReadyTitle says "Incipit {version} is Ready to Install"
 // in the language of msgs.
 func (msgs Messages) UpdatesReadyTitle(version string) string {
 	return Catalog.Format(msgs.locale, "updatesReadyTitle", map[string]any{"version": version})
 }
 
-// UpdatesReadyDescription says "Restart Neverland to finish updating."
+// UpdatesReadyDescription says "Restart Incipit to finish updating."
 // in the language the app shows.
 func UpdatesReadyDescription() string { return In(i18n.Locale()).UpdatesReadyDescription() }
 
-// UpdatesReadyDescription says "Restart Neverland to finish updating."
+// UpdatesReadyDescription says "Restart Incipit to finish updating."
 // in the language of msgs.
 func (msgs Messages) UpdatesReadyDescription() string {
 	return Catalog.Format(msgs.locale, "updatesReadyDescription", nil)
@@ -12757,11 +12757,11 @@ func (msgs Messages) UpdatesPreferencesSection() string {
 	return Catalog.Format(msgs.locale, "updatesPreferencesSection", nil)
 }
 
-// UpdatesPreferencesDescription says "Choose whether Neverland checks and prepares updates automatically."
+// UpdatesPreferencesDescription says "Choose whether Incipit checks and prepares updates automatically."
 // in the language the app shows.
 func UpdatesPreferencesDescription() string { return In(i18n.Locale()).UpdatesPreferencesDescription() }
 
-// UpdatesPreferencesDescription says "Choose whether Neverland checks and prepares updates automatically."
+// UpdatesPreferencesDescription says "Choose whether Incipit checks and prepares updates automatically."
 // in the language of msgs.
 func (msgs Messages) UpdatesPreferencesDescription() string {
 	return Catalog.Format(msgs.locale, "updatesPreferencesDescription", nil)
@@ -12777,13 +12777,13 @@ func (msgs Messages) UpdatesAutomaticChecks() string {
 	return Catalog.Format(msgs.locale, "updatesAutomaticChecks", nil)
 }
 
-// UpdatesAutomaticChecksDescription says "Check daily in the background for new Neverland releases."
+// UpdatesAutomaticChecksDescription says "Check daily in the background for new Incipit releases."
 // in the language the app shows.
 func UpdatesAutomaticChecksDescription() string {
 	return In(i18n.Locale()).UpdatesAutomaticChecksDescription()
 }
 
-// UpdatesAutomaticChecksDescription says "Check daily in the background for new Neverland releases."
+// UpdatesAutomaticChecksDescription says "Check daily in the background for new Incipit releases."
 // in the language of msgs.
 func (msgs Messages) UpdatesAutomaticChecksDescription() string {
 	return Catalog.Format(msgs.locale, "updatesAutomaticChecksDescription", nil)
@@ -12861,23 +12861,23 @@ func (msgs Messages) UpdatesUnavailableDev() string {
 	return Catalog.Format(msgs.locale, "updatesUnavailableDev", nil)
 }
 
-// UpdatesUnavailableTranslocated says "Move Neverland into your Applications folder to enable automatic updates."
+// UpdatesUnavailableTranslocated says "Move Incipit into your Applications folder to enable automatic updates."
 // in the language the app shows.
 func UpdatesUnavailableTranslocated() string {
 	return In(i18n.Locale()).UpdatesUnavailableTranslocated()
 }
 
-// UpdatesUnavailableTranslocated says "Move Neverland into your Applications folder to enable automatic updates."
+// UpdatesUnavailableTranslocated says "Move Incipit into your Applications folder to enable automatic updates."
 // in the language of msgs.
 func (msgs Messages) UpdatesUnavailableTranslocated() string {
 	return Catalog.Format(msgs.locale, "updatesUnavailableTranslocated", nil)
 }
 
-// UpdatesUnavailableReadOnly says "Neverland cannot update from a read-only disk or volume."
+// UpdatesUnavailableReadOnly says "Incipit cannot update from a read-only disk or volume."
 // in the language the app shows.
 func UpdatesUnavailableReadOnly() string { return In(i18n.Locale()).UpdatesUnavailableReadOnly() }
 
-// UpdatesUnavailableReadOnly says "Neverland cannot update from a read-only disk or volume."
+// UpdatesUnavailableReadOnly says "Incipit cannot update from a read-only disk or volume."
 // in the language of msgs.
 func (msgs Messages) UpdatesUnavailableReadOnly() string {
 	return Catalog.Format(msgs.locale, "updatesUnavailableReadOnly", nil)
@@ -13049,11 +13049,11 @@ func (msgs Messages) NotebookChangedTitle() string {
 	return Catalog.Format(msgs.locale, "notebookChangedTitle", nil)
 }
 
-// NotebookChangedDescription says "Relaunch Neverland to open the notebook at the new location."
+// NotebookChangedDescription says "Relaunch Incipit to open the notebook at the new location."
 // in the language the app shows.
 func NotebookChangedDescription() string { return In(i18n.Locale()).NotebookChangedDescription() }
 
-// NotebookChangedDescription says "Relaunch Neverland to open the notebook at the new location."
+// NotebookChangedDescription says "Relaunch Incipit to open the notebook at the new location."
 // in the language of msgs.
 func (msgs Messages) NotebookChangedDescription() string {
 	return Catalog.Format(msgs.locale, "notebookChangedDescription", nil)

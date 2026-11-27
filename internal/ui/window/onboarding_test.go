@@ -7,8 +7,8 @@ import (
 	"runtime"
 	"testing"
 
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/app/storage"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/app/storage"
 	"github.com/egoist/mygo"
 )
 
@@ -35,7 +35,7 @@ func TestLostFromLocationErrorPointsToFolderNotJSON(t *testing.T) {
 }
 
 // TestNotebookRootFirstLaunch offers the default folder, not chosen, until
-// a folder is recorded, and takes NEVERLAND_HOME as chosen.
+// a folder is recorded, and takes INCIPIT_HOME as chosen.
 func TestNotebookRootFirstLaunch(t *testing.T) {
 	userData := t.TempDir()
 	docs := t.TempDir()

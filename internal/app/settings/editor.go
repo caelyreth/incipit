@@ -5,9 +5,9 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/caelyreth/neverland/internal/app/manifest"
-	"github.com/caelyreth/neverland/internal/app/phrases"
-	"github.com/caelyreth/neverland/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/app/manifest"
+	"github.com/caelyreth/incipit/internal/app/phrases"
+	"github.com/caelyreth/incipit/internal/editor/policy"
 )
 
 // The Editor page is the program's catalog: a card per policy, its switch

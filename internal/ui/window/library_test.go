@@ -5,10 +5,10 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/library"
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/internal/app/workspace"
-	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/app/library"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/app/workspace"
+	"github.com/caelyreth/incipit/internal/ui/shell"
 )
 
 func TestMoveSheetUsesItsFinalIndex(t *testing.T) {

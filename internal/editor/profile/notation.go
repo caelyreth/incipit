@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // Spelling is vocab.Spelling, one way to write a mark or a marker.

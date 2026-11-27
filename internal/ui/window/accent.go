@@ -3,8 +3,8 @@ package window
 import (
 	"time"
 
-	"github.com/caelyreth/neverland/internal/ui/shell"
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 )
 
 // Global chrome, field, list view and pills stay on Halo; only each open

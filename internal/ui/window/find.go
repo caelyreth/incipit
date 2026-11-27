@@ -4,12 +4,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/policies/find"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
-	"github.com/caelyreth/neverland/internal/text/query"
-	"github.com/caelyreth/neverland/internal/ui/page"
-	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/policies/find"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/text/query"
+	"github.com/caelyreth/incipit/internal/ui/page"
+	"github.com/caelyreth/incipit/internal/ui/shell"
 )
 
 // findInSheet opens a sheet's find on the page in front: with what the

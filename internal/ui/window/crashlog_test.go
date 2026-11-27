@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// TestTheLogIsKeptInUserData writes the log to neverland.log inside the log
+// TestTheLogIsKeptInUserData writes the log to incipit.log inside the log
 // directory, keeping a log grown too large aside first.
 func TestTheLogIsKeptInUserData(t *testing.T) {
 	dir := t.TempDir()
@@ -17,7 +17,7 @@ func TestTheLogIsKeptInUserData(t *testing.T) {
 	if err := os.MkdirAll(logs, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(logs, "neverland.log"), make([]byte, logLimit+1), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(logs, "incipit.log"), make([]byte, logLimit+1), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
@@ -33,7 +33,7 @@ func TestTheLogIsKeptInUserData(t *testing.T) {
 	if !strings.Contains(string(data), "a line to keep") || len(data) > logLimit {
 		t.Fatalf("log holds %d bytes: %q", len(data), data)
 	}
-	if _, err := os.Stat(filepath.Join(logs, "neverland.previous.log")); err != nil {
+	if _, err := os.Stat(filepath.Join(logs, "incipit.previous.log")); err != nil {
 		t.Fatal("the large log was not kept aside:", err)
 	}
 }

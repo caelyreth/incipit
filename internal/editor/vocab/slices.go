@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // --- slices -----------------------------------------------------------

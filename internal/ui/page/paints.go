@@ -1,8 +1,8 @@
 package page
 
 import (
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/present"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/present"
 	"github.com/egoist/mygo/ui"
 )
 

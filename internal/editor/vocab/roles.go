@@ -3,7 +3,7 @@ package vocab
 import (
 	"reflect"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // Edit is a semantic helper's result: primitive operations applied to a

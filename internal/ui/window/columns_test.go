@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/internal/app/workspace"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/app/workspace"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 	"github.com/egoist/mygo/ui"
 )
 

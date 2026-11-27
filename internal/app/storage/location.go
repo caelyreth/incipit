@@ -10,20 +10,20 @@ import (
 	"path/filepath"
 )
 
-// FolderName is the name of Neverland's own folders on goos: the
+// FolderName is the name of Incipit's own folders on goos: the
 // notebook's inside the base directory (Documents on macOS and Windows, the
 // XDG data folder on Linux), and the app's data, cache and logs folders.
 // Linux names them in lowercase, as its folders are named.
 func FolderName(goos string) string {
 	if goos == "linux" {
-		return "neverland"
+		return "incipit"
 	}
-	return "Neverland"
+	return "Incipit"
 }
 
 // HomeVariable names the environment variable that moves the notebook
 // elsewhere, for development and tests.
-const HomeVariable = "NEVERLAND_HOME"
+const HomeVariable = "INCIPIT_HOME"
 
 // XDGDataHome returns the user's XDG data directory on Linux:
 // XDG_DATA_HOME when set to an absolute path, else ~/.local/share.
@@ -41,7 +41,7 @@ func XDGDataHome() (string, error) {
 	return filepath.Join(home, ".local", "share"), nil
 }
 
-// Root is the folder that holds the notebook: NEVERLAND_HOME when set, or
+// Root is the folder that holds the notebook: INCIPIT_HOME when set, or
 // a folder named FolderName(goos) inside base (the user's Documents on
 // macOS and Windows, or the XDG data folder on Linux).
 func Root(base, goos string) (string, error) {

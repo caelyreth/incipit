@@ -1,8 +1,8 @@
 package policy
 
 import (
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // Stops is a view's stop model: the caret stops the presentation defines,

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 )
 
 func sample(t *testing.T) *doc.Snapshot {

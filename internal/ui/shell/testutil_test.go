@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/text/query"
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/text/query"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 

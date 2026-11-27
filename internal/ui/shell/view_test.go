@@ -135,7 +135,7 @@ func TestTheColumnHeadGoesBackToTheField(t *testing.T) {
 	}
 }
 
-// Neverland's name pressed goes home, as Home does.
+// Incipit's name pressed goes home, as Home does.
 func TestTheWordmarkGoesHome(t *testing.T) {
 	state, _ := libraryState()
 	state.ShowField()
@@ -143,7 +143,7 @@ func TestTheWordmarkGoesHome(t *testing.T) {
 	settle(tester)
 	state.SetFieldQuery("$tag:work plan")
 	settle(tester)
-	if err := tester.Click("Neverland"); err != nil {
+	if err := tester.Click("Incipit"); err != nil {
 		t.Fatal(err)
 	}
 	settle(tester)

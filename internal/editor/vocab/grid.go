@@ -1,6 +1,6 @@
 package vocab
 
-import "github.com/caelyreth/neverland/internal/editor/doc"
+import "github.com/caelyreth/incipit/internal/editor/doc"
 
 // A grid is an object whose first slot holds rows, each row's first slot
 // its cells, every row as long as the others. The vocabulary reads and

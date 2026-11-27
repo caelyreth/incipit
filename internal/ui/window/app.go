@@ -7,18 +7,18 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/internal/ui/onboarding"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/fonts"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/ui/onboarding"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
 
 func Run() error {
-	// Neverland runs once: launched again, it brings the running window
-	// forward. A notebook moved elsewhere (NEVERLAND_HOME) runs apart, as
+	// Incipit runs once: launched again, it brings the running window
+	// forward. A notebook moved elsewhere (INCIPIT_HOME) runs apart, as
 	// the notebook's own lock keeps each to one process.
 	if os.Getenv(storage.HomeVariable) == "" && !mygo.App.RequestSingleInstanceLock() {
 		return nil
@@ -31,7 +31,7 @@ func Run() error {
 		logsDir = filepath.Join(userData, "Logs")
 	}
 	if path := keepLog(logsDir); path != "" {
-		log.Printf("Neverland %s started, logging to %s", mygo.App.Version(), path)
+		log.Printf("Incipit %s started, logging to %s", mygo.App.Version(), path)
 	}
 	root, chosen, locErr := notebookRoot(userData)
 	// The app opens on the notebook once its folder is chosen: at once on
@@ -107,7 +107,7 @@ func appFolders(goos string) {
 }
 
 // notebookRoot is the notebook's folder and whether it has been chosen:
-// NEVERLAND_HOME's, or the one recorded on the first launch; else the
+// INCIPIT_HOME's, or the one recorded on the first launch; else the
 // folder the walkthrough offers, not chosen yet. A corrupt or unreadable
 // location record reports an error so an existing user is not silently
 // dropped into fresh onboarding.
@@ -145,7 +145,7 @@ func lostFromLocationError(defaultFolder string, locErr error) *onboarding.Lost 
 // openChosen opens the notebook recorded in root, or says why it is lost:
 // a folder that holds no notebook is never made one unasked, as one moved,
 // deleted or on a drive not connected would be, and one that will not open
-// keeps the app from opening on nothing. NEVERLAND_HOME's folder is made
+// keeps the app from opening on nothing. INCIPIT_HOME's folder is made
 // as it is named, for development and tests.
 func openChosen(root, userData string) (*AppState, *onboarding.Lost) {
 	if os.Getenv(storage.HomeVariable) == "" && !storage.Holds(root) {
@@ -205,7 +205,7 @@ func (a *AppState) start() {
 	}
 	a.showMain()
 	mygo.App.OnSecondInstance(func([]string, string) { a.showMain() })
-	// On macOS Neverland keeps running with its window closed, as Mac
+	// On macOS Incipit keeps running with its window closed, as Mac
 	// apps do, and opens it again from the Dock; elsewhere closing it
 	// quits.
 	if runtime.GOOS == "darwin" {
@@ -218,7 +218,7 @@ func (a *AppState) start() {
 	}
 }
 
-// notebookBase returns the parent directory holding Neverland's notebook: the
+// notebookBase returns the parent directory holding Incipit's notebook: the
 // XDG data folder on Linux, and the user's Documents directory elsewhere.
 func notebookBase(goos string) (string, error) {
 	if goos == "linux" {
@@ -236,14 +236,14 @@ func (a *AppState) showMain() {
 		return
 	}
 	window := mygo.NewWindow(mygo.WindowOptions{
-		Title:                "Neverland",
+		Title:                "Incipit",
 		Width:                1260,
 		Height:               850,
 		MinWidth:             760,
 		MinHeight:            420,
 		TitleBarStyle:        mygo.TitleBarHidden,
 		TrafficLightPosition: trafficLights(),
-		StateKey:             "neverland.main",
+		StateKey:             "incipit.main",
 		Content:              ui.View(a.View),
 		BackgroundColor:      colorHex(a.Shell.Settings.Semantic().Surface.Background),
 	})

@@ -26,7 +26,7 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 	outDir := t.TempDir()
 
 	linuxDir := filepath.Join(inDir, "dist-linux")
-	macDir := filepath.Join(inDir, "dist-darwin", "Neverland.app")
+	macDir := filepath.Join(inDir, "dist-darwin", "Incipit.app")
 	if err := os.MkdirAll(linuxDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 	manifest := []byte(`{"version":"1.0.0-alpha.1","target":"linux-amd64","channel":"beta"}`)
 	history := []byte(`{"version":"1.0.0-alpha.1"}`)
 
-	if err := os.WriteFile(filepath.Join(linuxDir, "neverland-1.0.0-alpha.1-linux-amd64.tar.zst"), tarZst, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(linuxDir, "incipit-1.0.0-alpha.1-linux-amd64.tar.zst"), tarZst, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(linuxDir, "install.sh"), installSh, 0o644); err != nil {
@@ -60,14 +60,14 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(armDir, "install.sh"), installSh, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(filepath.Dir(macDir), "neverland-1.0.0-alpha.1-universal.dmg"), dmg, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(filepath.Dir(macDir), "incipit-1.0.0-alpha.1-universal.dmg"), dmg, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(macDir, "Info.plist"), []byte("ignored"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(linuxDir, checksumsName), formatChecksums(map[string]string{
-		"neverland-1.0.0-alpha.1-linux-amd64.tar.zst": shaHex(tarZst),
+		"incipit-1.0.0-alpha.1-linux-amd64.tar.zst": shaHex(tarZst),
 		"install.sh": shaHex(installSh),
 	}), 0o644); err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 		t.Fatal(err)
 	}
 	sums := parseChecksums(sumsRaw)
-	for _, want := range []string{"neverland-1.0.0-alpha.1-linux-amd64.tar.zst", "neverland-1.0.0-alpha.1-universal.dmg", "install.sh"} {
+	for _, want := range []string{"incipit-1.0.0-alpha.1-linux-amd64.tar.zst", "incipit-1.0.0-alpha.1-universal.dmg", "install.sh"} {
 		if sums[want] == "" {
 			t.Fatalf("missing %s in merged SHA256SUMS: %s", want, sumsRaw)
 		}
@@ -100,8 +100,8 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 	manifest := []byte(fmt.Sprintf(`{"v":2,"payload":%q,"signatures":[{"kid":"k1","sig":"c2ln"},{"kid":"k2","sig":"c2lnMg=="}]}`, payload))
 
 	for name, data := range map[string][]byte{
-		"neverland-1.0.0-alpha.1-universal.dmg":               dmg,
-		"neverland-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta": delta,
+		"incipit-1.0.0-alpha.1-universal.dmg":               dmg,
+		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta": delta,
 		"history-darwin-universal.json":                         history,
 		"update-darwin-universal.json":                          manifest,
 	} {
@@ -110,8 +110,8 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 		}
 	}
 	if err := os.WriteFile(filepath.Join(dir, checksumsName), formatChecksums(map[string]string{
-		"neverland-1.0.0-alpha.1-universal.dmg":                   "0000000000000000000000000000000000000000000000000000000000000000",
-		"neverland-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta": shaHex(delta),
+		"incipit-1.0.0-alpha.1-universal.dmg":                   "0000000000000000000000000000000000000000000000000000000000000000",
+		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta": shaHex(delta),
 	}), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -142,8 +142,8 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 		Dir:           dir,
 		ExpectedVer:   "1.0.0-alpha.1",
 		R2Endpoint:    r2Srv.URL,
-		R2Bucket:      "neverland-dl",
-		R2Prefix:      "neverland",
+		R2Bucket:      "incipit-dl",
+		R2Prefix:      "incipit",
 		R2Region:      "auto",
 		R2AccessKey:   "testkey",
 		R2SecretKey:   "testsecret",
@@ -159,8 +159,8 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 
 	// Fix checksum and deploy cleanly.
 	if err := os.WriteFile(filepath.Join(dir, checksumsName), formatChecksums(map[string]string{
-		"neverland-1.0.0-alpha.1-universal.dmg":                   shaHex(dmg),
-		"neverland-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta": shaHex(delta),
+		"incipit-1.0.0-alpha.1-universal.dmg":                   shaHex(dmg),
+		"incipit-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta": shaHex(delta),
 	}), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -169,10 +169,10 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 	}
 
 	wantOps := []string{
-		"r2:PUT:/neverland-dl/neverland/neverland-1.0.0-alpha.1-universal.dmg:public, max-age=31536000, immutable",
-		"r2:PUT:/neverland-dl/neverland/neverland-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta:public, max-age=31536000, immutable",
-		"r2:PUT:/neverland-dl/neverland/SHA256SUMS:no-cache",
-		"r2:PUT:/neverland-dl/neverland/beta/history-darwin-universal.json:no-cache",
+		"r2:PUT:/incipit-dl/incipit/incipit-1.0.0-alpha.1-universal.dmg:public, max-age=31536000, immutable",
+		"r2:PUT:/incipit-dl/incipit/incipit-1.0.0-to-1.0.0-alpha.1-darwin-universal.delta:public, max-age=31536000, immutable",
+		"r2:PUT:/incipit-dl/incipit/SHA256SUMS:no-cache",
+		"r2:PUT:/incipit-dl/incipit/beta/history-darwin-universal.json:no-cache",
 		"worker:PUT:/beta/update-darwin-universal.json:Bearer secret-token",
 	}
 	if !slices.Equal(ops, wantOps) {

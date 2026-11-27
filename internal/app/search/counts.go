@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/blevesearch/bleve/v2"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/text/query"
 )
 
 // countFacet names the facet a count runs.

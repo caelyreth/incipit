@@ -5,8 +5,8 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/locales"
 )
 
 // The field's verbs, as the menu bar, their keys and the rows' menus all

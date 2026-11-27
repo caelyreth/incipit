@@ -51,7 +51,7 @@ func main() {
 			log.Fatalf("%s: %v", a.name, err)
 		}
 	}
-	// ICU release-78.3 cjdict.txt, indexed in Neverland's format for the
+	// ICU release-78.3 cjdict.txt, indexed in Incipit's format for the
 	// word segmenter, both pinned (tools/dictionary). go generate names the
 	// toolchain it runs in GOROOT.
 	goCmd := "go"
@@ -74,12 +74,12 @@ func repositoryRoot() (string, error) {
 	}
 	for {
 		data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-		if err == nil && bytes.Contains(data, []byte("module github.com/caelyreth/neverland\n")) {
+		if err == nil && bytes.Contains(data, []byte("module github.com/caelyreth/incipit\n")) {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", errors.New("not in the Neverland repository")
+			return "", errors.New("not in the Incipit repository")
 		}
 		dir = parent
 	}

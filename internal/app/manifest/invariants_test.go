@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/engine"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/store"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/engine"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/store"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // The invariants of §16 the product manifest must keep, checked over
@@ -159,7 +159,7 @@ func checkPublished(t *testing.T, e *engine.Engine, step string) {
 
 func TestRandomTracesKeepTheInvariants(t *testing.T) {
 	seeds := 24
-	if s := os.Getenv("NEVERLAND_SEEDS"); s != "" {
+	if s := os.Getenv("INCIPIT_SEEDS"); s != "" {
 		seeds, _ = strconv.Atoi(s)
 	}
 	length := 160

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/text/wordseg"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/text/wordseg"
 )
 
 func para(text string) *doc.Node { return profile.NewParagraph(doc.TextItem(text, nil)) }

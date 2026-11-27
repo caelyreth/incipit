@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/app/storage"
 )
 
 // openingName is the file in the notebook's folder naming the page whose

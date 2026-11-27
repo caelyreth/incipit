@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/ui/shell"
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 )
 
 // Global shell chrome stays in Halo; each open sheet's editor wears its

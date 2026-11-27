@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -26,22 +26,22 @@ import (
 // the field's rows, and Escape closes an open key, then puts the
 // suggestions away, then lets go of the pill; on the field, it puts the
 // words away, then the conditions, then goes to the desk. Written after ">", what the pill holds names the app's commands.
-// Beside it on the horizon stands Neverland's name, before it.
+// Beside it on the horizon stands Incipit's name, before it.
 
 // horizonSide is how much room, at the reference type size, the field
-// keeps on either side of the pill: for Neverland's name before it, and as
+// keeps on either side of the pill: for Incipit's name before it, and as
 // much after it, so the pill stands in the middle.
 const horizonSide = 140
 
 // horizonView is what stands on the horizon at r: the pill, the ribbons
-// around it as rl lays them out, Neverland's name before it, and the
+// around it as rl lays them out, Incipit's name before it, and the
 // field's live statistics after it.
 func (s *State) horizonView(c *ui.Context, semantic theme.Theme, r stageRect, rl ribbonLayout, w, k float32, animate bool) {
 	gap := 12 * k
-	// Pressed, Neverland's name goes home, as the field lane's Home does.
+	// Pressed, Incipit's name goes home, as the field lane's Home does.
 	mark := ui.ButtonBase(c.Key("wordmark")).Absolute().Top(0).Right(w-r.X+gap).Height(r.H).
 		Translate(0, r.Y).
-		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label("Neverland")
+		AlignItems(ui.Center).FocusRing(false).KeepFocus().Label("Incipit")
 	components.Hint(c, semantic, mark, locales.Home(), s.binding(VerbHome), components.HintAbove)
 	if mark.Clicked() {
 		s.goHome()

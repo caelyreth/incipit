@@ -3,14 +3,14 @@ package window
 import (
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/app/workspace"
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/policies/find"
-	"github.com/caelyreth/neverland/internal/editor/policies/statistics"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/page"
-	"github.com/caelyreth/neverland/internal/ui/shell"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/workspace"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/policies/find"
+	"github.com/caelyreth/incipit/internal/editor/policies/statistics"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/page"
+	"github.com/caelyreth/incipit/internal/ui/shell"
+	"github.com/caelyreth/incipit/locales"
 )
 
 // chromeKey identifies the editor state the footer and formatting toolbar

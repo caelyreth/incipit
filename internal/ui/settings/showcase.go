@@ -6,12 +6,12 @@ import (
 	"math"
 	"time"
 
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/editor/engine"
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/internal/ui/motion"
-	"github.com/caelyreth/neverland/internal/ui/page"
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/editor/engine"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/ui/motion"
+	"github.com/caelyreth/incipit/internal/ui/page"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 

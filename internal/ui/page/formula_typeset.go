@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/caelyreth/untie"
 	"github.com/caelyreth/untie/render"
 	untiesource "github.com/caelyreth/untie/source"

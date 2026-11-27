@@ -1,11 +1,11 @@
 package components
 
 import (
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 
-// Switch is Neverland's controlled settings switch. Its track and thumb use
+// Switch is Incipit's controlled settings switch. Its track and thumb use
 // the source 34x20/14 geometry and the shared normal spring transition.
 type Switch struct {
 	Key      string

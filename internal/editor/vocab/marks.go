@@ -3,7 +3,7 @@ package vocab
 import (
 	"errors"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // The semantic helpers. Each returns an Edit made of primitive

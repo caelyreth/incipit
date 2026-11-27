@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/ui/shell"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )

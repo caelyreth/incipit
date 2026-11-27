@@ -2,15 +2,15 @@ package search
 
 import (
 	"github.com/blevesearch/bleve/v2"
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 
 	"errors"
 	"slices"
 	"sync/atomic"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 )
 
 func entry(key int64, rev uint64, body string, reads *atomic.Int32) Entry {

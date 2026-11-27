@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/caelyreth/neverland/assets"
+	"github.com/caelyreth/incipit/assets"
 	"github.com/egoist/mygo/ui"
 	"github.com/egoist/mygo/ui/shader"
 )

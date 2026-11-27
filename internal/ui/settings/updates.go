@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	appupdater "github.com/caelyreth/neverland/internal/app/updater"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	appupdater "github.com/caelyreth/incipit/internal/app/updater"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )

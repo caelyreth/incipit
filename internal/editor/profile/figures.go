@@ -1,8 +1,8 @@
 package profile
 
 import (
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // A figure shows a picture the notebook keeps, named by its media id, over

@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-const repoModule = "github.com/caelyreth/neverland/"
+const repoModule = "github.com/caelyreth/incipit/"
 
 // TestD14ImportBoundary checks the D14 dependency contract across the repo:
 //   - internal/editor/doc imports nothing internal.

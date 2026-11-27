@@ -3,7 +3,7 @@ package settings
 import (
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/app/keymap"
 )
 
 // Settings text may name an action's key instead of spelling it: a command

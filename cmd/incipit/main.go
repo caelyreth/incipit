@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/caelyreth/neverland/internal/app/manifest"
-	"github.com/caelyreth/neverland/internal/ui/window"
+	"github.com/caelyreth/incipit/internal/app/manifest"
+	"github.com/caelyreth/incipit/internal/ui/window"
 	"github.com/egoist/mygo"
 )
 

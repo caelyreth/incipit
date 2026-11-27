@@ -697,7 +697,7 @@ func (d *document) write(w io.Writer) error {
 	}
 	d.set(1, "<< /Type /Catalog /Pages 2 0 R >>")
 	d.set(2, fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), len(d.pages)))
-	info := d.add(fmt.Sprintf("<< /Title %s /Producer (Neverland) >>", textString(d.title)))
+	info := d.add(fmt.Sprintf("<< /Title %s /Producer (Incipit) >>", textString(d.title)))
 
 	var out bytes.Buffer
 	out.WriteString("%PDF-1.7\n%\xe2\xe3\xcf\xd3\n")
@@ -773,7 +773,7 @@ func (d *document) setFont(font ui.GlyphFont, sub *subFont) {
 // cluster, maps to nothing.
 func toUnicode(sub *subFont) string {
 	var b strings.Builder
-	b.WriteString("/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Neverland-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<01> <ff>\nendcodespacerange\n")
+	b.WriteString("/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Incipit-UCS def\n/CMapType 2 def\n1 begincodespacerange\n<01> <ff>\nendcodespacerange\n")
 	var lines []string
 	for i, t := range sub.texts {
 		if t == "" {

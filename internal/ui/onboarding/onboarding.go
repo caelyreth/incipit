@@ -1,4 +1,4 @@
-// Package onboarding is Neverland's first launch: a short walkthrough, in
+// Package onboarding is Incipit's first launch: a short walkthrough, in
 // a window of its own, that sets up where the notebook lives and the few
 // choices that change how writing feels, each shown by what it does
 // rather than named on a switch. It holds what is chosen until the person
@@ -13,12 +13,12 @@ import (
 	"slices"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/shell"
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/app/fonts"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -33,7 +33,7 @@ type Result struct {
 
 // Platform is what the walkthrough offers where it runs.
 type Platform struct {
-	// Mac offers the choices macOS alone has: its own menus or Neverland's.
+	// Mac offers the choices macOS alone has: its own menus or Incipit's.
 	Mac bool
 }
 

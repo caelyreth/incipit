@@ -1,6 +1,6 @@
 package vocab
 
-import "github.com/caelyreth/neverland/internal/editor/doc"
+import "github.com/caelyreth/incipit/internal/editor/doc"
 
 // Presentation is what a profile tells presentation about its kinds, so
 // presentation names none (§13). A profile that does not implement it is

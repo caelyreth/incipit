@@ -1,7 +1,7 @@
 package table
 
 import (
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 	"github.com/egoist/mygo/ui"
 )
 

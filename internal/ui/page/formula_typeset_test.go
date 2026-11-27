@@ -3,7 +3,7 @@ package page
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 	"github.com/egoist/mygo/ui"
 )
 

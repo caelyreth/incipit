@@ -3,8 +3,8 @@ package window
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
-	"github.com/caelyreth/neverland/internal/ui/settings"
+	"github.com/caelyreth/incipit/internal/app/fonts"
+	"github.com/caelyreth/incipit/internal/ui/settings"
 )
 
 func TestFontStateFamilyResolution(t *testing.T) {

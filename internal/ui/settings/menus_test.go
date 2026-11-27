@@ -4,13 +4,13 @@ import (
 	"runtime"
 	"testing"
 
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/locales"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 
 // TestMenusOnMacOnly offers the system's menus or the app's own in the
-// Interface section on macOS alone, and Neverland pressed asks for the
+// Interface section on macOS alone, and Incipit pressed asks for the
 // app's own.
 func TestMenusOnMacOnly(t *testing.T) {
 	state := New()
@@ -29,7 +29,7 @@ func TestMenusOnMacOnly(t *testing.T) {
 	if _, offered := tester.Find(locales.Menus()); !offered {
 		t.Fatal("Menus missing on macOS")
 	}
-	if err := tester.Click("Neverland"); err != nil {
+	if err := tester.Click("Incipit"); err != nil {
 		t.Fatal(err)
 	}
 	tester.Frame()

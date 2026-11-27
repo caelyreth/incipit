@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// applicationID marks a database as a Neverland notebook ("NVRL"), so the
+// applicationID marks a database as a Incipit notebook ("NVRL"), so the
 // store never adopts, migrates or repairs a file that is someone else's.
 const applicationID = 0x4e56524c
 

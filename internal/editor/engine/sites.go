@@ -3,8 +3,8 @@ package engine
 import (
 	"slices"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/policy"
 )
 
 // sites are the places a rewrite visits: from the records of the first

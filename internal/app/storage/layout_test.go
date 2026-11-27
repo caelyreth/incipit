@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/library"
+	"github.com/caelyreth/incipit/internal/app/library"
 )
 
 func TestLayoutEqualComparesByValue(t *testing.T) {

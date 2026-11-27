@@ -3,7 +3,7 @@ package keymap
 import (
 	"strings"
 
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/locales"
 )
 
 // Keycaps returns the keys a person presses for chord, one cap each, in the

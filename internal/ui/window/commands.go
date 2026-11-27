@@ -1,8 +1,8 @@
 package window
 
 import (
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/ui/shell"
 )
 
 // commandCatalog returns every command the pill can run, grouped by what

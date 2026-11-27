@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 )
 
 // A search's bands cut where the match falls away most, not at counts.

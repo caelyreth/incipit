@@ -4,9 +4,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/app/phrases"
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/phrases"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/locales"
 )
 
 // CommandID is a command's stable identity: how menus, the palette, the

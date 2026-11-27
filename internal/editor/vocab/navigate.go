@@ -3,7 +3,7 @@ package vocab
 import (
 	"slices"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // Text slots are the inline slots of block nodes, which the caret walks in

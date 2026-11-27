@@ -3,7 +3,7 @@ package query
 import (
 	"strings"
 
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/locales"
 )
 
 // The query language is written the same in every language: $tag:work,

@@ -3,10 +3,10 @@ package clipboard
 import (
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/app/html"
-	"github.com/caelyreth/neverland/internal/app/markdown"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/app/html"
+	"github.com/caelyreth/incipit/internal/app/markdown"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // The clipboard formats a paste reads besides Format, as the system names
@@ -30,7 +30,7 @@ type Clip struct {
 }
 
 // Read reads a paste from what the clipboard holds, each representation
-// parsed once: Neverland's slice, else rich HTML, else a table of tabs,
+// parsed once: Incipit's slice, else rich HTML, else a table of tabs,
 // else Markdown (the clipboard's own, else its text), else the text as
 // it is. Local pictures are found only in Markdown text, where accept
 // takes their files; nil finds none.

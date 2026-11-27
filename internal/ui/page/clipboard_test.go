@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/clipboard"
-	"github.com/caelyreth/neverland/internal/app/markdown"
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/app/clipboard"
+	"github.com/caelyreth/incipit/internal/app/markdown"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 	"github.com/egoist/mygo/transfer"
 	"github.com/egoist/mygo/ui"
 )

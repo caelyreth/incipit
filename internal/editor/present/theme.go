@@ -1,6 +1,6 @@
 package present
 
-import "github.com/caelyreth/neverland/internal/editor/vocab"
+import "github.com/caelyreth/incipit/internal/editor/vocab"
 
 // FontRole is a theme font role.
 type FontRole uint8

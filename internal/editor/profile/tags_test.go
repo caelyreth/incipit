@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 func TestTagsAreHashesStartingWords(t *testing.T) {

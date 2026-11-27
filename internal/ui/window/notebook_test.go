@@ -4,9 +4,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/internal/app/workspace"
-	"github.com/caelyreth/neverland/internal/ui/shell"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/internal/app/workspace"
+	"github.com/caelyreth/incipit/internal/ui/shell"
 )
 
 func openNotebookApp(t *testing.T, root string) *AppState {

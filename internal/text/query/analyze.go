@@ -5,7 +5,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/caelyreth/neverland/internal/text/wordseg"
+	"github.com/caelyreth/incipit/internal/text/wordseg"
 	"golang.org/x/text/unicode/norm"
 )
 

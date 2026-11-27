@@ -1,6 +1,6 @@
 package vocab
 
-import "github.com/caelyreth/neverland/internal/editor/doc"
+import "github.com/caelyreth/incipit/internal/editor/doc"
 
 // The selection's own intents, past the primitives: the ladder of what
 // stands around the selection, a line, and the other side of a pair.

@@ -4,9 +4,9 @@ import (
 	"slices"
 	"testing"
 
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -56,7 +56,7 @@ func TestNotebookSectionAndBackupsPopover(t *testing.T) {
 	state := New()
 	state.Animate = false
 	state.Data = appsettings.DefaultState().Data()
-	state.NotebookRoot = "/Users/example/Documents/Neverland"
+	state.NotebookRoot = "/Users/example/Documents/Incipit"
 	state.Backups = []BackupOption{
 		{Path: "/tmp/b1.db", Date: "Nov 26, 2026, 9:00 AM", Size: "42 KB"},
 	}
@@ -93,7 +93,7 @@ func TestNotebookSectionAndBackupsPopover(t *testing.T) {
 		t.Fatalf("restored = %+v, want /tmp/b1.db", restored)
 	}
 
-	state.PendingRoot = "/Users/example/Archive/Neverland"
+	state.PendingRoot = "/Users/example/Archive/Incipit"
 	pendingTester := ui.NewTester(state.cards(appsettings.Appearance), 640, 2000)
 	pendingTester.Frame()
 	if !pendingTester.HasText(state.PendingRoot) || !pendingTester.HasText(locales.NotebookChangedDescription()) {
@@ -105,8 +105,8 @@ func TestNotebookFolderPathInsetsAndBounds(t *testing.T) {
 	state := New()
 	state.Animate = false
 	state.Data = appsettings.DefaultState().Data()
-	longPath := "/Users/example/Documents/Neverland/VeryLongUnbrokenSubfolderNameForLayoutWrappingVerification"
-	state.NotebookRoot = "/Users/example/Documents/Neverland"
+	longPath := "/Users/example/Documents/Incipit/VeryLongUnbrokenSubfolderNameForLayoutWrappingVerification"
+	state.NotebookRoot = "/Users/example/Documents/Incipit"
 	state.PendingRoot = longPath
 
 	renderAt := func(cardWidth float32) *ui.Tester {

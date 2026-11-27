@@ -8,9 +8,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/library"
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/app/library"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 )
 
 // PageKey is a page's identity on disk, kept for the page's life.

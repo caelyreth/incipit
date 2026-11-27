@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/policy"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/policy"
 )
 
 // around is what stood at a place's position before an edit: its first

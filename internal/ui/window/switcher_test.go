@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/app/keymap"
 	"github.com/egoist/mygo/ui"
 )
 

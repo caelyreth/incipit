@@ -5,8 +5,8 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
-	"github.com/caelyreth/neverland/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/app/fonts"
+	"github.com/caelyreth/incipit/internal/app/keymap"
 )
 
 func TestSettingsRoundTrip(t *testing.T) {

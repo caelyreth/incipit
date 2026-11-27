@@ -7,11 +7,11 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/export"
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/ui/shell"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/export"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/ui/shell"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )

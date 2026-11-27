@@ -31,7 +31,7 @@ func TestADrawingWritesAsAPDFOfItsText(t *testing.T) {
 			t.Fatalf("no %q in the PDF", want)
 		}
 	}
-	if dir := os.Getenv("NEVERLAND_PDF_OUT"); dir != "" {
+	if dir := os.Getenv("INCIPIT_PDF_OUT"); dir != "" {
 		os.WriteFile(dir+"/short.pdf", out.Bytes(), 0o644)
 	}
 }
@@ -60,7 +60,7 @@ func TestALongDrawingIsCutBetweenLines(t *testing.T) {
 	if pages, err := Write(&out, d, Options{}); err != nil || pages != len(pagesOf(d, (A4.Height-2*A4.Margin)/scale)) {
 		t.Fatalf("%d pages: %v", pages, err)
 	}
-	if dir := os.Getenv("NEVERLAND_PDF_OUT"); dir != "" {
+	if dir := os.Getenv("INCIPIT_PDF_OUT"); dir != "" {
 		os.WriteFile(dir+"/long.pdf", out.Bytes(), 0o644)
 	}
 }

@@ -4,10 +4,10 @@ import (
 	"runtime"
 	"strconv"
 
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -144,7 +144,7 @@ func (s *State) menusRow(c *ui.Context, semantic theme.Theme) {
 				drawn      bool
 			}{
 				{"native", locales.MenusNative(), false},
-				{"neverland", locales.MenusNeverland(), true},
+				{"incipit", locales.MenusIncipit(), true},
 			}
 			options := make([]components.SegmentOption, 0, len(choices))
 			for _, ch := range choices {

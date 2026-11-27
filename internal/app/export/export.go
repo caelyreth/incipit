@@ -31,8 +31,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/caelyreth/neverland/internal/app/markdown"
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/app/markdown"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // Sheet is one sheet to write: what to name its file, what its front

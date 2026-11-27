@@ -1,11 +1,11 @@
 package components
 
 import (
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 
-// Menus has the window show its popup menus as Neverland does on its
+// Menus has the window show its popup menus as Incipit does on its
 // platform (menuPresentation): the system's on macOS unless drawn is
 // chosen there, elsewhere drawn in flyouts of the window, as macOS's
 // stand: the raised surface over the system's material, letting a little

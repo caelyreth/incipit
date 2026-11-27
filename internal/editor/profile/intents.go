@@ -1,8 +1,8 @@
 package profile
 
 import (
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
 // The product's feature intents: what its commands, menus and controls

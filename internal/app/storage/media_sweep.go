@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/store"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/store"
 )
 
 // A picture is let go only at launch, before any page is open: then no

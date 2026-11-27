@@ -12,7 +12,7 @@ import (
 // the previous one.
 const logLimit = 1 << 20
 
-// keepLog directs application logs and crash reports to neverland.log inside dir
+// keepLog directs application logs and crash reports to incipit.log inside dir
 // (mygo.PathLogs in production) as well as stderr. It returns the log path, or
 // "" if dir is empty or could not be opened.
 func keepLog(dir string) string {
@@ -23,9 +23,9 @@ func keepLog(dir string) string {
 		log.Printf("keeping the log: %v", err)
 		return ""
 	}
-	path := filepath.Join(dir, "neverland.log")
+	path := filepath.Join(dir, "incipit.log")
 	if info, err := os.Stat(path); err == nil && info.Size() > logLimit {
-		_ = os.Rename(path, filepath.Join(dir, "neverland.previous.log"))
+		_ = os.Rename(path, filepath.Join(dir, "incipit.previous.log"))
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {

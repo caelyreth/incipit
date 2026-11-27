@@ -1,8 +1,8 @@
 package table
 
 import (
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/ui/components"
 )
 
 // How a table's controls move: each value a spring in the page's store

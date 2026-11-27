@@ -1,7 +1,7 @@
 package search
 
 import (
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 
 	"math/rand/v2"
 	"strconv"

@@ -3,7 +3,7 @@ package keymap
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/app/phrases"
+	"github.com/caelyreth/incipit/internal/app/phrases"
 )
 
 // Every app command names its label by a message the catalog holds, read

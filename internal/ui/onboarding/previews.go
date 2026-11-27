@@ -1,10 +1,10 @@
 package onboarding
 
 import (
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -81,7 +81,7 @@ func facePreview(c *ui.Context, m metrics, semantic theme.Theme, family string) 
 	})
 }
 
-// menuPreview draws a menu as it would open over a page: the Mac's own, in its material and its blue, or Neverland's, of
+// menuPreview draws a menu as it would open over a page: the Mac's own, in its material and its blue, or Incipit's, of
 // the page's surfaces with a wash of its ink.
 func menuPreview(c *ui.Context, m metrics, semantic theme.Theme, drawn bool) {
 	ui.Box(c).WidthPercent(100).Height(previewHeight * 1.05 * m.k).Background(semantic.Surface.Page).Clip().Children(func() {

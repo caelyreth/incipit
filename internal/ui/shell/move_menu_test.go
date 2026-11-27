@@ -3,7 +3,7 @@ package shell
 import (
 	"testing"
 
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 

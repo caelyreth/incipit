@@ -1,5 +1,5 @@
 // Package html translates HTML clipboard fragments into normalized,
-// schema-valid Neverland slices. Like all converters under internal/app, it
+// schema-valid Incipit slices. Like all converters under internal/app, it
 // produces a vocab.Slice without touching transactions or the engine.
 package html
 
@@ -10,9 +10,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 	xhtml "golang.org/x/net/html"
 )
 

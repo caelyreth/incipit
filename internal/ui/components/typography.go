@@ -4,7 +4,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/caelyreth/neverland/internal/ui/theme"
+	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -65,7 +65,7 @@ func GlyphCenterBaseline(centerY, glyphSize float32) float32 {
 	return centerY + 0.36*glyphSize
 }
 
-// Label applies Neverland's chrome type scale, including its paired line
+// Label applies Incipit's chrome type scale, including its paired line
 // height. Raw MyGo text uses a different default leading.
 func Label(
 	c *ui.Context,

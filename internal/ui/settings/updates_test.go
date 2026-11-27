@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	appupdater "github.com/caelyreth/neverland/internal/app/updater"
-	"github.com/caelyreth/neverland/internal/ui/theme"
-	"github.com/caelyreth/neverland/locales"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	appupdater "github.com/caelyreth/incipit/internal/app/updater"
+	"github.com/caelyreth/incipit/internal/ui/theme"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 )
@@ -64,7 +64,7 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 
 	for _, text := range []string{
 		"Version",
-		"Neverland 0.2.0 is Available",
+		"Incipit 0.2.0 is Available",
 		"Release Notes",
 		"Faster rendering pipeline",
 		"Delta updates with zstd",
@@ -115,7 +115,7 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 	state.Updates.Progress = 0.5
 	state.Updates.Channel = appupdater.ChannelBeta
 	tester.Frame()
-	if !tester.HasText("Downloading Neverland 0.2.0… 50%") {
+	if !tester.HasText("Downloading Incipit 0.2.0… 50%") {
 		t.Fatalf("missing downloading text in %v", tester.Texts())
 	}
 	if err := tester.Click("Cancel"); err != nil {
@@ -126,7 +126,7 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 	state.Updates.Status = appupdater.StatusReady
 	state.Updates.Progress = 1
 	tester.Frame()
-	if !tester.HasText("Neverland 0.2.0 is Ready to Install") {
+	if !tester.HasText("Incipit 0.2.0 is Ready to Install") {
 		t.Fatalf("missing ready text in %v", tester.Texts())
 	}
 	if err := tester.Click("Restart Now"); err != nil {
@@ -136,7 +136,7 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 	// Manual-only release shows Download Manually button opening external source.
 	state.Updates.Status = appupdater.StatusAvailable
 	state.Updates.Available.RequiresManualUpdate = true
-	state.Updates.Available.Sources = []string{"https://downloads.example.com/neverland.dmg"}
+	state.Updates.Available.Sources = []string{"https://downloads.example.com/incipit.dmg"}
 	tester.Frame()
 	if err := tester.Click("Download Manually…"); err != nil {
 		t.Fatalf("click Download Manually: %v", err)

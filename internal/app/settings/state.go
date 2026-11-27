@@ -4,9 +4,9 @@ import (
 	"errors"
 	"maps"
 
-	"github.com/caelyreth/neverland/internal/app/keymap"
-	"github.com/caelyreth/neverland/internal/editor/policy"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/keymap"
+	"github.com/caelyreth/incipit/internal/editor/policy"
+	"github.com/caelyreth/incipit/locales"
 )
 
 var (
@@ -28,7 +28,7 @@ type State struct {
 	Program *policy.Program
 }
 
-// DefaultState matches Neverland's initial settings.
+// DefaultState matches Incipit's initial settings.
 func DefaultState() State {
 	prog := mustCompile(nil)
 	return State{

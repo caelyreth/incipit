@@ -1,11 +1,11 @@
-### Neverland Brand Policy
+### Incipit Brand Policy
 
 Copyright 2026 Yu (Caelyreth)
 
-Neverland (`https://github.com/caelyreth/neverland`) is free software whose
+Incipit (`https://github.com/caelyreth/incipit`) is free software whose
 source code is licensed under [AGPL-3.0](/LICENSE). That license grants broad
 freedoms to run, study, modify, and redistribute the code, but it does not grant
-a license to the Neverland name or visual brand marks. This policy defines how
+a license to the Incipit name or visual brand marks. This policy defines how
 those marks may and may not be used so users are never misled about where a
 release or service comes from.
 
@@ -13,9 +13,9 @@ release or service comes from.
 
 This policy covers:
 
-- The **Neverland** name when used in connection with desktop writing
+- The **Incipit** name when used in connection with desktop writing
   software or related tools and services.
-- The Neverland wordmark, application icon, favicon, and associated visual
+- The Incipit wordmark, application icon, favicon, and associated visual
   assets included in official releases or the repository.
 
 The artwork in [`assets/`](/assets) (the application icon's Icon Composer
@@ -25,22 +25,22 @@ modified version you distribute must replace it with artwork of its own.
 
 #### Permitted Uses
 
-You may use the Neverland name and marks for truthful, non-confusing
+You may use the Incipit name and marks for truthful, non-confusing
 reference without asking permission:
 
-- **Commentary and documentation:** Mentioning Neverland in reviews, articles,
+- **Commentary and documentation:** Mentioning Incipit in reviews, articles,
   tutorials, academic writing, or compatibility notes.
 - **Unmodified redistribution and packaging:** Distributing unmodified official
-  source or binary builds under the Neverland name, provided any third-party
+  source or binary builds under the Incipit name, provided any third-party
   packaging or distribution channel is clearly labeled as unofficial (for
-  example, "Unofficial Neverland package").
+  example, "Unofficial Incipit package").
 - **Forks and derivative works:** You are welcome under AGPL-3.0 to fork and
   modify the codebase. If you distribute a modified version, give your release
   its own distinct product name, application icon, and favicon. You may
-  truthfully state that it is "based on Neverland" or "forked from Neverland"
-  with a link to `https://github.com/caelyreth/neverland`.
+  truthfully state that it is "based on Incipit" or "forked from Incipit"
+  with a link to `https://github.com/caelyreth/incipit`.
 - **Ecosystem integrations:** Plugins, themes, converters, or companion tools
-  may state that they work "for Neverland" or are "compatible with Neverland",
+  may state that they work "for Incipit" or are "compatible with Incipit",
   as long as they do not imply official endorsement or ship under a confusingly
   similar product name.
 
@@ -49,9 +49,9 @@ reference without asking permission:
 Unless you have explicit written permission, you may not:
 
 - Distribute a modified codebase or a separate product/service under the
-  **Neverland** name (alone or combined as "Neverland Pro", "Neverland Cloud",
-  and similar) or using the official Neverland icon or favicon.
-- Use the Neverland name or visual marks in a domain name, app store listing,
+  **Incipit** name (alone or combined as "Incipit Pro", "Incipit Cloud",
+  and similar) or using the official Incipit icon or favicon.
+- Use the Incipit name or visual marks in a domain name, app store listing,
   organization handle, or branding in a way that implies official status,
   authorship, or endorsement.
 - Use the covered marks in commercial advertising or promotional material to
@@ -60,4 +60,4 @@ Unless you have explicit written permission, you may not:
 #### Questions and Permission
 
 For brand permissions, press inquiries, or questions about this policy, contact
-`neverland@elm.fm`.
+`incipit@elm.fm`.

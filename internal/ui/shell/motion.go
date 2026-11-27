@@ -5,7 +5,7 @@ import (
 
 	"github.com/egoist/mygo/ui"
 
-	"github.com/caelyreth/neverland/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/components"
 )
 
 // The library answers at the speed of a click: the field is something

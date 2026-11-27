@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
 	"github.com/egoist/mygo/ui"
 )
 

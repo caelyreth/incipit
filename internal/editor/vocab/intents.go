@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // IntentKind is the kind of an intent. The primitives below are the

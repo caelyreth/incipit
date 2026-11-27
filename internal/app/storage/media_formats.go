@@ -1,4 +1,4 @@
-// Package media describes the image formats accepted and stored by Neverland.
+// Package media describes the image formats accepted and stored by Incipit.
 package storage
 
 import (

@@ -4,10 +4,10 @@ import (
 	"math"
 	"strings"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
+	"github.com/caelyreth/incipit/internal/app/fonts"
 )
 
-// ThemeChoice selects one of Neverland's coherent built-in palettes.
+// ThemeChoice selects one of Incipit's coherent built-in palettes.
 type ThemeChoice uint8
 
 // System follows the system's appearance, a fixed pair: Starfield while

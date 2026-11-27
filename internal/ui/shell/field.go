@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/text/query"
-	"github.com/caelyreth/neverland/internal/ui/components"
-	"github.com/caelyreth/neverland/internal/ui/motion"
+	"github.com/caelyreth/incipit/internal/text/query"
+	"github.com/caelyreth/incipit/internal/ui/components"
+	"github.com/caelyreth/incipit/internal/ui/motion"
 	"github.com/egoist/mygo/ui"
 )
 

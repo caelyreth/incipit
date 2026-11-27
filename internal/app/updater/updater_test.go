@@ -163,7 +163,7 @@ func TestInteractiveCheckDownloadInstallAndRestart(t *testing.T) {
 			return "## Highlights\n- Faster rendering"
 		},
 		Date:    now,
-		Sources: []string{"https://r2.example.com/neverland-1.1.0-darwin-arm64.tar.zst"},
+		Sources: []string{"https://r2.example.com/incipit-1.1.0-darwin-arm64.tar.zst"},
 		Install: func(ctx context.Context, progress func(int64, int64)) error {
 			progress(25, 100)
 			progress(60, 100)
@@ -377,7 +377,7 @@ func TestManualOnlyAndUnavailableBuilds(t *testing.T) {
 			Version:              "2.0.0",
 			Channel:              ChannelStable,
 			RequiresManualUpdate: true,
-			Sources:              []string{"https://r2.example.com/neverland.dmg"},
+			Sources:              []string{"https://r2.example.com/incipit.dmg"},
 			Install:              func(ctx context.Context, progress func(int64, int64)) error { return nil },
 		}, nil
 	}

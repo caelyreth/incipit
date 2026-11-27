@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/doc"
 )
 
 // Node kinds. Values are persisted in notebook storage and must stay invariant.

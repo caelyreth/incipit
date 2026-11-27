@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/caelyreth/neverland/internal/text/query"
+	"github.com/caelyreth/incipit/internal/text/query"
 )
 
 func TestCountsAreWhatEachValueWouldFind(t *testing.T) {

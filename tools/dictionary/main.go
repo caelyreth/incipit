@@ -1,7 +1,7 @@
 // Command dictionary writes internal/text/wordseg/cjk_dictionary.bin, the word
 // segmenter's Chinese and Japanese dictionary, from ICU's own word list:
 // it downloads cjdict.txt at the ICU release pinned below, verifies it,
-// and indexes it in Neverland's format, which it verifies too, so that
+// and indexes it in Incipit's format, which it verifies too, so that
 // every build holds the same bytes. A dictionary already written and
 // verified is kept. Run it from the repository's root, as go tool
 // fetch does:

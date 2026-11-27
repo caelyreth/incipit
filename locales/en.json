@@ -225,7 +225,7 @@
   "@scopeApp": {
     "description": "A group of keyboard shortcuts: the app's own tools."
   },
-  "scopeAppDescription": "Open Neverland's own tools.",
+  "scopeAppDescription": "Open Incipit's own tools.",
   "typeface": "Typeface",
   "@typeface": {
     "description": "A section of Settings: the fonts the prose is set in."
@@ -362,9 +362,9 @@
   },
   "interface": "Interface",
   "@interface": {
-    "description": "A section of Settings: how Neverland's own windows look and read, apart from the sheets."
+    "description": "A section of Settings: how Incipit's own windows look and read, apart from the sheets."
   },
-  "interfaceDescription": "The colors, size and language of Neverland's own windows; sheets keep theirs.",
+  "interfaceDescription": "The colors, size and language of Incipit's own windows; sheets keep theirs.",
   "interfaceKeywords": "Theme Colors Starfield Daybreak Dark Light UI Font Size Language Translation Locale",
   "@interfaceKeywords": {
     "description": "Words Settings' search finds the Interface section by, beside its title and description: add the language's own, and keep these."
@@ -391,9 +391,9 @@
   },
   "menus": "Menus",
   "@menus": {
-    "description": "Settings › Appearance › Interface, macOS only: whether menus are the system's or Neverland's own."
+    "description": "Settings › Appearance › Interface, macOS only: whether menus are the system's or Incipit's own."
   },
-  "menusDescription": "Native, or Neverland's own, as on Windows and Linux.",
+  "menusDescription": "Native, or Incipit's own, as on Windows and Linux.",
   "@menusDescription": {
     "description": "Explains the Menus choice."
   },
@@ -401,9 +401,9 @@
   "@menusNative": {
     "description": "The Menus choice that shows menus as macOS draws them; the default."
   },
-  "menusNeverland": "Neverland",
-  "@menusNeverland": {
-    "description": "The Menus choice that has Neverland draw its own menus. The app's name."
+  "menusIncipit": "Incipit",
+  "@menusIncipit": {
+    "description": "The Menus choice that has Incipit draw its own menus. The app's name."
   },
   "uiFontSize": "UI Font Size",
   "@uiFontSize": {
@@ -629,7 +629,7 @@
   "@sheetLeftClosed": {
     "description": "A notice's title at launch, after the app quit while opening a sheet."
   },
-  "sheetLeftClosedDescription": "Neverland quit while opening “{title}”, so it was not opened again this time. Open it when you're ready.",
+  "sheetLeftClosedDescription": "Incipit quit while opening “{title}”, so it was not opened again this time. Open it when you're ready.",
   "@sheetLeftClosedDescription": {
     "description": "Under A sheet was left closed; title is the sheet's title."
   },
@@ -2778,7 +2778,7 @@
   "@lengthOver": {
     "description": "A step of the list sorted by length."
   },
-  "errorPermission": "Neverland isn't allowed to use the file. Check its permissions.",
+  "errorPermission": "Incipit isn't allowed to use the file. Check its permissions.",
   "@errorPermission": {
     "description": "Under a notice: why it failed."
   },
@@ -2794,11 +2794,11 @@
   "@errorNotebookClosed": {
     "description": "Under a notice: why it failed."
   },
-  "errorNotebookLocked": "The notebook is open in another Neverland window.",
+  "errorNotebookLocked": "The notebook is open in another Incipit window.",
   "@errorNotebookLocked": {
     "description": "Under a notice: why it failed."
   },
-  "errorMediaFormat": "It isn't a picture Neverland can show.",
+  "errorMediaFormat": "It isn't a picture Incipit can show.",
   "@errorMediaFormat": {
     "description": "Under a notice: why a picture could not be added."
   },
@@ -3170,7 +3170,7 @@
   "@menuSpelling": {
     "description": "A submenu of Edit in the menu bar, as macOS apps have."
   },
-  "onboardingTitle": "Welcome to Neverland",
+  "onboardingTitle": "Welcome to Incipit",
   "@onboardingTitle": {
     "description": "The onboarding window's title, shown on first launch."
   },
@@ -3178,9 +3178,9 @@
   "@onboardingStep": {
     "description": "Onboarding: which page of the walkthrough is shown, as \"2 of 5\"."
   },
-  "onboardingWelcomeHeadline": "Find my way to Neverland",
+  "onboardingWelcomeHeadline": "Find my way to Incipit",
   "@onboardingWelcomeHeadline": {
-    "description": "Onboarding, cover: under the app's name, a line of the song “Constellation”, which Neverland is named from."
+    "description": "Onboarding, cover: under the app's name, a line of the song “Constellation”, which Incipit is named from."
   },
   "onboardingWelcomeSong": "“Constellation”",
   "@onboardingWelcomeSong": {
@@ -3206,7 +3206,7 @@
   "@onboardingNotebookNew": {
     "description": "Onboarding, notebook page: the folder chosen holds no notebook yet."
   },
-  "onboardingNotebookFound": "A notebook is already here. Neverland will open it as it is.",
+  "onboardingNotebookFound": "A notebook is already here. Incipit will open it as it is.",
   "@onboardingNotebookFound": {
     "description": "Onboarding, notebook page: the folder chosen already holds a notebook."
   },
@@ -3388,9 +3388,9 @@
   "@onboardingMenusNativeCaption": {
     "description": "Onboarding: explains the Native menus."
   },
-  "onboardingMenusNeverlandCaption": "Drawn to match the page.",
-  "@onboardingMenusNeverlandCaption": {
-    "description": "Onboarding: explains Neverland's own menus."
+  "onboardingMenusIncipitCaption": "Drawn to match the page.",
+  "@onboardingMenusIncipitCaption": {
+    "description": "Onboarding: explains Incipit's own menus."
   },
   "onboardingDoneHeadline": "Ready to write.",
   "@onboardingDoneHeadline": {
@@ -3408,28 +3408,28 @@
   "@categoryUpdates": {
     "description": "A category of Settings: software updates."
   },
-  "categoryUpdatesDescription": "Keep Neverland current and choose how updates arrive.",
+  "categoryUpdatesDescription": "Keep Incipit current and choose how updates arrive.",
   "updatesKeywords": "Updates Upgrade Check Download Install Automatic Channel Stable Beta Release Notes Restart Version Refresh",
   "updatesVersionSection": "Version",
   "updatesVersionDescription": "Current build status, release notes, and ready-to-install updates.",
-  "updatesAppVersion": "Neverland {version}",
+  "updatesAppVersion": "Incipit {version}",
   "@updatesAppVersion": {
-    "description": "Heading showing Neverland with its version number."
+    "description": "Heading showing Incipit with its version number."
   },
   "updatesCurrentVersion": "Version {version}",
   "@updatesCurrentVersion": {
     "description": "Subtitle showing the installed version."
   },
   "updatesChecking": "Checking for updates…",
-  "updatesUpToDate": "Neverland is up to date.",
+  "updatesUpToDate": "Incipit is up to date.",
   "updatesUpToDateTitle": "Up to Date",
-  "updatesAvailableTitle": "Neverland {version} is Available",
+  "updatesAvailableTitle": "Incipit {version} is Available",
   "updatesAvailablePrompt": "Ready to download and install.",
-  "updatesDownloading": "Downloading Neverland {version}… {percent}%",
+  "updatesDownloading": "Downloading Incipit {version}… {percent}%",
   "updatesDownloadProgress": "{done} of {total}",
   "updatesInstalling": "Verifying signature and preparing update…",
-  "updatesReadyTitle": "Neverland {version} is Ready to Install",
-  "updatesReadyDescription": "Restart Neverland to finish updating.",
+  "updatesReadyTitle": "Incipit {version} is Ready to Install",
+  "updatesReadyDescription": "Restart Incipit to finish updating.",
   "updatesErrorTitle": "Update Failed",
   "updatesCheckErrorTitle": "Couldn’t Check for Updates",
   "updatesInstallErrorTitle": "Couldn’t Install Update",
@@ -3449,9 +3449,9 @@
   "updatesReleaseNotes": "Release Notes",
   "updatesManualRequired": "This release requires a newer system version or manual installer.",
   "updatesPreferencesSection": "Preferences",
-  "updatesPreferencesDescription": "Choose whether Neverland checks and prepares updates automatically.",
+  "updatesPreferencesDescription": "Choose whether Incipit checks and prepares updates automatically.",
   "updatesAutomaticChecks": "Check automatically",
-  "updatesAutomaticChecksDescription": "Check daily in the background for new Neverland releases.",
+  "updatesAutomaticChecksDescription": "Check daily in the background for new Incipit releases.",
   "updatesAutomaticDownloads": "Download automatically",
   "updatesAutomaticDownloadsDescription": "Verify and prepare new updates quietly so they are ready on restart.",
   "updatesChannel": "Release channel",
@@ -3459,8 +3459,8 @@
   "updatesChannelStable": "Stable",
   "updatesChannelBeta": "Beta",
   "updatesUnavailableDev": "Self-update is turned off in development builds.",
-  "updatesUnavailableTranslocated": "Move Neverland into your Applications folder to enable automatic updates.",
-  "updatesUnavailableReadOnly": "Neverland cannot update from a read-only disk or volume.",
+  "updatesUnavailableTranslocated": "Move Incipit into your Applications folder to enable automatic updates.",
+  "updatesUnavailableReadOnly": "Incipit cannot update from a read-only disk or volume.",
   "updatesUnavailableUnconfigured": "Update feed is not configured for this build.",
   "updatesUnavailablePackage": "Updates for this installation are managed outside the app.",
   "updateInstallFailed": "Previous update failed to replace the app",
@@ -3477,7 +3477,7 @@
   "notebookBackupsCount": "{count, plural, one {# verified backup kept locally.} other {# verified backups kept locally.}}",
   "notebookBackupsNone": "No automatic backups yet.",
   "notebookChangedTitle": "Notebook folder updated",
-  "notebookChangedDescription": "Relaunch Neverland to open the notebook at the new location.",
+  "notebookChangedDescription": "Relaunch Incipit to open the notebook at the new location.",
   "unsavedOnQuitTitle": "Couldn’t save your notebook",
   "unsavedOnQuitMessage": "Pending edits could not be written ({reason}). Quitting now will discard them.",
   "keepOpen": "Keep Open",

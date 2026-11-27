@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/caelyreth/neverland/internal/app/fonts"
-	appsettings "github.com/caelyreth/neverland/internal/app/settings"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/fonts"
+	appsettings "github.com/caelyreth/incipit/internal/app/settings"
+	"github.com/caelyreth/incipit/locales"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -31,7 +31,7 @@ type walkthrough struct {
 
 func newWalkthrough(t *testing.T, mac bool, still bool) *walkthrough {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), "Neverland")
+	root := filepath.Join(t.TempDir(), "Incipit")
 	w := &walkthrough{holds: map[string]bool{}, elsewhere: filepath.Join(filepath.Dir(root), "Elsewhere")}
 	w.State = New(root, Platform{Mac: mac}, Host{
 		Holds:        func(root string) bool { return w.holds[root] },
@@ -57,9 +57,9 @@ func (w *walkthrough) click(t *testing.T, label string) {
 	w.tester.Advance(3 * time.Second)
 }
 
-// shoot keeps the window's picture in NEVERLAND_SHOTS, when set, to look at.
+// shoot keeps the window's picture in INCIPIT_SHOTS, when set, to look at.
 func (w *walkthrough) shoot(t *testing.T, name string) {
-	dir := os.Getenv("NEVERLAND_SHOTS")
+	dir := os.Getenv("INCIPIT_SHOTS")
 	if dir == "" {
 		return
 	}
@@ -106,7 +106,7 @@ func TestWalkthrough(t *testing.T) {
 	if w.at != pageMac {
 		t.Fatalf("on the Mac, Look went on to %s", w.at.name())
 	}
-	w.click(t, locales.MenusNeverland())
+	w.click(t, locales.MenusIncipit())
 	w.shoot(t, "4-mac")
 	w.click(t, locales.OnboardingContinue())
 	w.shoot(t, "5-done")

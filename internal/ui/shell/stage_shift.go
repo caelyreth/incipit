@@ -1,6 +1,6 @@
 package shell
 
-import "github.com/caelyreth/neverland/internal/ui/components"
+import "github.com/caelyreth/incipit/internal/ui/components"
 
 // A query changing moves the field from what it drew to its new layout,
 // all of it on one value going from 0 to 1. What stays goes from where it

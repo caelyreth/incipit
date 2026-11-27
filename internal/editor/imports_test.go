@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-const module = "github.com/caelyreth/neverland/"
+const module = "github.com/caelyreth/incipit/"
 
 // allowed is §2.1's dependency table: what each editor module may import
 // from the editor. Policies depend on vocab and policy, never on each

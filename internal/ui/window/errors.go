@@ -6,10 +6,10 @@ import (
 	"io/fs"
 	"syscall"
 
-	"github.com/caelyreth/neverland/internal/app/export"
-	"github.com/caelyreth/neverland/internal/app/library"
-	"github.com/caelyreth/neverland/internal/app/storage"
-	"github.com/caelyreth/neverland/locales"
+	"github.com/caelyreth/incipit/internal/app/export"
+	"github.com/caelyreth/incipit/internal/app/library"
+	"github.com/caelyreth/incipit/internal/app/storage"
+	"github.com/caelyreth/incipit/locales"
 )
 
 // failures are the failures the app has words for, the first that err is

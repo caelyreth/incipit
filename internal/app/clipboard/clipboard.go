@@ -1,4 +1,4 @@
-// Package clipboard carries Neverland slices across page instances as a
+// Package clipboard carries Incipit slices across page instances as a
 // versioned wire value. It is a serialization boundary, not a second
 // document model: the slice remains vocab.Slice.
 package clipboard
@@ -8,15 +8,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/caelyreth/neverland/internal/editor/doc"
-	"github.com/caelyreth/neverland/internal/editor/profile"
-	"github.com/caelyreth/neverland/internal/editor/store"
-	"github.com/caelyreth/neverland/internal/editor/vocab"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
+	"github.com/caelyreth/incipit/internal/editor/store"
+	"github.com/caelyreth/incipit/internal/editor/vocab"
 )
 
-// Format is the clipboard representation of a Neverland slice. Plain text
+// Format is the clipboard representation of a Incipit slice. Plain text
 // remains the fallback for every other application.
-const Format = "application/x-neverland-slice+json"
+const Format = "application/x-incipit-slice+json"
 
 // MaxBytes bounds a slice read from the clipboard before it is decoded.
 const MaxBytes = 4 << 20
