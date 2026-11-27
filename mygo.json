@@ -23,6 +23,9 @@
     "feedUrl": "https://incipit.updates.elm.fm",
     "url": "https://incipit.data.elm.fm",
     "artifactsUrl": "https://incipit.data.elm.fm/releases/v{version}",
+    "mirrors": [
+      "https://github.com/caelyreth/incipit/releases/download/v{version}"
+    ],
     "changelog": "changelogs"
   }
 }
