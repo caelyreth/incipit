@@ -7,8 +7,22 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: published release tag to deploy (e.g. v1.0.0-alpha.1)
-        required: true
+        description: published release tag to deploy (leave blank to run prune only)
+        required: false
+        default: ""
+      keep_release:
+        description: number of newest stable releases to keep on R2
+        required: false
+        default: "5"
+      keep_prerelease:
+        description: number of newest prereleases to keep on R2
+        required: false
+        default: "4"
+      prune_dry_run:
+        description: log R2 prune plan without deleting objects
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -21,6 +35,15 @@ jobs:
   deploy:
     name: deploy release to r2 and worker
     runs-on: ubuntu-latest
+    env:
+      R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      R2_PREFIX: ${{ vars.R2_PREFIX || '' }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_KV_NAMESPACE_ID: ${{ secrets.CLOUDFLARE_KV_NAMESPACE_ID || vars.CLOUDFLARE_KV_NAMESPACE_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -31,6 +54,7 @@ jobs:
           go-version-file: go.mod
 
       - name: download published release assets
+        if: github.event_name == 'release' || inputs.tag != ''
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -45,14 +69,19 @@ jobs:
           gh release download "$tag" --dir release-assets
 
       - name: verify checksums and deploy to r2 and manifest kv
+        if: github.event_name == 'release' || inputs.tag != ''
         shell: bash
-        env:
-          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
-          R2_PREFIX: ${{ vars.R2_PREFIX || '' }}
-          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_KV_NAMESPACE_ID: ${{ secrets.CLOUDFLARE_KV_NAMESPACE_ID || vars.CLOUDFLARE_KV_NAMESPACE_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: go tool release deploy -dir release-assets -version "$DEPLOY_TAG" -require-kv
+
+      - name: prune superseded r2 releases
+        shell: bash
+        run: |
+          args=(
+            -require-kv
+            -keep-release "${{ inputs.keep_release || '5' }}"
+            -keep-prerelease "${{ inputs.keep_prerelease || '4' }}"
+          )
+          if [ "${{ inputs.prune_dry_run }}" = "true" ]; then
+            args+=(-dry-run)
+          fi
+          go tool release prune "${args[@]}"

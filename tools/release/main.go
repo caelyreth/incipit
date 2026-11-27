@@ -1,10 +1,12 @@
-// Command release prepares multi-platform draft release bundles and deploys
-// published GitHub releases cleanly to Cloudflare R2 and the manifest edge server.
+// Command release prepares multi-platform draft release bundles, deploys
+// published GitHub releases to Cloudflare R2 and Workers KV, and prunes
+// superseded version directories from R2 while keeping fallback/active builds intact.
 //
 // Usage:
 //
 //	go tool release prepare-draft -in <artifacts-dir> -out <stage-dir>
-//	go tool release deploy -dir <assets-dir> [-version <tag>] [-dry-run]
+//	go tool release deploy -dir <assets-dir> [-version <tag>] [-dry-run] [-require-kv]
+//	go tool release prune [-keep-release 5] [-keep-prerelease 4] [-dry-run] [-require-kv]
 package main
 
 import (
@@ -13,6 +15,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,18 +29,23 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
 
-const checksumsName = "SHA256SUMS"
+const (
+	checksumsName           = "SHA256SUMS"
+	defaultCloudflareAPIBase = "https://api.cloudflare.com/client/v4"
+	emptyPayloadSHA256      = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+)
 
 var checksumLine = regexp.MustCompile(`^([0-9a-fA-F]{64}) [ *](.+)$`)
 
 func main() {
 	log.SetFlags(0)
 	if len(os.Args) < 2 {
-		log.Fatal("usage: release <prepare-draft|deploy> [flags]")
+		log.Fatal("usage: release <prepare-draft|deploy|prune> [flags]")
 	}
 	var err error
 	switch os.Args[1] {
@@ -45,8 +53,10 @@ func main() {
 		err = runPrepareDraft(os.Args[2:])
 	case "deploy":
 		err = runDeploy(os.Args[2:])
+	case "prune":
+		err = runPrune(os.Args[2:])
 	default:
-		err = fmt.Errorf("unknown subcommand %q (want prepare-draft or deploy)", os.Args[1])
+		err = fmt.Errorf("unknown subcommand %q (want prepare-draft, deploy, or prune)", os.Args[1])
 	}
 	if err != nil {
 		log.Fatal(err)
@@ -221,23 +231,10 @@ type manifestMeta struct {
 	} `json:"artifact"`
 }
 
-func runDeploy(args []string) error {
-	flags := flag.NewFlagSet("deploy", flag.ContinueOnError)
-	dir := flags.String("dir", "", "directory of downloaded GitHub release assets")
-	version := flags.String("version", "", "expected release version or tag (leading v optional)")
-	dryRun := flags.Bool("dry-run", false, "verify checksums and print upload plan without performing network calls")
-	requireKV := flags.Bool("require-kv", false, "require Cloudflare Workers KV credentials instead of falling back to R2")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	if *dir == "" {
-		return errors.New("deploy requires -dir")
-	}
-	cfg := deployConfig{
-		Dir:             *dir,
-		ExpectedVer:     strings.TrimPrefix(strings.TrimSpace(*version), "v"),
-		DryRun:          *dryRun,
-		RequireKV:       *requireKV,
+func loadCloudConfig(dryRun, requireKV bool) deployConfig {
+	return deployConfig{
+		DryRun:          dryRun,
+		RequireKV:       requireKV,
 		R2Endpoint:      strings.TrimSpace(os.Getenv("R2_ENDPOINT")),
 		R2Bucket:        strings.TrimSpace(os.Getenv("R2_BUCKET")),
 		R2Prefix:        strings.Trim(strings.TrimSpace(os.Getenv("R2_PREFIX")), "/"),
@@ -251,7 +248,50 @@ func runDeploy(args []string) error {
 		HTTPClient:      &http.Client{Timeout: 10 * time.Minute},
 		Now:             time.Now,
 	}
+}
+
+func validateKVConfig(cfg deployConfig) (bool, error) {
+	hasAnyKV := cfg.CFAccountID != "" || cfg.CFKVNamespaceID != "" || cfg.CFAPIToken != ""
+	if cfg.RequireKV || hasAnyKV {
+		if cfg.CFAccountID == "" || cfg.CFKVNamespaceID == "" || cfg.CFAPIToken == "" {
+			return false, errors.New("Cloudflare KV requires CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_KV_NAMESPACE_ID, and CLOUDFLARE_API_TOKEN")
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func runDeploy(args []string) error {
+	flags := flag.NewFlagSet("deploy", flag.ContinueOnError)
+	dir := flags.String("dir", "", "directory of downloaded GitHub release assets")
+	version := flags.String("version", "", "expected release version or tag (leading v optional)")
+	dryRun := flags.Bool("dry-run", false, "verify checksums and print upload plan without performing network calls")
+	requireKV := flags.Bool("require-kv", false, "require Cloudflare Workers KV credentials instead of falling back to R2")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *dir == "" {
+		return errors.New("deploy requires -dir")
+	}
+	cfg := loadCloudConfig(*dryRun, *requireKV)
+	cfg.Dir = *dir
+	cfg.ExpectedVer = strings.TrimPrefix(strings.TrimSpace(*version), "v")
 	return deploy(cfg, os.Stdout)
+}
+
+func runPrune(args []string) error {
+	flags := flag.NewFlagSet("prune", flag.ContinueOnError)
+	dryRun := flags.Bool("dry-run", false, "print keep/delete plan without removing objects from R2")
+	requireKV := flags.Bool("require-kv", false, "require Cloudflare Workers KV credentials to inspect live and locked manifests")
+	keepRelease := flags.Int("keep-release", 5, "number of newest stable releases to retain on R2")
+	keepPrerelease := flags.Int("keep-prerelease", 4, "number of newest prereleases to retain on R2")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	cfg := loadCloudConfig(*dryRun, *requireKV)
+	cfg.KeepRelease = *keepRelease
+	cfg.KeepPrerelease = *keepPrerelease
+	return prune(cfg, os.Stdout)
 }
 
 type deployConfig struct {
@@ -259,6 +299,8 @@ type deployConfig struct {
 	ExpectedVer     string
 	DryRun          bool
 	RequireKV       bool
+	KeepRelease     int
+	KeepPrerelease  int
 	R2Endpoint      string
 	R2Bucket        string
 	R2Prefix        string
@@ -272,8 +314,6 @@ type deployConfig struct {
 	HTTPClient      *http.Client
 	Now             func() time.Time
 }
-
-const defaultCloudflareAPIBase = "https://api.cloudflare.com/client/v4"
 
 func deploy(cfg deployConfig, out io.Writer) error {
 	if cfg.HTTPClient == nil {
@@ -364,20 +404,18 @@ func deploy(cfg deployConfig, out io.Writer) error {
 	slices.Sort(historyFiles)
 	slices.Sort(manifestFiles)
 
-	hasAnyKV := cfg.CFAccountID != "" || cfg.CFKVNamespaceID != "" || cfg.CFAPIToken != ""
 	var r2 *r2Client
+	kvEnabled := cfg.DryRun && (cfg.RequireKV || cfg.CFAccountID != "" || cfg.CFKVNamespaceID != "" || cfg.CFAPIToken != "")
 	if !cfg.DryRun {
 		r2, err = newR2Client(cfg)
 		if err != nil {
 			return err
 		}
-		if cfg.RequireKV || hasAnyKV {
-			if cfg.CFAccountID == "" || cfg.CFKVNamespaceID == "" || cfg.CFAPIToken == "" {
-				return errors.New("Cloudflare KV deployment requires CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_KV_NAMESPACE_ID, and CLOUDFLARE_API_TOKEN")
-			}
+		kvEnabled, err = validateKVConfig(cfg)
+		if err != nil {
+			return err
 		}
 	}
-	kvEnabled := cfg.CFAPIToken != "" || (cfg.DryRun && (cfg.RequireKV || hasAnyKV))
 	apiBase := firstNonEmpty(cfg.CFAPIBase, defaultCloudflareAPIBase)
 
 	uploadR2 := func(key, fileName, cacheControl string) error {
@@ -490,6 +528,10 @@ func readManifestMeta(path, wantVer string) (manifestMeta, error) {
 	if err != nil {
 		return manifestMeta{}, err
 	}
+	return parseManifestMeta(raw, wantVer)
+}
+
+func parseManifestMeta(raw []byte, wantVer string) (manifestMeta, error) {
 	var env signedManifestEnvelope
 	if err := json.Unmarshal(raw, &env); err != nil {
 		return manifestMeta{}, err
@@ -510,15 +552,23 @@ func readManifestMeta(path, wantVer string) (manifestMeta, error) {
 	return m, nil
 }
 
+type cfAPIError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+func kvNamespaceURL(apiBase, accountID, namespaceID string) string {
+	return strings.TrimSuffix(apiBase, "/") +
+		"/accounts/" + url.PathEscape(accountID) +
+		"/storage/kv/namespaces/" + url.PathEscape(namespaceID)
+}
+
 func putCloudflareKV(client *http.Client, apiBase, accountID, namespaceID, token, key, path string) error {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	targetURL := strings.TrimSuffix(apiBase, "/") +
-		"/accounts/" + url.PathEscape(accountID) +
-		"/storage/kv/namespaces/" + url.PathEscape(namespaceID) +
-		"/values/" + url.PathEscape(key)
+	targetURL := kvNamespaceURL(apiBase, accountID, namespaceID) + "/values/" + url.PathEscape(key)
 	req, err := http.NewRequest(http.MethodPut, targetURL, bytes.NewReader(raw))
 	if err != nil {
 		return err
@@ -535,11 +585,8 @@ func putCloudflareKV(client *http.Client, apiBase, accountID, namespaceID, token
 		return fmt.Errorf("KV PUT %s: %s: %s", key, resp.Status, strings.TrimSpace(string(body)))
 	}
 	var apiResp struct {
-		Success bool `json:"success"`
-		Errors  []struct {
-			Code    int    `json:"code"`
-			Message string `json:"message"`
-		} `json:"errors"`
+		Success bool         `json:"success"`
+		Errors  []cfAPIError `json:"errors"`
 	}
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return fmt.Errorf("KV PUT %s: invalid response %q: %w", key, strings.TrimSpace(string(body)), err)
@@ -548,6 +595,326 @@ func putCloudflareKV(client *http.Client, apiBase, accountID, namespaceID, token
 		return fmt.Errorf("KV PUT %s failed: %+v", key, apiResp.Errors)
 	}
 	return nil
+}
+
+func listCloudflareKVKeys(client *http.Client, apiBase, accountID, namespaceID, token, prefix string) ([]string, error) {
+	var keys []string
+	cursor := ""
+	base := kvNamespaceURL(apiBase, accountID, namespaceID) + "/keys"
+	for {
+		q := url.Values{}
+		if prefix != "" {
+			q.Set("prefix", prefix)
+		}
+		if cursor != "" {
+			q.Set("cursor", cursor)
+		}
+		u := base
+		if len(q) > 0 {
+			u += "?" + q.Encode()
+		}
+		req, err := http.NewRequest(http.MethodGet, u, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("KV LIST %q: %s: %s", prefix, resp.Status, strings.TrimSpace(string(body)))
+		}
+		var out struct {
+			Success bool         `json:"success"`
+			Errors  []cfAPIError `json:"errors"`
+			Result  []struct {
+				Name string `json:"name"`
+			} `json:"result"`
+			ResultInfo struct {
+				Cursor string `json:"cursor"`
+			} `json:"result_info"`
+		}
+		if err := json.Unmarshal(body, &out); err != nil {
+			return nil, fmt.Errorf("KV LIST %q: invalid JSON: %w", prefix, err)
+		}
+		if !out.Success {
+			return nil, fmt.Errorf("KV LIST %q failed: %+v", prefix, out.Errors)
+		}
+		for _, entry := range out.Result {
+			keys = append(keys, entry.Name)
+		}
+		if out.ResultInfo.Cursor == "" {
+			break
+		}
+		cursor = out.ResultInfo.Cursor
+	}
+	return keys, nil
+}
+
+func getCloudflareKVValue(client *http.Client, apiBase, accountID, namespaceID, token, key string) ([]byte, bool, error) {
+	targetURL := kvNamespaceURL(apiBase, accountID, namespaceID) + "/values/" + url.PathEscape(key)
+	req, err := http.NewRequest(http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, false, err
+	}
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	resp.Body.Close()
+	if readErr != nil {
+		return nil, false, readErr
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, false, nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, false, fmt.Errorf("KV GET %s: %s: %s", key, resp.Status, strings.TrimSpace(string(body)))
+	}
+	return body, true, nil
+}
+
+func prune(cfg deployConfig, out io.Writer) error {
+	if cfg.KeepRelease < 0 || cfg.KeepPrerelease < 0 {
+		return errors.New("keep-release and keep-prerelease must be non-negative")
+	}
+	if cfg.HTTPClient == nil {
+		cfg.HTTPClient = &http.Client{Timeout: 10 * time.Minute}
+	}
+	r2, err := newR2Client(cfg)
+	if err != nil {
+		return err
+	}
+	kvEnabled, err := validateKVConfig(cfg)
+	if err != nil {
+		return err
+	}
+	apiBase := firstNonEmpty(cfg.CFAPIBase, defaultCloudflareAPIBase)
+
+	reasons := map[string][]string{}
+	addReason := func(ver, reason string) {
+		if ver == "" {
+			return
+		}
+		if !slices.Contains(reasons[ver], reason) {
+			reasons[ver] = append(reasons[ver], reason)
+		}
+	}
+
+	if kvEnabled {
+		for _, prefix := range []string{"latest:", "lock:"} {
+			keys, err := listCloudflareKVKeys(cfg.HTTPClient, apiBase, cfg.CFAccountID, cfg.CFKVNamespaceID, cfg.CFAPIToken, prefix)
+			if err != nil {
+				return err
+			}
+			for _, key := range keys {
+				val, ok, err := getCloudflareKVValue(cfg.HTTPClient, apiBase, cfg.CFAccountID, cfg.CFKVNamespaceID, cfg.CFAPIToken, key)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					continue
+				}
+				if strings.HasPrefix(key, "latest:") {
+					meta, err := parseManifestMeta(val, "")
+					if err != nil {
+						return fmt.Errorf("KV %s: %w", key, err)
+					}
+					addReason(meta.Version, "kv:"+key)
+				} else {
+					addReason(strings.TrimSpace(string(val)), "kv:"+key)
+				}
+			}
+		}
+	}
+
+	for _, ch := range []string{"release", "prerelease"} {
+		histPrefix := r2Key(cfg.R2Prefix, ch+"/history-")
+		histKeys, err := r2.list(histPrefix)
+		if err != nil {
+			return err
+		}
+		for _, key := range histKeys {
+			if !strings.HasSuffix(key, ".json") {
+				continue
+			}
+			raw, status, err := r2.get(key)
+			if err != nil {
+				return err
+			}
+			if status == http.StatusNotFound {
+				continue
+			}
+			var idx struct {
+				History []struct {
+					Version string `json:"version"`
+				} `json:"history"`
+			}
+			if err := json.Unmarshal(raw, &idx); err != nil {
+				return fmt.Errorf("R2 %s: invalid history JSON: %w", key, err)
+			}
+			for _, item := range idx.History {
+				addReason(item.Version, "history:"+ch)
+			}
+		}
+	}
+
+	relPrefix := r2Key(cfg.R2Prefix, "releases/")
+	relKeys, err := r2.list(relPrefix)
+	if err != nil {
+		return err
+	}
+	byVer := map[string][]string{}
+	for _, key := range relKeys {
+		rest := strings.TrimPrefix(key, relPrefix)
+		if !strings.HasPrefix(rest, "v") {
+			continue
+		}
+		slash := strings.IndexByte(rest, '/')
+		if slash <= 1 {
+			continue
+		}
+		ver := rest[1:slash]
+		byVer[ver] = append(byVer[ver], key)
+	}
+	if len(byVer) == 0 {
+		fmt.Fprintln(out, "no versioned releases found under releases/")
+		return nil
+	}
+
+	var stable, pre []string
+	for ver := range byVer {
+		if isPrerelease(ver) {
+			pre = append(pre, ver)
+		} else {
+			stable = append(stable, ver)
+		}
+	}
+	sortDesc := func(vs []string) {
+		slices.SortFunc(vs, func(a, b string) int { return compareVersions(b, a) })
+	}
+	sortDesc(stable)
+	sortDesc(pre)
+
+	for i, ver := range stable {
+		if i < cfg.KeepRelease {
+			addReason(ver, "keep-release")
+		}
+	}
+	for i, ver := range pre {
+		if i < cfg.KeepPrerelease {
+			addReason(ver, "keep-prerelease")
+		}
+	}
+
+	var allVers []string
+	for ver := range byVer {
+		allVers = append(allVers, ver)
+	}
+	sortDesc(allVers)
+
+	prunedVersions := 0
+	prunedObjects := 0
+	for _, ver := range allVers {
+		rs := reasons[ver]
+		keys := byVer[ver]
+		slices.Sort(keys)
+		if len(rs) > 0 {
+			fmt.Fprintf(out, "keep v%s (%d files; %s)\n", ver, len(keys), strings.Join(rs, ", "))
+			continue
+		}
+		prunedVersions++
+		fmt.Fprintf(out, "prune v%s (%d files)\n", ver, len(keys))
+		for _, key := range keys {
+			if cfg.DryRun {
+				fmt.Fprintf(out, "r2 delete %s (dry-run)\n", key)
+				continue
+			}
+			fmt.Fprintf(out, "r2 delete %s\n", key)
+			if err := r2.delete(key); err != nil {
+				return err
+			}
+			prunedObjects++
+		}
+	}
+	if cfg.DryRun {
+		fmt.Fprintf(out, "prune dry-run complete: %d candidate version(s)\n", prunedVersions)
+	} else {
+		fmt.Fprintf(out, "prune complete: deleted %d file(s) across %d version(s)\n", prunedObjects, prunedVersions)
+	}
+	return nil
+}
+
+func isPrerelease(v string) bool {
+	v = strings.TrimPrefix(v, "v")
+	v, _, _ = strings.Cut(v, "+")
+	_, pre, ok := strings.Cut(v, "-")
+	return ok && pre != ""
+}
+
+func compareVersions(a, b string) int {
+	a, b = strings.TrimPrefix(a, "v"), strings.TrimPrefix(b, "v")
+	a, _, _ = strings.Cut(a, "+")
+	b, _, _ = strings.Cut(b, "+")
+	ar, apre, _ := strings.Cut(a, "-")
+	br, bpre, _ := strings.Cut(b, "-")
+	if c := compareVersionFields(ar, br); c != 0 {
+		return c
+	}
+	switch {
+	case apre == bpre:
+		return 0
+	case apre == "":
+		return 1
+	case bpre == "":
+		return -1
+	}
+	return compareVersionFields(apre, bpre)
+}
+
+func compareVersionFields(a, b string) int {
+	af, bf := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(af) || i < len(bf); i++ {
+		var x, y string
+		if i < len(af) {
+			x = af[i]
+		}
+		if i < len(bf) {
+			y = bf[i]
+		}
+		xn, xerr := strconv.Atoi(x)
+		yn, yerr := strconv.Atoi(y)
+		switch {
+		case x == y:
+			continue
+		case x == "":
+			return -1
+		case y == "":
+			return 1
+		case xerr == nil && yerr == nil:
+			if xn < yn {
+				return -1
+			}
+			if xn > yn {
+				return 1
+			}
+		case xerr == nil:
+			return -1
+		case yerr == nil:
+			return 1
+		default:
+			return strings.Compare(x, y)
+		}
+	}
+	return 0
 }
 
 type r2Client struct {
@@ -625,6 +992,102 @@ func (c *r2Client) put(key, path, contentType, cacheControl string) error {
 	return nil
 }
 
+func (c *r2Client) list(prefix string) ([]string, error) {
+	var keys []string
+	token := ""
+	for {
+		q := url.Values{"list-type": {"2"}}
+		if prefix != "" {
+			q.Set("prefix", prefix)
+		}
+		if token != "" {
+			q.Set("continuation-token", token)
+		}
+		target := c.endpoint.Scheme + "://" + c.endpoint.Host + "/" + url.PathEscape(c.bucket) + "?" + encodeS3Query(q)
+		req, err := http.NewRequest(http.MethodGet, target, nil)
+		if err != nil {
+			return nil, err
+		}
+		c.sign(req, emptyPayloadSHA256, c.now())
+		resp, err := c.client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+		resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return nil, fmt.Errorf("R2 LIST %q: %s: %s", prefix, resp.Status, strings.TrimSpace(string(body)))
+		}
+		var out struct {
+			IsTruncated           bool   `xml:"IsTruncated"`
+			NextContinuationToken string `xml:"NextContinuationToken"`
+			Contents              []struct {
+				Key string `xml:"Key"`
+			} `xml:"Contents"`
+		}
+		if err := xml.Unmarshal(body, &out); err != nil {
+			return nil, fmt.Errorf("R2 LIST %q: invalid XML: %w", prefix, err)
+		}
+		for _, item := range out.Contents {
+			keys = append(keys, item.Key)
+		}
+		if !out.IsTruncated || out.NextContinuationToken == "" {
+			break
+		}
+		token = out.NextContinuationToken
+	}
+	return keys, nil
+}
+
+func (c *r2Client) get(key string) ([]byte, int, error) {
+	escaped := "/" + url.PathEscape(c.bucket) + "/" + escapeS3Key(key)
+	target := c.endpoint.Scheme + "://" + c.endpoint.Host + escaped
+	req, err := http.NewRequest(http.MethodGet, target, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	c.sign(req, emptyPayloadSHA256, c.now())
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	resp.Body.Close()
+	if readErr != nil {
+		return nil, resp.StatusCode, readErr
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, resp.StatusCode, nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, resp.StatusCode, fmt.Errorf("R2 GET %s: %s: %s", key, resp.Status, strings.TrimSpace(string(body)))
+	}
+	return body, resp.StatusCode, nil
+}
+
+func (c *r2Client) delete(key string) error {
+	escaped := "/" + url.PathEscape(c.bucket) + "/" + escapeS3Key(key)
+	target := c.endpoint.Scheme + "://" + c.endpoint.Host + escaped
+	req, err := http.NewRequest(http.MethodDelete, target, nil)
+	if err != nil {
+		return err
+	}
+	c.sign(req, emptyPayloadSHA256, c.now())
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("R2 DELETE %s: %s: %s", key, resp.Status, strings.TrimSpace(string(msg)))
+	}
+	return nil
+}
+
 func (c *r2Client) sign(req *http.Request, payloadSHA256 string, at time.Time) {
 	at = at.UTC()
 	date := at.Format("20060102")
@@ -639,7 +1102,7 @@ func (c *r2Client) sign(req *http.Request, payloadSHA256 string, at time.Time) {
 	canonicalRequest := strings.Join([]string{
 		req.Method,
 		canonicalURI,
-		"",
+		canonicalQuery(req.URL.RawQuery),
 		canonicalHeaders,
 		signedHeaders,
 		payloadSHA256,
@@ -658,6 +1121,56 @@ func (c *r2Client) sign(req *http.Request, payloadSHA256 string, at time.Time) {
 	kSigning := hmacSHA256(kService, "aws4_request")
 	sig := hex.EncodeToString(hmacSHA256(kSigning, stringToSign))
 	req.Header.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", c.accessKey, scope, signedHeaders, sig))
+}
+
+func canonicalQuery(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	vals, err := url.ParseQuery(raw)
+	if err != nil {
+		return raw
+	}
+	return encodeS3Query(vals)
+}
+
+func encodeS3Query(vals url.Values) string {
+	if len(vals) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(vals))
+	for k := range vals {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	var parts []string
+	for _, k := range keys {
+		ek := encodeS3Component(k)
+		vs := slices.Clone(vals[k])
+		slices.Sort(vs)
+		for _, v := range vs {
+			parts = append(parts, ek+"="+encodeS3Component(v))
+		}
+	}
+	return strings.Join(parts, "&")
+}
+
+func encodeS3Component(s string) string {
+	const hexDigits = "0123456789ABCDEF"
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') ||
+			ch == '-' || ch == '.' || ch == '_' || ch == '~' {
+			b.WriteByte(ch)
+			continue
+		}
+		b.WriteByte('%')
+		b.WriteByte(hexDigits[ch>>4])
+		b.WriteByte(hexDigits[ch&0x0F])
+	}
+	return b.String()
 }
 
 func hmacSHA256(key []byte, data string) []byte {

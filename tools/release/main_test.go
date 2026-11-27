@@ -218,3 +218,191 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 		t.Fatalf("deploy sequence:\ngot:  %v\nwant: %v", ops, wantOps)
 	}
 }
+
+func TestPruneProtectsLiveKVHistoryLocksAndRespectsKeepLimits(t *testing.T) {
+	objects := map[string]string{
+		"incipit/install.sh":                                        "#!/bin/sh\n",
+		"incipit/prerelease/history-darwin-arm64.json":              `{"history":[{"version":"1.3.0-alpha.4"},{"version":"1.3.0-alpha.1"}]}`,
+		"incipit/releases/v1.0.0/app-1.0.0.dmg":                     "1.0.0",
+		"incipit/releases/v1.1.0/app-1.1.0.dmg":                     "1.1.0",
+		"incipit/releases/v1.1.0/SHA256SUMS":                        "sum",
+		"incipit/releases/v1.2.0/app-1.2.0.dmg":                     "1.2.0",
+		"incipit/releases/v1.3.0-alpha.1/app-1.3.0-alpha.1.tar.zst": "a1",
+		"incipit/releases/v1.3.0-alpha.2/app-1.3.0-alpha.2.dmg":     "a2",
+		"incipit/releases/v1.3.0-alpha.2/SHA256SUMS":                "sum",
+		"incipit/releases/v1.3.0-alpha.3/app-1.3.0-alpha.3.dmg":     "a3",
+		"incipit/releases/v1.3.0-alpha.4/app-1.3.0-alpha.4.dmg":     "a4",
+	}
+	latestPayload := base64.StdEncoding.EncodeToString([]byte(`{"version":"1.2.0","target":"darwin-arm64","channel":"release"}`))
+	kvData := map[string]string{
+		"latest:release:darwin-arm64": `{"v":2,"payload":"` + latestPayload + `","signatures":[{"kid":"k1","sig":"s"}]}`,
+		"lock:release:darwin-arm64":   "1.0.0",
+	}
+
+	var mu sync.Mutex
+	var kvFail bool
+	var deleted []string
+
+	r2Srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			if r.URL.Query().Get("list-type") == "2" {
+				prefix := r.URL.Query().Get("prefix")
+				var matched []string
+				mu.Lock()
+				for k := range objects {
+					if strings.HasPrefix(k, prefix) {
+						matched = append(matched, k)
+					}
+				}
+				mu.Unlock()
+				slices.Sort(matched)
+				// Force two pages when listing releases/ to test ContinuationToken handling.
+				cont := r.URL.Query().Get("continuation-token")
+				page := matched
+				next := ""
+				truncated := false
+				if prefix == "incipit/releases/" && len(matched) > 3 {
+					if cont == "" {
+						page = matched[:3]
+						next = "page2"
+						truncated = true
+					} else if cont == "page2" {
+						page = matched[3:]
+					}
+				}
+				var xmlBuf strings.Builder
+				xmlBuf.WriteString(`<ListBucketResult>`)
+				if truncated {
+					xmlBuf.WriteString(`<IsTruncated>true</IsTruncated><NextContinuationToken>` + next + `</NextContinuationToken>`)
+				} else {
+					xmlBuf.WriteString(`<IsTruncated>false</IsTruncated>`)
+				}
+				for _, k := range page {
+					xmlBuf.WriteString(`<Contents><Key>` + k + `</Key></Contents>`)
+				}
+				xmlBuf.WriteString(`</ListBucketResult>`)
+				_, _ = w.Write([]byte(xmlBuf.String()))
+				return
+			}
+			key := strings.TrimPrefix(r.URL.Path, "/incipit-dl/")
+			mu.Lock()
+			val, ok := objects[key]
+			mu.Unlock()
+			if !ok {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			_, _ = w.Write([]byte(val))
+		case http.MethodDelete:
+			key := strings.TrimPrefix(r.URL.Path, "/incipit-dl/")
+			mu.Lock()
+			deleted = append(deleted, key)
+			delete(objects, key)
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer r2Srv.Close()
+
+	kvSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		fail := kvFail
+		mu.Unlock()
+		if fail {
+			http.Error(w, "kv unavailable", http.StatusInternalServerError)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/keys") {
+			prefix := r.URL.Query().Get("prefix")
+			var names []string
+			for k := range kvData {
+				if strings.HasPrefix(k, prefix) {
+					names = append(names, fmt.Sprintf(`{"name":%q}`, k))
+				}
+			}
+			slices.Sort(names)
+			_, _ = fmt.Fprintf(w, `{"success":true,"result":[%s],"result_info":{"cursor":""}}`, strings.Join(names, ","))
+			return
+		}
+		_, key, ok := strings.Cut(r.URL.Path, "/values/")
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		val, exists := kvData[key]
+		if !exists {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(val))
+	}))
+	defer kvSrv.Close()
+
+	cfg := deployConfig{
+		RequireKV:       true,
+		KeepRelease:     1,
+		KeepPrerelease:  2,
+		DryRun:          true,
+		R2Endpoint:      r2Srv.URL,
+		R2Bucket:        "incipit-dl",
+		R2Prefix:        "incipit",
+		R2Region:        "auto",
+		R2AccessKey:     "testkey",
+		R2SecretKey:     "testsecret",
+		CFAccountID:     "acct-123",
+		CFKVNamespaceID: "ns-456",
+		CFAPIToken:      "cf-secret-token",
+		CFAPIBase:       kvSrv.URL,
+	}
+
+	// KV failure must abort before any R2 delete calls.
+	mu.Lock()
+	kvFail = true
+	mu.Unlock()
+	var buf bytes.Buffer
+	if err := prune(cfg, &buf); err == nil || len(deleted) != 0 {
+		t.Fatalf("expected KV error abort; err=%v deleted=%v", err, deleted)
+	}
+
+	// Dry-run plans deletions without deleting anything.
+	mu.Lock()
+	kvFail = false
+	mu.Unlock()
+	buf.Reset()
+	if err := prune(cfg, &buf); err != nil {
+		t.Fatalf("prune dry-run: %v", err)
+	}
+	if len(deleted) != 0 {
+		t.Fatalf("dry-run must not delete objects: %v", deleted)
+	}
+
+	// Real prune deletes only v1.1.0 (not latest, not locked) and v1.3.0-alpha.2 (outside keep=2, not in history).
+	cfg.DryRun = false
+	buf.Reset()
+	if err := prune(cfg, &buf); err != nil {
+		t.Fatalf("prune: %v\n%s", err, buf.String())
+	}
+	wantDeleted := []string{
+		"incipit/releases/v1.3.0-alpha.2/SHA256SUMS",
+		"incipit/releases/v1.3.0-alpha.2/app-1.3.0-alpha.2.dmg",
+		"incipit/releases/v1.1.0/SHA256SUMS",
+		"incipit/releases/v1.1.0/app-1.1.0.dmg",
+	}
+	if !slices.Equal(deleted, wantDeleted) {
+		t.Fatalf("deleted keys:\ngot:  %v\nwant: %v\nlog:\n%s", deleted, wantDeleted, buf.String())
+	}
+	for _, mustStay := range []string{
+		"incipit/install.sh",
+		"incipit/prerelease/history-darwin-arm64.json",
+		"incipit/releases/v1.0.0/app-1.0.0.dmg",
+		"incipit/releases/v1.2.0/app-1.2.0.dmg",
+		"incipit/releases/v1.3.0-alpha.1/app-1.3.0-alpha.1.tar.zst",
+		"incipit/releases/v1.3.0-alpha.3/app-1.3.0-alpha.3.dmg",
+		"incipit/releases/v1.3.0-alpha.4/app-1.3.0-alpha.4.dmg",
+	} {
+		if _, ok := objects[mustStay]; !ok {
+			t.Fatalf("expected %s to remain protected", mustStay)
+		}
+	}
+}
