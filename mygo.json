@@ -22,6 +22,7 @@
     "publicKey": "e4/9vEg7YHXubs0aHgZYBZ2zv+SiAXIcWgbzNg3N29g=",
     "feedUrl": "https://incipit.updates.elm.fm",
     "url": "https://incipit.data.elm.fm",
+    "artifactsUrl": "https://incipit.data.elm.fm/releases/v{version}",
     "changelog": "changelogs"
   }
 }

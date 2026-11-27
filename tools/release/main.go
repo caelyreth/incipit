@@ -199,8 +199,8 @@ func isChecksumTarget(name string) bool {
 	return false
 }
 
-func isMutableR2File(name string) bool {
-	return name == checksumsName || name == "install.sh" || name == "install.ps1"
+func isRootScriptFile(name string) bool {
+	return name == "install.sh" || name == "install.ps1"
 }
 
 type signedManifestEnvelope struct {
@@ -213,9 +213,12 @@ type signedManifestEnvelope struct {
 }
 
 type manifestMeta struct {
-	Version string `json:"version"`
-	Target  string `json:"target"`
-	Channel string `json:"channel"`
+	Version  string `json:"version"`
+	Target   string `json:"target"`
+	Channel  string `json:"channel"`
+	Artifact struct {
+		URL string `json:"url"`
+	} `json:"artifact"`
 }
 
 func runDeploy(args []string) error {
@@ -290,8 +293,9 @@ func deploy(cfg deployConfig, out io.Writer) error {
 		return fmt.Errorf("%s contains no entries", checksumsName)
 	}
 
-	var immutableFiles, mutableRootFiles, historyFiles, manifestFiles []string
+	var immutableFiles, versionMetaFiles, rootScriptFiles, historyFiles, manifestFiles []string
 	channels := map[string]string{}
+	versionDirs := map[string]string{}
 	metas := map[string]manifestMeta{}
 
 	for _, e := range entries {
@@ -302,13 +306,18 @@ func deploy(cfg deployConfig, out io.Writer) error {
 		full := filepath.Join(cfg.Dir, name)
 		switch {
 		case name == checksumsName:
-			mutableRootFiles = append(mutableRootFiles, name)
+			versionMetaFiles = append(versionMetaFiles, name)
 		case strings.HasPrefix(name, "update-") && strings.HasSuffix(name, ".json"):
 			meta, err := readManifestMeta(full, cfg.ExpectedVer)
 			if err != nil {
 				return fmt.Errorf("%s: %w", name, err)
 			}
+			vdir, err := artifactPrefixFromURL(meta.Artifact.URL, cfg.R2Prefix)
+			if err != nil {
+				return fmt.Errorf("%s: %w", name, err)
+			}
 			channels[name] = meta.Channel
+			versionDirs[name] = vdir
 			metas[name] = meta
 			manifestFiles = append(manifestFiles, name)
 		case strings.HasPrefix(name, "history-") && strings.HasSuffix(name, ".json"):
@@ -325,8 +334,8 @@ func deploy(cfg deployConfig, out io.Writer) error {
 			if !strings.EqualFold(got, want) {
 				return fmt.Errorf("checksum mismatch for %s: got %s want %s", name, got, want)
 			}
-			if isMutableR2File(name) {
-				mutableRootFiles = append(mutableRootFiles, name)
+			if isRootScriptFile(name) {
+				rootScriptFiles = append(rootScriptFiles, name)
 			} else {
 				immutableFiles = append(immutableFiles, name)
 			}
@@ -340,13 +349,18 @@ func deploy(cfg deployConfig, out io.Writer) error {
 	if len(manifestFiles) == 0 {
 		return fmt.Errorf("no update-*.json manifests found in %s", cfg.Dir)
 	}
-	channel := commonChannel(channels)
+	channel := commonString(channels)
 	if channel == "" {
 		return errors.New("manifests span multiple or empty channels")
 	}
+	versionDir, ok := uniformString(versionDirs)
+	if !ok {
+		return errors.New("manifests span multiple version asset directories")
+	}
 
 	slices.Sort(immutableFiles)
-	slices.Sort(mutableRootFiles)
+	slices.Sort(versionMetaFiles)
+	slices.Sort(rootScriptFiles)
 	slices.Sort(historyFiles)
 	slices.Sort(manifestFiles)
 
@@ -374,13 +388,18 @@ func deploy(cfg deployConfig, out io.Writer) error {
 		return r2.put(key, filepath.Join(cfg.Dir, fileName), contentTypeFor(fileName), cacheControl)
 	}
 
-	// Upload order is strict: immutable archives/deltas -> mutable metadata & history -> manifests last.
+	// Upload order is strict: immutable archives/deltas -> version checksums -> root entrypoints & history -> manifests last.
 	for _, name := range immutableFiles {
-		if err := uploadR2(r2Key(cfg.R2Prefix, name), name, "public, max-age=31536000, immutable"); err != nil {
+		if err := uploadR2(r2Key(cfg.R2Prefix, joinRelPath(versionDir, name)), name, "public, max-age=31536000, immutable"); err != nil {
 			return err
 		}
 	}
-	for _, name := range mutableRootFiles {
+	for _, name := range versionMetaFiles {
+		if err := uploadR2(r2Key(cfg.R2Prefix, joinRelPath(versionDir, name)), name, "no-cache"); err != nil {
+			return err
+		}
+	}
+	for _, name := range rootScriptFiles {
 		if err := uploadR2(r2Key(cfg.R2Prefix, name), name, "no-cache"); err != nil {
 			return err
 		}
@@ -414,19 +433,56 @@ func deploy(cfg deployConfig, out io.Writer) error {
 	return nil
 }
 
-func commonChannel(channels map[string]string) string {
-	var ch string
-	for _, c := range channels {
-		if c == "" {
-			return ""
-		}
-		if ch == "" {
-			ch = c
-		} else if ch != c {
-			return ""
+func commonString(vals map[string]string) string {
+	v, ok := uniformString(vals)
+	if !ok {
+		return ""
+	}
+	return v
+}
+
+func uniformString(vals map[string]string) (string, bool) {
+	var first string
+	seen := false
+	for _, v := range vals {
+		if !seen {
+			first = v
+			seen = true
+		} else if first != v {
+			return "", false
 		}
 	}
-	return ch
+	return first, seen
+}
+
+func artifactPrefixFromURL(rawURL, r2Prefix string) (string, error) {
+	if rawURL == "" {
+		return "", nil
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid artifact.url %q: %w", rawURL, err)
+	}
+	p := strings.Trim(u.Path, "/")
+	i := strings.LastIndexByte(p, '/')
+	if i <= 0 {
+		return "", nil
+	}
+	dir := p[:i]
+	if r2Prefix != "" {
+		dir = strings.TrimPrefix(dir, r2Prefix+"/")
+		if dir == r2Prefix {
+			dir = ""
+		}
+	}
+	return dir, nil
+}
+
+func joinRelPath(dir, name string) string {
+	if dir == "" {
+		return name
+	}
+	return dir + "/" + name
 }
 
 func readManifestMeta(path, wantVer string) (manifestMeta, error) {
