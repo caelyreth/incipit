@@ -124,11 +124,18 @@ func (s *State) deskRest(w, h float32) stageRect {
 // it settles in the lane as it moved there.
 // Away from the desk, the desk takes no input but a press, which brings
 // it up, or opens a sheet when empty.
-func (s *State) leanDesk(area ui.Element, look stageLook, upright float32) {
+func (s *State) leanDesk(area ui.Element, semantic theme.Theme, look stageLook, upright float32) {
 	if upright < 1 {
+		// Its edge is drawn as the tray's and the kept box's are, in the
+		// window's points however small it stands; empty, its dashed
+		// outline is its edge (deskEmpty).
 		k := s.Settings.UIFontSize / theme.DefaultUIFontSize
+		inv := 1 / max(look.Scale, 0.01)
 		area.CacheScaled().TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).
-			Translate(look.Offset.X, look.Offset.Y).Radius(10 * k).Clip()
+			Translate(look.Offset.X, look.Offset.Y).Radius(laneRadius * k * inv).Clip()
+		if len(s.Open) > 0 {
+			area.Border(inv, semantic.Border.Default)
+		}
 	}
 	if s.OnDesk() {
 		return

@@ -76,12 +76,17 @@ type shelfState struct {
 	open        bool
 }
 
+// laneRadius is the radius of what stands at the field's edges, at the
+// reference type size, as the window shows it: the desk resting in its
+// lane, the tray and the kept box.
+const laneRadius = 12
+
 // shelfView draws sh, keeping its state in st: list draws what it holds,
 // which scrolls, and foot what stands under it, each told how far the
 // shelf is out, to show their words as much. It returns what was dropped
 // on it.
 func (s *State) shelfView(c *ui.Context, semantic theme.Theme, sh shelf, st *shelfState, k float32, hidden, animate bool, list, foot func(out float32)) (shellDrag, bool) {
-	paper, tail, pad, radius := sh.width, sh.tail, 10*k, 12*k
+	paper, tail, pad, radius := sh.width, sh.tail, 10*k, laneRadius*k
 	ground, rim := semantic.Surface.Elevated, semantic.Border.Default
 	if sh.inset {
 		ground = semantic.Surface.Inset
@@ -226,16 +231,17 @@ func shelfOut(c *ui.Context, st *shelfState, sh shelf, hidden, hovered, over boo
 	return 1
 }
 
-// shelfHint is what an empty shelf says it is for, shown as much as out,
-// kept clear of what stands out of it by tail. It unfolds as it comes, at
-// the pace what went before it folds shut, so the shelf moves one way.
-func shelfHint(c *ui.Context, semantic theme.Theme, text string, right bool, tail, out, k float32, animate bool) {
+// shelfHint is what an empty shelf says it is for, shown as much as out:
+// centred in it, or set from its start, kept clear of what stands out of
+// it by tail. It unfolds as it comes, at the pace what went before it
+// folds shut, so the shelf moves one way.
+func shelfHint(c *ui.Context, semantic theme.Theme, text string, centered bool, tail, out, k float32, animate bool) {
 	pad := 10 * k
 	room := ui.Box(c).Key("hint").WidthPercent(100).Shrink(0)
 	room.Children(func() {
 		hint := components.Label(c, text, theme.TextXSmall, semantic.Text.Muted).MaxLines(3).Opacity(out).Shrink(0)
-		if right {
-			hint.Padding(4*k, 4*k, 4*k, tail+pad)
+		if centered {
+			hint.WidthPercent(100).TextAlign(ui.Center).Padding(4 * k)
 		} else {
 			hint.Padding(4*k, tail+pad, 4*k, 4*k)
 		}

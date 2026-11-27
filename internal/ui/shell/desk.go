@@ -107,7 +107,7 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	gutter := layout.ContentGutter * k
 	area := ui.Column(c).Key("desk").Absolute().Top(0).Left(0).Size(w, h).Background(semantic.Surface.Background)
-	s.leanDesk(area, scene.Desk, scene.Upright)
+	s.leanDesk(area, semantic, scene.Desk, scene.Upright)
 	on := s.OnDesk()
 	if on {
 		s.followPointer(area)
@@ -148,9 +148,10 @@ func (s *State) deskDrops(semantic theme.Theme, area ui.Element, scale float32, 
 		lit = components.Follow(area, "drop", lit, components.MotionQuick)
 	}
 	if lit > 0.001 {
+		k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 		width, ring := 2/max(scale, 0.01), semantic.Accent.Foreground.Alpha(lit)
 		area.DrawOver(func(p *ui.Painter, r ui.Rect) {
-			p.Stroke(r, ring, 10*width, width)
+			p.Stroke(r, ring, laneRadius*k/max(scale, 0.01), width)
 		})
 	}
 }
@@ -161,7 +162,7 @@ func (s *State) deskEmpty(c *ui.Context, semantic theme.Theme, area ui.Element, 
 	rest := s.deskRest(w, h)
 	inv := max(w, 1) / max(rest.W, 1)
 	visible := max(0, w-rest.X) * inv
-	radius := theme.DefaultControls.Scaled(s.Settings.UIFontSize).Radius * inv
+	radius := laneRadius * k * inv
 	hover := components.HoverAmount(area, area.Hovered(), animate)
 	line := components.Blend(semantic.Border.Default, semantic.Accent.Foreground, hover)
 	box := ui.Row(c).Key("desk-empty").Absolute().Top(0).Left(0).Size(w, h).
