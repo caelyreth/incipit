@@ -36,7 +36,7 @@ func (b *stubUpdaterBackend) Channel() string {
 	defer b.mu.Unlock()
 	return b.channel
 }
-func (b *stubUpdaterBackend) DefaultChannel() string { return appupdater.ChannelStable }
+func (b *stubUpdaterBackend) DefaultChannel() string { return appupdater.ChannelRelease }
 func (b *stubUpdaterBackend) SetChannel(ch string) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -77,11 +77,11 @@ func TestMenuCheckForUpdatesOpensUpdatesSettingsAndChecks(t *testing.T) {
 
 	b := &stubUpdaterBackend{
 		avail:   mygo.UpdateAvailable,
-		channel: appupdater.ChannelStable,
+		channel: appupdater.ChannelRelease,
 		locale:  "en",
 		rel: &appupdater.Release{
 			Version: "0.2.0",
-			Channel: appupdater.ChannelStable,
+			Channel: appupdater.ChannelRelease,
 			Notes:   "Bug fixes",
 			Install: func(context.Context, func(int64, int64)) error { return nil },
 		},
@@ -127,7 +127,7 @@ func TestUpdaterNoticesRespectActiveViewAndTriggerActions(t *testing.T) {
 
 	b := &stubUpdaterBackend{
 		avail:   mygo.UpdateAvailable,
-		channel: appupdater.ChannelStable,
+		channel: appupdater.ChannelRelease,
 		locale:  "en",
 	}
 	svc := appupdater.New(appupdater.Config{Backend: b})

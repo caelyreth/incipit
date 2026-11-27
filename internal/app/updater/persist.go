@@ -40,7 +40,7 @@ func loadSettings(dir string) Settings {
 	if err := json.Unmarshal(data, &s); err != nil {
 		return def
 	}
-	if s.Channel != "" && s.Channel != ChannelStable && s.Channel != ChannelBeta {
+	if s.Channel != "" && s.Channel != ChannelRelease && s.Channel != ChannelPrerelease {
 		s.Channel = ""
 	}
 	return s

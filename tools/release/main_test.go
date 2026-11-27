@@ -37,7 +37,7 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 	tarZst := []byte("zstd archive payload")
 	dmg := []byte("dmg image payload")
 	installSh := []byte("#!/bin/sh\necho install\n")
-	manifest := []byte(`{"version":"1.0.0-alpha.1","target":"linux-amd64","channel":"beta"}`)
+	manifest := []byte(`{"version":"1.0.0-alpha.1","target":"linux-amd64","channel":"prerelease"}`)
 	history := []byte(`{"version":"1.0.0-alpha.1"}`)
 
 	if err := os.WriteFile(filepath.Join(linuxDir, "incipit-1.0.0-alpha.1-linux-amd64.tar.zst"), tarZst, 0o644); err != nil {
@@ -103,8 +103,8 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 	dir := t.TempDir()
 	dmg := []byte("dmg bytes")
 	delta := []byte("delta bytes")
-	history := []byte(`{"target":"darwin-arm64","channel":"beta","history":[]}`)
-	payload := base64.StdEncoding.EncodeToString([]byte(`{"version":"1.0.0-alpha.1","target":"darwin-arm64","channel":"beta"}`))
+	history := []byte(`{"target":"darwin-arm64","channel":"prerelease","history":[]}`)
+	payload := base64.StdEncoding.EncodeToString([]byte(`{"version":"1.0.0-alpha.1","target":"darwin-arm64","channel":"prerelease"}`))
 	manifest := []byte(fmt.Sprintf(`{"v":2,"payload":%q,"signatures":[{"kid":"k1","sig":"c2ln"},{"kid":"k2","sig":"c2lnMg=="}]}`, payload))
 
 	for name, data := range map[string][]byte{
@@ -180,8 +180,8 @@ func TestDeployVerifiesChecksumsAndUploadsInStrictOrder(t *testing.T) {
 		"r2:PUT:/incipit-dl/incipit/incipit-1.0.0-alpha.1-arm64.dmg:public, max-age=31536000, immutable",
 		"r2:PUT:/incipit-dl/incipit/incipit-1.0.0-to-1.0.0-alpha.1-darwin-arm64.delta:public, max-age=31536000, immutable",
 		"r2:PUT:/incipit-dl/incipit/SHA256SUMS:no-cache",
-		"r2:PUT:/incipit-dl/incipit/beta/history-darwin-arm64.json:no-cache",
-		"worker:PUT:/beta/update-darwin-arm64.json:Bearer secret-token",
+		"r2:PUT:/incipit-dl/incipit/prerelease/history-darwin-arm64.json:no-cache",
+		"worker:PUT:/prerelease/update-darwin-arm64.json:Bearer secret-token",
 	}
 	if !slices.Equal(ops, wantOps) {
 		t.Fatalf("deploy sequence:\ngot:  %v\nwant: %v", ops, wantOps)

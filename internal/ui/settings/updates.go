@@ -39,7 +39,7 @@ func (s *State) updatesSections(add func(key, title, description string, match f
 			key:   updatesPreferencesKey,
 			title: locales.UpdatesPreferencesSection(),
 			desc:  locales.UpdatesPreferencesDescription(),
-			extra: categoryWords + " " + locales.UpdatesAutomaticChecks() + " " + locales.UpdatesAutomaticDownloads() + " " + locales.UpdatesChannel() + " " + locales.UpdatesChannelStable() + " " + locales.UpdatesChannelBeta() + " " + locales.UpdatesKeywords(),
+			extra: categoryWords + " " + locales.UpdatesAutomaticChecks() + " " + locales.UpdatesAutomaticDownloads() + " " + locales.UpdatesChannel() + " " + locales.UpdatesChannelRelease() + " " + locales.UpdatesChannelPrerelease() + " " + locales.UpdatesKeywords(),
 		},
 	} {
 		if only != "" && item.key != only {
@@ -271,9 +271,9 @@ func (s *State) updateSubline(c *ui.Context, semantic theme.Theme, snap appupdat
 
 	ui.Row(c).WidthPercent(100).MinWidth(0).Wrap().AlignItems(ui.Center).Gap(theme.Space08.DIPs(scale)).Children(func() {
 		components.Label(c, line, theme.TextSmall, ink).MinWidth(0).Shrink(1)
-		if snap.Channel == appupdater.ChannelBeta {
+		if snap.Channel == appupdater.ChannelPrerelease {
 			components.BadgeFrame(ui.Row(c), scale).Background(semantic.Accent.Tint).Children(func() {
-				components.CenteredLabel(c, locales.UpdatesChannelBeta(), theme.TextXSmall, semantic.Accent.Foreground)
+				components.CenteredLabel(c, locales.UpdatesChannelPrerelease(), theme.TextXSmall, semantic.Accent.Foreground)
 			})
 		}
 	})
@@ -566,8 +566,8 @@ func (s *State) updatesPreferencesCard(c *ui.Context, semantic theme.Theme, sec 
 	animate := s.motion(c)
 	snap := s.Updates
 	ch := snap.Channel
-	if ch != appupdater.ChannelBeta {
-		ch = appupdater.ChannelStable
+	if ch != appupdater.ChannelPrerelease {
+		ch = appupdater.ChannelRelease
 	}
 
 	s.section(c, semantic, sec, func() {
@@ -618,22 +618,22 @@ func (s *State) updatesPreferencesCard(c *ui.Context, semantic theme.Theme, sec 
 					Animate: animate,
 					Options: []components.SegmentOption{
 						{
-							Key:      appupdater.ChannelStable,
-							Label:    locales.UpdatesChannelStable(),
-							Selected: ch == appupdater.ChannelStable,
+							Key:      appupdater.ChannelRelease,
+							Label:    locales.UpdatesChannelRelease(),
+							Selected: ch == appupdater.ChannelRelease,
 							Action: func() {
 								if s.UpdateSetChannel != nil {
-									s.UpdateSetChannel(appupdater.ChannelStable)
+									s.UpdateSetChannel(appupdater.ChannelRelease)
 								}
 							},
 						},
 						{
-							Key:      appupdater.ChannelBeta,
-							Label:    locales.UpdatesChannelBeta(),
-							Selected: ch == appupdater.ChannelBeta,
+							Key:      appupdater.ChannelPrerelease,
+							Label:    locales.UpdatesChannelPrerelease(),
+							Selected: ch == appupdater.ChannelPrerelease,
 							Action: func() {
 								if s.UpdateSetChannel != nil {
-									s.UpdateSetChannel(appupdater.ChannelBeta)
+									s.UpdateSetChannel(appupdater.ChannelPrerelease)
 								}
 							},
 						},

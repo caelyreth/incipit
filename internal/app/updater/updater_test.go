@@ -30,8 +30,8 @@ func newFakeBackend() *fakeBackend {
 		avail:          mygo.UpdateAvailable,
 		target:         "darwin-arm64",
 		currentVersion: "1.0.0",
-		channel:        ChannelStable,
-		defaultChannel: ChannelStable,
+		channel:        ChannelRelease,
+		defaultChannel: ChannelRelease,
 		locale:         "en",
 	}
 }
@@ -103,11 +103,11 @@ func TestPersistenceDefaultsAndCorruptRecovery(t *testing.T) {
 	if !snap.AutomaticChecks || snap.AutomaticDownloads {
 		t.Fatalf("unexpected defaults: %+v", snap)
 	}
-	if snap.Channel != ChannelStable || snap.Status != StatusIdle || !snap.CanCheck {
+	if snap.Channel != ChannelRelease || snap.Status != StatusIdle || !snap.CanCheck {
 		t.Fatalf("unexpected initial snapshot: %+v", snap)
 	}
 
-	if err := svc.SetChannel(ChannelBeta); err != nil {
+	if err := svc.SetChannel(ChannelPrerelease); err != nil {
 		t.Fatal(err)
 	}
 	if err := svc.SetAutomaticDownloads(true); err != nil {
@@ -124,11 +124,11 @@ func TestPersistenceDefaultsAndCorruptRecovery(t *testing.T) {
 	b2 := newFakeBackend()
 	svc2 := New(Config{Dir: dir, Backend: b2})
 	snap2 := svc2.Snapshot()
-	if snap2.AutomaticChecks || !snap2.AutomaticDownloads || snap2.Channel != ChannelBeta {
+	if snap2.AutomaticChecks || !snap2.AutomaticDownloads || snap2.Channel != ChannelPrerelease {
 		t.Fatalf("reloaded snapshot mismatch: %+v", snap2)
 	}
-	if b2.Channel() != ChannelBeta {
-		t.Fatalf("backend channel = %q, want beta", b2.Channel())
+	if b2.Channel() != ChannelPrerelease {
+		t.Fatalf("backend channel = %q, want prerelease", b2.Channel())
 	}
 
 	// Corrupt updater.json recovers gracefully to defaults.
@@ -137,7 +137,7 @@ func TestPersistenceDefaultsAndCorruptRecovery(t *testing.T) {
 	}
 	svc3 := New(Config{Dir: dir, Backend: newFakeBackend()})
 	snap3 := svc3.Snapshot()
-	if !snap3.AutomaticChecks || snap3.AutomaticDownloads || snap3.Channel != ChannelStable {
+	if !snap3.AutomaticChecks || snap3.AutomaticDownloads || snap3.Channel != ChannelRelease {
 		t.Fatalf("corrupt fallback mismatch: %+v", snap3)
 	}
 }
@@ -154,7 +154,7 @@ func TestInteractiveCheckDownloadInstallAndRestart(t *testing.T) {
 	)
 	rel := &Release{
 		Version: "1.1.0",
-		Channel: ChannelStable,
+		Channel: ChannelRelease,
 		Notes:   "## Highlights\n- Faster rendering",
 		NotesFor: func(loc string) string {
 			if loc == "ja" {
@@ -251,7 +251,7 @@ func TestCancelDownloadAndRetryAfterError(t *testing.T) {
 	b.checkFn = func(ctx context.Context, opts mygo.CheckOptions) (*Release, error) {
 		return &Release{
 			Version: "1.2.0",
-			Channel: ChannelStable,
+			Channel: ChannelRelease,
 			Install: func(ctx context.Context, progress func(int64, int64)) error {
 				attempt++
 				switch attempt {
@@ -362,7 +362,7 @@ func TestSkipVersionManualCheckOverrideAndChannelReset(t *testing.T) {
 	}
 
 	// Switching channel clears skipped version and transient candidate.
-	if err := svc.SetChannel(ChannelBeta); err != nil {
+	if err := svc.SetChannel(ChannelPrerelease); err != nil {
 		t.Fatal(err)
 	}
 	if snap := svc.Snapshot(); snap.SkippedVersion != "" || snap.Available != nil || snap.Status != StatusIdle {
@@ -375,7 +375,7 @@ func TestManualOnlyAndUnavailableBuilds(t *testing.T) {
 	b.checkFn = func(ctx context.Context, opts mygo.CheckOptions) (*Release, error) {
 		return &Release{
 			Version:              "2.0.0",
-			Channel:              ChannelStable,
+			Channel:              ChannelRelease,
 			RequiresManualUpdate: true,
 			Sources:              []string{"https://r2.example.com/incipit.dmg"},
 			Install:              func(ctx context.Context, progress func(int64, int64)) error { return nil },
@@ -435,7 +435,7 @@ func TestSchedulerAutomaticChecksAndAutoDownloads(t *testing.T) {
 		}
 		return &Release{
 			Version: "1.4.0",
-			Channel: ChannelStable,
+			Channel: ChannelRelease,
 			Install: func(ctx context.Context, progress func(int64, int64)) error {
 				progress(100, 100)
 				close(installed)
@@ -531,7 +531,7 @@ func TestDeltaFallbackResetsInstallingToDownloading(t *testing.T) {
 	b.checkFn = func(ctx context.Context, opts mygo.CheckOptions) (*Release, error) {
 		return &Release{
 			Version: "2.0.0",
-			Channel: ChannelStable,
+			Channel: ChannelRelease,
 			Install: func(ctx context.Context, progress func(int64, int64)) error {
 				progress(100, 100) // delta completes -> StatusInstalling
 				close(step1)
@@ -620,36 +620,36 @@ func TestSchedulerBackoffOnErrorsAndResetOnManualCheck(t *testing.T) {
 
 func TestSetChannelCancelsInFlightCheckAndDropsStaleResult(t *testing.T) {
 	b := newFakeBackend()
-	stableStarted := make(chan struct{})
-	releaseStable := make(chan struct{})
+	releaseStarted := make(chan struct{})
+	unblockRelease := make(chan struct{})
 	b.checkFn = func(ctx context.Context, opts mygo.CheckOptions) (*Release, error) {
-		if opts.Channel == ChannelStable {
-			close(stableStarted)
-			<-releaseStable
-			return &Release{Version: "1.1.0-stable", Channel: ChannelStable}, nil
+		if opts.Channel == ChannelRelease {
+			close(releaseStarted)
+			<-unblockRelease
+			return &Release{Version: "1.1.0", Channel: ChannelRelease}, nil
 		}
-		return &Release{Version: "1.2.0-beta.1", Channel: ChannelBeta}, nil
+		return &Release{Version: "1.2.0-alpha.1", Channel: ChannelPrerelease}, nil
 	}
 
 	svc := New(Config{Backend: b})
 	defer svc.Close()
-	stableWait := svc.CheckNow()
-	<-stableStarted
+	releaseWait := svc.CheckNow()
+	<-releaseStarted
 
-	if err := svc.SetChannel(ChannelBeta); err != nil {
+	if err := svc.SetChannel(ChannelPrerelease); err != nil {
 		t.Fatal(err)
 	}
-	<-stableWait
-	betaSnap := <-svc.CheckNow()
-	if betaSnap.Channel != ChannelBeta || betaSnap.Available == nil || betaSnap.Available.Version != "1.2.0-beta.1" {
-		t.Fatalf("beta snapshot = %+v", betaSnap)
+	<-releaseWait
+	preSnap := <-svc.CheckNow()
+	if preSnap.Channel != ChannelPrerelease || preSnap.Available == nil || preSnap.Available.Version != "1.2.0-alpha.1" {
+		t.Fatalf("prerelease snapshot = %+v", preSnap)
 	}
 
-	// Now unblock the stale stable check; it must not overwrite the beta result.
-	close(releaseStable)
+	// Now unblock the stale release check; it must not overwrite the prerelease result.
+	close(unblockRelease)
 	time.Sleep(25 * time.Millisecond)
 	final := svc.Snapshot()
-	if final.Channel != ChannelBeta || final.Available == nil || final.Available.Version != "1.2.0-beta.1" {
-		t.Fatalf("stale stable check overwrote beta result: %+v", final)
+	if final.Channel != ChannelPrerelease || final.Available == nil || final.Available.Version != "1.2.0-alpha.1" {
+		t.Fatalf("stale release check overwrote prerelease result: %+v", final)
 	}
 }

@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	// ChannelStable tracks stable releases.
-	ChannelStable = "stable"
-	// ChannelBeta tracks prerelease / beta releases.
-	ChannelBeta = "beta"
+	// ChannelRelease tracks full releases.
+	ChannelRelease = "release"
+	// ChannelPrerelease tracks prerelease builds.
+	ChannelPrerelease = "prerelease"
 
 	// DefaultInitialDelay waits briefly after launch before the first periodic check.
 	DefaultInitialDelay = 15 * time.Second
@@ -761,9 +761,9 @@ func (s *Service) SetAutomaticDownloads(on bool) error {
 	return err
 }
 
-// SetChannel switches the release channel ("stable" or "beta").
+// SetChannel switches the release channel ("release" or "prerelease").
 func (s *Service) SetChannel(channel string) error {
-	if channel != ChannelStable && channel != ChannelBeta {
+	if channel != ChannelRelease && channel != ChannelPrerelease {
 		return ErrInvalidChannel
 	}
 	s.mu.Lock()

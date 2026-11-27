@@ -23,14 +23,14 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 		Status:             appupdater.StatusAvailable,
 		Availability:       mygo.UpdateAvailable,
 		CurrentVersion:     "0.1.0",
-		Channel:            appupdater.ChannelStable,
+		Channel:            appupdater.ChannelRelease,
 		AutomaticChecks:    true,
 		AutomaticDownloads: false,
 		LastCheck:          now,
 		CanCheck:           true,
 		Available: &appupdater.Release{
 			Version: "0.2.0",
-			Channel: appupdater.ChannelStable,
+			Channel: appupdater.ChannelRelease,
 			Notes:   "## What's New\n#### Highlights\n- Faster rendering pipeline\n- Delta updates with zstd",
 			Install: func(context.Context, func(int64, int64)) error { return nil },
 		},
@@ -72,9 +72,9 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 		"Preferences",
 		"Check automatically",
 		"Download automatically",
-		"Release channel",
-		"Stable",
-		"Beta",
+		"Update channel",
+		"Release",
+		"Pre-release",
 	} {
 		if !tester.HasText(text) {
 			t.Fatalf("missing %q in %v", text, tester.Texts())
@@ -98,13 +98,13 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 	}
 
 	// Click update actions & preference controls.
-	for _, target := range []string{"Download & Install", "Skip This Version", "Beta"} {
+	for _, target := range []string{"Download & Install", "Skip This Version", "Pre-release"} {
 		if err := tester.Click(target); err != nil {
 			t.Fatalf("click %q: %v", target, err)
 		}
 		tester.Frame()
 	}
-	wantCalls := []string{"download", "skip", "channel:beta"}
+	wantCalls := []string{"download", "skip", "channel:prerelease"}
 	if !slices.Equal(calls, wantCalls) {
 		t.Fatalf("calls = %v, want %v", calls, wantCalls)
 	}
@@ -114,7 +114,7 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 	state.Updates.Downloaded = 2 << 20
 	state.Updates.Total = 4 << 20
 	state.Updates.Progress = 0.5
-	state.Updates.Channel = appupdater.ChannelBeta
+	state.Updates.Channel = appupdater.ChannelPrerelease
 	tester.Frame()
 	if !tester.HasText("Downloading Incipit 0.2.0… 50%") {
 		t.Fatalf("missing downloading text in %v", tester.Texts())
@@ -168,8 +168,8 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 		t.Fatalf("missing unavailable explanation in %v", tester.Texts())
 	}
 
-	if secs := state.Sections("beta"); len(secs) != 1 || secs[0].Key != updatesPreferencesKey {
-		t.Fatalf("Sections(\"beta\") = %v, want [updates-preferences]", secs)
+	if secs := state.Sections("pre-release"); len(secs) != 1 || secs[0].Key != updatesPreferencesKey {
+		t.Fatalf("Sections(\"pre-release\") = %v, want [updates-preferences]", secs)
 	}
 }
 
@@ -181,11 +181,11 @@ func TestUpdatesSectionMatchesSiblingCardSpacingAndBadgeBounds(t *testing.T) {
 		Status:         appupdater.StatusAvailable,
 		Availability:   mygo.UpdateAvailable,
 		CurrentVersion: "1.0.0",
-		Channel:        appupdater.ChannelBeta,
+		Channel:        appupdater.ChannelPrerelease,
 		CanCheck:       true,
 		Available: &appupdater.Release{
-			Version: "1.1.0-beta.1",
-			Channel: appupdater.ChannelBeta,
+			Version: "1.1.0-alpha.1",
+			Channel: appupdater.ChannelPrerelease,
 			Notes:   "- A very long release note bullet item that should wrap cleanly inside the inset panel without overflowing",
 		},
 	}
@@ -219,12 +219,12 @@ func TestUpdatesSectionMatchesSiblingCardSpacingAndBadgeBounds(t *testing.T) {
 	}
 
 	verGroup, _ := tester.AccessByRole(ui.RoleGroup, locales.UpdatesVersionSection())
-	betaRect, ok := tester.Find(locales.UpdatesChannelBeta())
-	if !ok || betaRect.W <= 0 || betaRect.H <= 0 {
-		t.Fatalf("Beta badge rect = %+v (ok=%v), want non-zero visible badge", betaRect, ok)
+	preRect, ok := tester.Find(locales.UpdatesChannelPrerelease())
+	if !ok || preRect.W <= 0 || preRect.H <= 0 {
+		t.Fatalf("Pre-release badge rect = %+v (ok=%v), want non-zero visible badge", preRect, ok)
 	}
-	if betaRect.X < verGroup.Bounds.X || betaRect.X+betaRect.W > verGroup.Bounds.X+verGroup.Bounds.W {
-		t.Fatalf("Beta badge %+v overflows Version card %+v", betaRect, verGroup.Bounds)
+	if preRect.X < verGroup.Bounds.X || preRect.X+preRect.W > verGroup.Bounds.X+verGroup.Bounds.W {
+		t.Fatalf("Pre-release badge %+v overflows Version card %+v", preRect, verGroup.Bounds)
 	}
 
 	dlBtn, ok := tester.AccessByRole(ui.RoleButton, locales.UpdatesButtonDownload())

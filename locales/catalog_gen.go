@@ -12793,44 +12793,44 @@ func (msgs Messages) UpdatesAutomaticDownloadsDescription() string {
 	return Catalog.Format(msgs.locale, "updatesAutomaticDownloadsDescription", nil)
 }
 
-// UpdatesChannel says "Release channel"
+// UpdatesChannel says "Update channel"
 // in the language the app shows.
 func UpdatesChannel() string { return In(i18n.Locale()).UpdatesChannel() }
 
-// UpdatesChannel says "Release channel"
+// UpdatesChannel says "Update channel"
 // in the language of msgs.
 func (msgs Messages) UpdatesChannel() string {
 	return Catalog.Format(msgs.locale, "updatesChannel", nil)
 }
 
-// UpdatesChannelDescription says "Beta builds include upcoming improvements ahead of stable releases."
+// UpdatesChannelDescription says "Pre-release builds include upcoming improvements ahead of full releases."
 // in the language the app shows.
 func UpdatesChannelDescription() string { return In(i18n.Locale()).UpdatesChannelDescription() }
 
-// UpdatesChannelDescription says "Beta builds include upcoming improvements ahead of stable releases."
+// UpdatesChannelDescription says "Pre-release builds include upcoming improvements ahead of full releases."
 // in the language of msgs.
 func (msgs Messages) UpdatesChannelDescription() string {
 	return Catalog.Format(msgs.locale, "updatesChannelDescription", nil)
 }
 
-// UpdatesChannelStable says "Stable"
+// UpdatesChannelRelease says "Release"
 // in the language the app shows.
-func UpdatesChannelStable() string { return In(i18n.Locale()).UpdatesChannelStable() }
+func UpdatesChannelRelease() string { return In(i18n.Locale()).UpdatesChannelRelease() }
 
-// UpdatesChannelStable says "Stable"
+// UpdatesChannelRelease says "Release"
 // in the language of msgs.
-func (msgs Messages) UpdatesChannelStable() string {
-	return Catalog.Format(msgs.locale, "updatesChannelStable", nil)
+func (msgs Messages) UpdatesChannelRelease() string {
+	return Catalog.Format(msgs.locale, "updatesChannelRelease", nil)
 }
 
-// UpdatesChannelBeta says "Beta"
+// UpdatesChannelPrerelease says "Pre-release"
 // in the language the app shows.
-func UpdatesChannelBeta() string { return In(i18n.Locale()).UpdatesChannelBeta() }
+func UpdatesChannelPrerelease() string { return In(i18n.Locale()).UpdatesChannelPrerelease() }
 
-// UpdatesChannelBeta says "Beta"
+// UpdatesChannelPrerelease says "Pre-release"
 // in the language of msgs.
-func (msgs Messages) UpdatesChannelBeta() string {
-	return Catalog.Format(msgs.locale, "updatesChannelBeta", nil)
+func (msgs Messages) UpdatesChannelPrerelease() string {
+	return Catalog.Format(msgs.locale, "updatesChannelPrerelease", nil)
 }
 
 // UpdatesUnavailableDev says "Self-update is turned off in development builds."
