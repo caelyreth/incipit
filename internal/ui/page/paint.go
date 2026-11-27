@@ -345,10 +345,13 @@ func (el *Element) panelArea(s *surfaceLayout, ux, uy float32) ui.Rect {
 	return ui.Rect{X: ux + s.x - cardPad(m)/2, Y: uy + s.y - cardPad(m)/2, W: s.w + cardPad(m), H: s.h + cardPad(m)}
 }
 
+// panelRadius rounds a panel, and an outline lying on it.
+const panelRadius = 6
+
 // paintPanel lays the inset a panel surface stands on, beneath the
 // decorations over its text.
 func (el *Element) paintPanel(p *ui.Painter, s *surfaceLayout, ux, uy float32) {
-	p.Fill(el.panelArea(s, ux, uy), el.Theme.Surface.Inset, 6)
+	p.Fill(el.panelArea(s, ux, uy), el.Theme.Surface.Inset, panelRadius)
 }
 
 // decoKey is a decoration's identity across frames: where it is, where it

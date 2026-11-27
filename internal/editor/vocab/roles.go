@@ -2,6 +2,7 @@ package vocab
 
 import (
 	"reflect"
+	"slices"
 
 	"github.com/caelyreth/incipit/internal/editor/doc"
 )
@@ -177,4 +178,11 @@ type Profile interface {
 	// such as the number an item's position gives it, or nil. Analyzers
 	// read it, so it keys their caches.
 	Context(r doc.Reader, ref doc.SlotRef) any
+}
+
+// SelectedWhole reports a node a selection may hold whole, as a node: an
+// object, or a block that is a whole (Structure), as a code block with
+// its fences. A text block holds a caret, a range or its text instead.
+func SelectedWhole(p Profile, k doc.Kind) bool {
+	return p.Schema().IsObject(k) || slices.Contains(p.Roles(k), RoleStructure.ID)
 }

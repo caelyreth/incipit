@@ -140,8 +140,8 @@ func checkPublished(t *testing.T, e *engine.Engine, step string) {
 	v, _ := e.View(1)
 	if v.Selection.Kind == doc.SelectNode {
 		n, ok := snap.Node(v.Selection.Node)
-		if !ok || !profile.Schema().IsObject(n.Kind()) {
-			t.Fatalf("%s: a node selection of %v, which is not an object\n%s", step, v.Selection.Node, outline(snap.Root()))
+		if !ok || !vocab.SelectedWhole(profile.Profile, n.Kind()) {
+			t.Fatalf("%s: a node selection of %v, which is neither an object nor a whole\n%s", step, v.Selection.Node, outline(snap.Root()))
 		}
 	}
 	if v.Selection.Kind == doc.SelectText {

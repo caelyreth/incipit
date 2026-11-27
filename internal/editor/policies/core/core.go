@@ -498,14 +498,15 @@ func leaveLines(r doc.Reader, pos doc.Pos) (policy.Result, bool) {
 	return res, true
 }
 
-// selectedObject is the object selected whole, if one is.
+// selectedObject is the object, or the whole, selected as a node, if one
+// is.
 func selectedObject(c *policy.Ctx) (*doc.Node, bool) {
 	sel := c.Selection()
 	if sel.Kind != doc.SelectNode {
 		return nil, false
 	}
 	n, ok := c.Doc().Node(sel.Node)
-	return n, ok && c.Doc().Schema().IsObject(n.Kind())
+	return n, ok && vocab.SelectedWhole(c.Program().Profile(), n.Kind())
 }
 
 // softBreak inserts a line break where the slot keeps lines, and is Enter

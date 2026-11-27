@@ -62,7 +62,7 @@ func grow(c *policy.Ctx, _ vocab.SelectScope, _ policy.At[doc.SlotRef]) policy.R
 // around it, else the innermost holding the selection.
 func climb(c *policy.Ctx, cands []candidate) policy.Result {
 	sel := c.Selection()
-	next, ok := nextOf(c.Doc(), cands, sel)
+	next, ok := nextOf(c, cands, sel)
 	if !ok {
 		return policy.Swallow
 	}
@@ -72,19 +72,19 @@ func climb(c *policy.Ctx, cands []candidate) policy.Result {
 }
 
 // nextOf is the rung of cands, outer first, next around sel.
-func nextOf(r doc.Reader, cands []candidate, sel doc.Selection) (doc.Selection, bool) {
+func nextOf(c *policy.Ctx, cands []candidate, sel doc.Selection) (doc.Selection, bool) {
 	if sel.Kind == doc.SelectText && sel.IsCollapsed() {
 		for i := len(cands) - 1; i >= 0; i-- {
-			if containsCaret(r, cands[i], sel.Head) {
+			if containsCaret(c, cands[i], sel.Head) {
 				return cands[i].selection, true
 			}
 		}
 		return doc.Selection{}, false
 	}
 	for i, cand := range cands {
-		if sameSelection(r, cand.selection, sel) {
+		if sameSelection(c, cand.selection, sel) {
 			for j := i - 1; j >= 0; j-- {
-				if containsSelection(r, cands[j], sel) && !sameSelection(r, cands[j].selection, sel) {
+				if containsSelection(c, cands[j], sel) && !sameSelection(c, cands[j].selection, sel) {
 					return cands[j].selection, true
 				}
 			}
@@ -92,7 +92,7 @@ func nextOf(r doc.Reader, cands []candidate, sel doc.Selection) (doc.Selection, 
 		}
 	}
 	for i := len(cands) - 1; i >= 0; i-- {
-		if containsSelection(r, cands[i], sel) {
+		if containsSelection(c, cands[i], sel) {
 			return cands[i].selection, true
 		}
 	}
@@ -145,21 +145,21 @@ func candidatesAt(c *policy.Ctx) []candidate {
 			}
 			cand := candidate{selection: s}
 			if !slices.ContainsFunc(out, func(other candidate) bool {
-				return sameSelection(c.Doc(), other.selection, cand.selection)
+				return sameSelection(c, other.selection, cand.selection)
 			}) {
 				out = append(out, cand)
 			}
 		}
 	}
-	order(c.Doc(), out)
+	order(c, out)
 	return out
 }
 
 // order sorts cands outer first: each before those it holds, those apart
 // in reading order.
-func order(r doc.Reader, cands []candidate) {
+func order(c *policy.Ctx, cands []candidate) {
 	slices.SortStableFunc(cands, func(a, b candidate) int {
-		ab, ba := containsSelection(r, a, b.selection), containsSelection(r, b, a.selection)
+		ab, ba := containsSelection(c, a, b.selection), containsSelection(c, b, a.selection)
 		switch {
 		case ab && ba:
 			// The same extent, as a page holding only a table and the
@@ -170,12 +170,12 @@ func order(r doc.Reader, cands []candidate) {
 		case ba:
 			return 1
 		}
-		af, at := extent(r, a.selection)
-		bf, bt := extent(r, b.selection)
-		if n := doc.Compare(r, af, bf); n != 0 {
+		af, at := extent(c, a.selection)
+		bf, bt := extent(c, b.selection)
+		if n := doc.Compare(c.Doc(), af, bf); n != 0 {
 			return n
 		}
-		return doc.Compare(r, bt, at)
+		return doc.Compare(c.Doc(), bt, at)
 	})
 }
 
@@ -236,16 +236,33 @@ func selectionOf(c *policy.Ctx, level *policy.Level) (doc.Selection, bool) {
 		if level.Node == nil {
 			return doc.Selection{}, false
 		}
-		if c.Doc().Schema().IsObject(level.Node.Kind()) {
+		if vocab.SelectedWhole(c.Program().Profile(), level.Node.Kind()) {
 			return doc.NodeSelection(level.Node.ID()), true
 		}
 		return boundarySelection(c, level.Start, level.End), true
 	case policy.LevelSlot:
+		if s, ok := textOf(c, level); ok {
+			return s, true
+		}
 		return boundarySelection(c, level.Start, level.End), true
 	case policy.LevelFact, policy.LevelAnnotation:
 		return doc.TextRange(level.Start, level.End), level.Start != level.End
 	}
 	return doc.Selection{}, false
+}
+
+// textOf is what source text's slot denotes, as a code block's: its own
+// text, from its first stop to its last, the fences its block spells
+// around it left out, so the code is selected, then the block whole (its
+// node). Prose's slot holds its block's marker: a heading is selected with
+// its hashes.
+func textOf(c *policy.Ctx, level *policy.Level) (doc.Selection, bool) {
+	spec, ok := vocab.SlotSpec(c.Doc(), level.Slot)
+	in, ok2 := c.Inline(level.Slot)
+	if !ok || !ok2 || !spec.Literal || !spec.Lines {
+		return doc.Selection{}, false
+	}
+	return doc.TextRange(doc.Caret{Pos: doc.At(level.Slot, 0)}, doc.Caret{Pos: doc.At(level.Slot, in.Len())}), in.Len() > 0
 }
 
 // boundarySelection takes every stop around a level's structural edges,
@@ -258,33 +275,45 @@ func boundarySelection(c *policy.Ctx, start, end doc.Caret) doc.Selection {
 }
 
 // extent is a selection's two ends as places, in reading order.
-func extent(r doc.Reader, s doc.Selection) (from, to doc.Caret) {
+func extent(c *policy.Ctx, s doc.Selection) (from, to doc.Caret) {
+	r := c.Doc()
 	if s.Kind == doc.SelectText {
 		return s.Ordered(r)
+	}
+	if n, ok := r.Node(s.Node); ok && s.Kind == doc.SelectNode && !r.Schema().IsObject(n.Kind()) {
+		// A text block selected whole, as code with its fences, stands
+		// across every stop of its text's edges, as its level does: so a
+		// range from before its notation holds it, and it the text inside.
+		first, ok1 := vocab.FirstTextSlot(n)
+		last, ok2 := vocab.LastTextSlot(n)
+		if ok1 && ok2 {
+			sel := boundarySelection(c, doc.CaretAt(doc.At(first, 0)), doc.CaretAt(doc.At(last, n.Slot(last.Slot).Len())))
+			return sel.Anchor, sel.Head
+		}
 	}
 	fromPos, toPos := policy.SelectionRange(r, nil, s)
 	return doc.CaretAt(fromPos), doc.CaretAt(toPos)
 }
 
-func containsCaret(r doc.Reader, cand candidate, c doc.Caret) bool {
-	from, to := extent(r, cand.selection)
-	return doc.Compare(r, from, c) <= 0 && doc.Compare(r, c, to) <= 0
+func containsCaret(c *policy.Ctx, cand candidate, at doc.Caret) bool {
+	from, to := extent(c, cand.selection)
+	return doc.Compare(c.Doc(), from, at) <= 0 && doc.Compare(c.Doc(), at, to) <= 0
 }
 
-func containsSelection(r doc.Reader, outer candidate, inner doc.Selection) bool {
-	of, ot := extent(r, outer.selection)
-	innerFrom, innerTo := extent(r, inner)
-	return doc.Compare(r, of, innerFrom) <= 0 && doc.Compare(r, innerTo, ot) <= 0
+func containsSelection(c *policy.Ctx, outer candidate, inner doc.Selection) bool {
+	of, ot := extent(c, outer.selection)
+	innerFrom, innerTo := extent(c, inner)
+	return doc.Compare(c.Doc(), of, innerFrom) <= 0 && doc.Compare(c.Doc(), innerTo, ot) <= 0
 }
 
-func sameSelection(r doc.Reader, a, b doc.Selection) bool {
+func sameSelection(c *policy.Ctx, a, b doc.Selection) bool {
 	if a.Kind != b.Kind {
 		return false
 	}
 	if a.Kind == doc.SelectNode {
 		return a.Node == b.Node
 	}
-	af, at := extent(r, a)
-	bf, bt := extent(r, b)
+	af, at := extent(c, a)
+	bf, bt := extent(c, b)
 	return af == bf && at == bt
 }

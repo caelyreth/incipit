@@ -661,11 +661,11 @@ func headCaret(r doc.Reader, s doc.Selection) doc.Caret {
 func (e *Engine) settleSelection(viewID uint64, r doc.Reader, v *policy.View) doc.Selection {
 	s := clampSelection(r, v.Selection)
 	if s.Kind == doc.SelectNode {
-		// Only an object is selected whole; a text block selected as a
-		// node holds the caret at its start instead.
+		// Only an object or a whole is selected whole; a text block
+		// selected as a node holds the caret at its start instead.
 		n, _ := r.Node(s.Node)
 		ref, ok := vocab.FirstTextSlot(n)
-		if r.Schema().IsObject(n.Kind()) || !ok {
+		if vocab.SelectedWhole(e.prog.Profile(), n.Kind()) || !ok {
 			return s
 		}
 		s = doc.Collapsed(doc.CaretAt(doc.At(ref, 0)))

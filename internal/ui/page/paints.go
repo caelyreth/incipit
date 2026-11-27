@@ -44,6 +44,11 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 	if c.Whole && u.kind != nil {
 		return []piece{{surface: -1, rows: []decoRow{objectRow(blockOutline(u, u.drawn))}}}
 	}
+	if r, ok := panelOf(u); ok && c.Whole {
+		// A unit drawn whole on its panel, as code with its fences, held
+		// whole is outlined on its panel, as an object on its frame.
+		return []piece{{surface: -1, rows: []decoRow{objectRow(r, panelRadius)}}}
+	}
 	ranges := pl.coverRanges(u, c)
 	// An inline object held whole is drawn around; its card is its own.
 	whole := map[doc.ID]bool{}
@@ -103,6 +108,16 @@ func (pl *pageLayout) pieces(u *unitLayout, c present.Cover) []piece {
 		}
 	}
 	return shown
+}
+
+// panelOf is the panel a text unit stands on, in the page, if it stands
+// on one.
+func panelOf(u *unitLayout) (ui.Rect, bool) {
+	if u.kind != nil || len(u.surfaces) == 0 || u.surfaces[0].inset == 0 {
+		return ui.Rect{}, false
+	}
+	s := u.surfaces[0]
+	return ui.Rect{X: u.x, Y: u.y + s.y - s.inset, W: s.w + 2*s.x, H: s.h + 2*s.inset}, true
 }
 
 // boxed is the row filling the box surface s stands in (objectKind.cover)

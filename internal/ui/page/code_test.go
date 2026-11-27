@@ -42,8 +42,9 @@ func shoot(t *testing.T, tt *ui.Tester, name string) {
 // its fences are lines of their own, on its panel.
 func TestACodeBlockShowsItsFences(t *testing.T) {
 	el := newElement(t)
-	write(el, "A paragraph before the code.", "```go", "// Greet says hello.", "func Greet(name string) string {", "\treturn \"hello, \" + name + 42")
-	typeText(el, "}")
+	write(el, "A paragraph before the code.", "```go")
+	el.Editor.Do(vocab.Paste{Text: "// Greet says hello.\nfunc Greet(name string) string {\n\treturn \"hello, \" + name + 42\n}"}, time.Unix(300, 0))
+	el.relayout()
 	tt := ui.NewTester(el.View, 900, 600)
 	tt.Frame()
 	tt.Advance(time.Second)
@@ -65,4 +66,36 @@ func TestACodeBlockShowsItsFences(t *testing.T) {
 	if n := len(s.layout.Lines()); n != 6 {
 		t.Fatalf("code lays out %d lines, want 6: four of code and two fences: %q", n, s.text)
 	}
+}
+
+// TestACodeBlockSelectedWholeIsRinged selects a code block whole: its
+// paint is a ring on its panel, as a figure's, no wash over its rows.
+func TestACodeBlockSelectedWholeIsRinged(t *testing.T) {
+	el := newElement(t)
+	write(el, "```go", "x := 1")
+	typeText(el, "y := 2")
+	el.Editor.Do(vocab.SelectScope{}, time.Unix(300, 0))
+	el.Editor.Do(vocab.SelectScope{}, time.Unix(301, 0))
+	tt := ui.NewTester(el.View, 900, 300)
+	tt.Frame()
+	tt.Advance(time.Second)
+	shoot(t, tt, "code-held")
+	pl := el.Editor.layout
+	var code *unitLayout
+	for _, u := range pl.units {
+		if u.pres.Group == profile.GroupCode {
+			code = u
+		}
+	}
+	for _, pt := range el.shownPaints(pl) {
+		if pt.Group != vocab.GroupSelection {
+			continue
+		}
+		pcs := pl.pieces(code, pt.Covers[0])
+		if len(pcs) != 1 || pcs[0].surface != -1 || len(pcs[0].rows) != 1 || !pcs[0].rows[0].object {
+			t.Fatalf("pieces %+v, want one ring", pcs)
+		}
+		return
+	}
+	t.Fatal("no selection paint")
 }

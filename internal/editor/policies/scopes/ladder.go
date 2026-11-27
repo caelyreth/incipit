@@ -26,7 +26,7 @@ type rung struct {
 
 // climbed is the rung that selected sel, if the view still stands on it.
 func climbed(c *policy.Ctx, sel doc.Selection) *rung {
-	if r, ok := c.Mode(ID).(*rung); ok && sameSelection(c.Doc(), r.at, sel) {
+	if r, ok := c.Mode(ID).(*rung); ok && sameSelection(c, r.at, sel) {
 		return r
 	}
 	return nil
@@ -35,8 +35,8 @@ func climbed(c *policy.Ctx, sel doc.Selection) *rung {
 // expand climbs one rung of the whole ladder.
 func expand(c *policy.Ctx, _ vocab.ExpandSelection, _ policy.At[doc.SlotRef]) policy.Result {
 	cands := append(candidatesAt(c), textRungs(c)...)
-	order(c.Doc(), cands)
-	return climb(c, dedupe(c.Doc(), cands))
+	order(c, cands)
+	return climb(c, dedupe(c, cands))
 }
 
 // shrink goes back to where the last rung climbed from, the rung below
@@ -90,10 +90,10 @@ func textRungs(c *policy.Ctx) []candidate {
 
 // dedupe drops the rungs of an extent another before it has: a sentence
 // that is its block's whole text is one rung.
-func dedupe(r doc.Reader, cands []candidate) []candidate {
+func dedupe(c *policy.Ctx, cands []candidate) []candidate {
 	out := cands[:0:0]
 	for _, cand := range cands {
-		if !slices.ContainsFunc(out, func(o candidate) bool { return sameSelection(r, o.selection, cand.selection) }) {
+		if !slices.ContainsFunc(out, func(o candidate) bool { return sameSelection(c, o.selection, cand.selection) }) {
 			out = append(out, cand)
 		}
 	}
