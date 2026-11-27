@@ -1,23 +1,26 @@
 ### 1.0.0-alpha.1
 
-First public alpha of Incipit — a quiet, local-first writing workspace built with Go.
+Welcome to the first public alpha of Incipit — a quiet, local-first writing workspace built with Go.
 
 #### Writing & Editor
 
-- Live Markdown shaping as you type for headings, lists, task items, quotes, code blocks, tables, and captioned figures.
-- TeX and Typst support for inline formulas and math blocks.
-- Smart typography and CJK typesetting, including punctuation width, CJK-Latin spacing, paired brackets and quotes, and typewriter mode.
-- Structural scope selection, two-step deletion protection, in-sheet find, live word and CJK counts, and macOS spelling, grammar, and inline predictions.
+- **Live Markdown shaping:** Format headings, lists, task items, block quotes, tables, and captioned figures cleanly as you type, choosing whether syntax marks stay visible or tuck away.
+- **Formulas:** Write inline math and display blocks using either TeX or Typst syntax.
+- **Code blocks:** Fenced blocks sit on their own panel with language-aware syntax highlighting from the info string, smart indentation on Enter, and clean fence navigation.
+- **Typography & CJK typesetting:** Convert `--` and `...` on the fly, curl quotes, auto-pair brackets and quotes, tune CJK punctuation width and CJK–Latin spacing, see subtle correction pulses, and keep your current line centered in Typewriter mode.
+- **Precision editing & navigation:** Act quickly with the floating selection toolbar, keyboard block moves (`↑`/`↓`) and block/list shortcuts, indentation and table-row guides, structural scope expansion, triple-click sentence selection, two-step deletion protection, live in-sheet find, and real-time word and CJK character counts.
+- **Smart clipboard:** Paste cleanly from the web with automatic HTML-to-Markdown translation or Paste and Match Style, and copy plain text out as clean Markdown.
+- **macOS writing aids:** Check spelling and grammar as you write, auto-correct with click-to-restore, accept inline ghost predictions with Tab, and look up words via Force Click or the context menu.
 
 #### Library, Search & Workspace
 
-- Field and list library views with nested groups, color labels, tags, pinning, Tray staging, and side-by-side Desk split sheets.
-- Full-text search and quick sheet switcher with filter keys ($tag, $in, $updated, $words, $has, $task) and saved search bookmarks.
-- Local SQLite notebook folder with automatic verified backups, crash-safe sheet recovery, and customizable keyboard shortcuts.
+- **Field, List, Tray & Desk:** Browse your notebook spatially in Field or linearly in List, organize with nested groups, color swatches, tags, pins, and sheet image previews, stage notes in the Tray, and write across split columns on the Desk.
+- **Search, filters & commands:** Search full text and filter with `$tag`, `$in`, `$updated`, `$words`, `$has`, and `$task`, bookmark frequent queries, jump via Go to Sheet, or trigger actions from the Command Palette.
+- **Local-first safety & shortcuts:** Keep everything in a local SQLite notebook folder with Trash recovery, automatic verified backups, crash-safe restore, orphaned image cleanup on launch, single-instance window handoff, and customizable shortcuts with live `$key` chord capture.
 
-#### Appearance, Languages & Export
+#### Onboarding, Appearance & Delivery
 
-- Starfield (dark), Daybreak (light), and System themes, customizable UI and prose font sizes, and selectable Noto typefaces for Latin, Chinese, and Japanese.
-- Localized interface in English, Japanese, Simplified Chinese, and Traditional Chinese.
-- Folder and sheet export to Markdown (with optional YAML front matter) and paginated PDF.
-- Signed automatic updates with delta patches across macOS (Apple Silicon and Intel), Linux, and Windows.
+- **Guided first run:** Choose your notebook folder (with XDG support on Linux) and preview your writing feel and look before starting.
+- **Themes, typography & motion:** Switch between Starfield (dark), Daybreak (light), and System with group-tinted accents and reduced-motion-friendly transitions; pick Serif or Sans prose, browse a searchable font picker with live specimens, select inline CJK glyph forms, and download Noto typefaces on demand.
+- **Languages & export:** Use Incipit natively in English, Japanese, Simplified Chinese, or Traditional Chinese, and export sheets or groups to Markdown (with optional YAML front matter) and paginated PDF.
+- **Cross-platform signed updates:** Install and update cleanly via signed manifests and binary delta patches across macOS (Apple Silicon & Intel), Windows (`amd64` & `arm64`), and Linux (`tar.gz`, `.deb`, `.rpm`, and `install.sh`).
