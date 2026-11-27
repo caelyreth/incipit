@@ -3178,13 +3178,9 @@
   "@onboardingStep": {
     "description": "Onboarding: which page of the walkthrough is shown, as \"2 of 5\"."
   },
-  "onboardingWelcomeHeadline": "Find my way to Incipit",
+  "onboardingWelcomeHeadline": "Where every page begins",
   "@onboardingWelcomeHeadline": {
-    "description": "Onboarding, cover: under the app's name, a line of the song “Constellation”, which Incipit is named from."
-  },
-  "onboardingWelcomeSong": "“Constellation”",
-  "@onboardingWelcomeSong": {
-    "description": "Onboarding, cover: the title of the song the line above is from, kept in English and quoted as the language quotes a song's title."
+    "description": "Onboarding, cover: opening epigraph directly beneath the Incipit wordmark, echoing the Latin word's meaning (\"here begins\")."
   },
   "onboardingBegin": "Begin",
   "@onboardingBegin": {

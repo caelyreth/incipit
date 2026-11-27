@@ -89,12 +89,9 @@ func (s *State) welcome(c *ui.Context, semantic theme.Theme, m metrics, animate 
 		s.enter(c, ui.Box(c).Padding(28*m.k, 0, 0, 0).Children(func() {
 			components.Wordmark(c, "wordmark", semantic, m.wordmark).Role(ui.RoleHeading).Label("Incipit")
 		}), 1, animate)
-		// The line is the song's the name is taken from, and under it the
-		// song's title, as a lyric is credited.
+		// An opening epigraph beneath the wordmark, echoing Incipit ("here begins").
 		s.enter(c, ui.Text(c, locales.OnboardingWelcomeHeadline()).Font(theme.ProseFontFamily).Italic().FontSize(19*m.k).
 			TextColor(semantic.Text.Muted).Padding(6*m.k, 0, 0, 0), 2, animate)
-		s.enter(c, components.Label(c, locales.OnboardingWelcomeSong(), theme.TextSmall, semantic.Text.Muted).
-			Opacity(0.75).Padding(6*m.k, 0, 0, 0), 2, animate)
 		s.enter(c, ui.Row(c).Padding(40*m.k, 0, 0, 0).Children(func() {
 			components.Button{Key: "begin", Label: locales.OnboardingBegin(), Style: components.PrimaryButton,
 				Animate: animate, Shortcut: returnKey, Action: func() { s.next(s.clock) }}.View(c, semantic)

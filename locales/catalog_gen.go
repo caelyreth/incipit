@@ -11563,36 +11563,20 @@ func (msgs Messages) OnboardingStep(step string, count string) string {
 	return Catalog.Format(msgs.locale, "onboardingStep", map[string]any{"step": step, "count": count})
 }
 
-// OnboardingWelcomeHeadline says "Find my way to Incipit"
+// OnboardingWelcomeHeadline says "Where every page begins"
 // in the language the app shows.
 //
-// Onboarding, cover: under the app's name, a line of the song
-// “Constellation”, which Incipit is named from.
+// Onboarding, cover: opening epigraph directly beneath the Incipit
+// wordmark, echoing the Latin word's meaning ("here begins").
 func OnboardingWelcomeHeadline() string { return In(i18n.Locale()).OnboardingWelcomeHeadline() }
 
-// OnboardingWelcomeHeadline says "Find my way to Incipit"
+// OnboardingWelcomeHeadline says "Where every page begins"
 // in the language of msgs.
 //
-// Onboarding, cover: under the app's name, a line of the song
-// “Constellation”, which Incipit is named from.
+// Onboarding, cover: opening epigraph directly beneath the Incipit
+// wordmark, echoing the Latin word's meaning ("here begins").
 func (msgs Messages) OnboardingWelcomeHeadline() string {
 	return Catalog.Format(msgs.locale, "onboardingWelcomeHeadline", nil)
-}
-
-// OnboardingWelcomeSong says "“Constellation”"
-// in the language the app shows.
-//
-// Onboarding, cover: the title of the song the line above is from, kept in
-// English and quoted as the language quotes a song's title.
-func OnboardingWelcomeSong() string { return In(i18n.Locale()).OnboardingWelcomeSong() }
-
-// OnboardingWelcomeSong says "“Constellation”"
-// in the language of msgs.
-//
-// Onboarding, cover: the title of the song the line above is from, kept in
-// English and quoted as the language quotes a song's title.
-func (msgs Messages) OnboardingWelcomeSong() string {
-	return Catalog.Format(msgs.locale, "onboardingWelcomeSong", nil)
 }
 
 // OnboardingBegin says "Begin"
@@ -12317,9 +12301,7 @@ func (msgs Messages) OnboardingMenusNativeCaption() string {
 // in the language the app shows.
 //
 // Onboarding: explains Incipit's own menus.
-func OnboardingMenusIncipitCaption() string {
-	return In(i18n.Locale()).OnboardingMenusIncipitCaption()
-}
+func OnboardingMenusIncipitCaption() string { return In(i18n.Locale()).OnboardingMenusIncipitCaption() }
 
 // OnboardingMenusIncipitCaption says "Drawn to match the page."
 // in the language of msgs.
