@@ -526,26 +526,40 @@ func renderReleaseNotes(c *ui.Context, semantic theme.Theme, raw string, scale f
 		if trimmed == "" {
 			continue
 		}
-		switch {
-		case strings.HasPrefix(trimmed, "### "):
-			components.Label(c, strings.TrimSpace(strings.TrimPrefix(trimmed, "### ")), theme.TextSmall, semantic.Text.Heading).
+		if level, heading, ok := markdownHeading(trimmed); ok {
+			style := theme.TextSmall
+			if level == 1 {
+				style = theme.TextDefault
+			}
+			components.Label(c, heading, style, semantic.Text.Heading).
 				FontWeight(600).WidthPercent(100).MinWidth(0)
-		case strings.HasPrefix(trimmed, "## "):
-			components.Label(c, strings.TrimSpace(strings.TrimPrefix(trimmed, "## ")), theme.TextSmall, semantic.Text.Heading).
-				FontWeight(600).WidthPercent(100).MinWidth(0)
-		case strings.HasPrefix(trimmed, "# "):
-			components.Label(c, strings.TrimSpace(strings.TrimPrefix(trimmed, "# ")), theme.TextDefault, semantic.Text.Heading).
-				FontWeight(600).WidthPercent(100).MinWidth(0)
-		case strings.HasPrefix(trimmed, "- "), strings.HasPrefix(trimmed, "* "):
+			continue
+		}
+		if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
 			body := strings.TrimSpace(trimmed[2:])
 			ui.Row(c).WidthPercent(100).MinWidth(0).Gap(theme.Space06.DIPs(scale)).Children(func() {
 				components.Label(c, "•", theme.TextSmall, semantic.Text.Muted).Shrink(0)
 				components.Label(c, body, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0)
 			})
-		default:
-			components.Label(c, trimmed, theme.TextSmall, semantic.Text.Default).WidthPercent(100).MinWidth(0)
+			continue
 		}
+		components.Label(c, trimmed, theme.TextSmall, semantic.Text.Default).WidthPercent(100).MinWidth(0)
 	}
+}
+
+func markdownHeading(line string) (int, string, bool) {
+	level := 0
+	for level < len(line) && line[level] == '#' {
+		level++
+	}
+	if level == 0 || level > 6 || level >= len(line) || line[level] != ' ' {
+		return 0, "", false
+	}
+	text := strings.TrimSpace(line[level+1:])
+	if text == "" {
+		return 0, "", false
+	}
+	return level, text, true
 }
 
 func (s *State) updatesPreferencesCard(c *ui.Context, semantic theme.Theme, sec Section) {

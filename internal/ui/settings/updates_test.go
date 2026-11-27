@@ -31,7 +31,7 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 		Available: &appupdater.Release{
 			Version: "0.2.0",
 			Channel: appupdater.ChannelStable,
-			Notes:   "## What's New\n- Faster rendering pipeline\n- Delta updates with zstd",
+			Notes:   "## What's New\n#### Highlights\n- Faster rendering pipeline\n- Delta updates with zstd",
 			Install: func(context.Context, func(int64, int64)) error { return nil },
 		},
 	}
@@ -66,6 +66,7 @@ func TestUpdatesSectionStatesAndActions(t *testing.T) {
 		"Version",
 		"Incipit 0.2.0 is Available",
 		"Release Notes",
+		"Highlights",
 		"Faster rendering pipeline",
 		"Delta updates with zstd",
 		"Preferences",

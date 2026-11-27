@@ -161,8 +161,30 @@ jobs:
             exit 1
           fi
           ver="${{ needs.version.outputs.version }}"
-          if [ "${GITHUB_REF_TYPE:-}" != "tag" ] && [ -f CHANGELOG.md ] && ! grep -Fqx "## ${ver}" CHANGELOG.md && ! grep -Fqx "## v${ver}" CHANGELOG.md; then
-            printf '\n## %s\n\n- Manual test build.\n' "$ver" >> CHANGELOG.md
+          if [ -f CHANGELOG.md ]; then
+            if [ "${GITHUB_REF_TYPE:-}" != "tag" ] && ! awk -v ver="$ver" '
+              /^#{2,3} / {
+                line = $0; sub(/^#{2,3}[[:space:]]+/, "", line)
+                split(line, a, /[[:space:]]+/)
+                h = a[1]; gsub(/^\[|\].*$/, "", h); sub(/^v/, "", h)
+                if (h == ver) { found = 1; exit }
+              }
+              END { exit !found }
+            ' CHANGELOG.md; then
+              printf '\n### %s\n\n- Manual test build.\n' "$ver" >> CHANGELOG.md
+            fi
+            # Pinned mygo (evil-mygo) parses "## <version>" headings; normalize ###/#### -> ##/### for build.
+            if ! awk -v ver="$ver" '
+              /^## / {
+                line = $0; sub(/^##[[:space:]]+/, "", line)
+                split(line, a, /[[:space:]]+/)
+                h = a[1]; gsub(/^\[|\].*$/, "", h); sub(/^v/, "", h)
+                if (h == ver) { found = 1; exit }
+              }
+              END { exit !found }
+            ' CHANGELOG.md; then
+              awk '/^###+ / { sub(/^###/, "##") } { print }' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+            fi
           fi
           args=(-platform "${{ matrix.target }}" -version "$ver")
           if [ "${{ matrix.os }}" = "macos-latest" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
