@@ -116,25 +116,27 @@ func (s *State) deskRest(w, h float32) stageRect {
 	return stageRect{X: w, W: w, H: h}
 }
 
-// leanDesk stands the desk where the scene says. On the way it is only
-// scaled and moved as one image (CacheScaled), never laid out or painted
-// anew, so it keeps its lines and costs a frame no more than an image
-// does: drawn again only as it shrinks under half the scale it was drawn
-// at, or grows past it, and never for the scale it comes to rest at, so
-// it settles in the lane as it moved there.
+// leanDesk stands the desk where the scene says. On the way what it holds is only scaled and moved as one image
+// (CacheScaled), never laid out or painted anew, so it keeps its lines and
+// costs a frame no more than an image does: drawn again only as it
+// shrinks under half the scale it was drawn at, or grows past it, and
+// never for the scale it comes to rest at, so it settles in the lane as it
+// moved there. Its corners and edge are the desk's own, around the image,
+// so their changing on the way never draws it again.
 // Away from the desk, the desk takes no input but a press, which brings
 // it up, or opens a sheet when empty.
 func (s *State) leanDesk(area ui.Element, semantic theme.Theme, look stageLook, upright float32) {
 	if upright < 1 {
-		// Its edge is drawn as the tray's and the kept box's are, in the
-		// window's points however small it stands; empty, its dashed
-		// outline is its edge (deskEmpty).
+		// Its corners and edge are drawn as the tray's and the kept box's
+		// are, in the window's points however small it stands; empty, its
+		// dashed outline is its edge (deskEmpty).
 		k := s.Settings.UIFontSize / theme.DefaultUIFontSize
-		inv := 1 / max(look.Scale, 0.01)
-		area.CacheScaled().TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).
-			Translate(look.Offset.X, look.Offset.Y).Radius(laneRadius * k * inv).Clip()
-		if len(s.Open) > 0 {
-			area.Border(inv, semantic.Border.Default)
+		away, inv := 1-upright, 1/max(look.Scale, 0.01)
+		area.TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).
+			Translate(look.Offset.X, look.Offset.Y).Radius(deskCorner(k, away) * inv).Clip()
+		if edge := deskEdge(away); edge > 0 && len(s.Open) > 0 {
+			line := semantic.Border.Default
+			area.Border(inv, line.Alpha(float32(line.A)/255*edge))
 		}
 	}
 	if s.OnDesk() {
@@ -155,6 +157,27 @@ func (s *State) leanDesk(area ui.Element, semantic theme.Theme, look stageLook, 
 	}
 	area.ContextMenu(s.openSheetsMenu)
 }
+
+// deskCorner is how round the desk's corners are, in the window's points,
+// at away from filling it (1 resting in its lane, 0 filling the window):
+// as round as the shelves in the lane, squaring over the last of the way
+// up, so they come to the window's own corners without a seam of the
+// field showing between, nor a jump as the desk arrives.
+func deskCorner(k, away float32) float32 {
+	return laneRadius * k * components.Smoothstep(away/deskSquaring)
+}
+
+// deskEdge is how much of its line the desk shows at away from filling
+// the window: gone early on the way up, before it nears the window's own
+// edges, and coming back late on the way down.
+func deskEdge(away float32) float32 {
+	return components.Smoothstep((away - deskEdgeGone) / (1 - deskEdgeGone - deskEdgeFull))
+}
+
+// deskSquaring is how much of the way up the desk's corners square over;
+// deskEdgeGone how far from the window its line is gone, and deskEdgeFull
+// how near its lane it is whole.
+const deskSquaring, deskEdgeGone, deskEdgeFull = 0.35, 0.6, 0.1
 
 // openSheetsMenu lists the sheets open on the desk, in their order, the
 // one in front checked: chosen, the desk comes up on it. It says what the

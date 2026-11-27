@@ -115,7 +115,12 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 		s.deskDrops(semantic, area, scene.Desk.Scale, animate)
 	}
 	area.Children(func() {
-		ui.Column(c).Key("desk-content").Grow(1).MinHeight(0).WidthPercent(100).IgnoreInput(!on).Children(func() {
+		content := ui.Column(c).Key("desk-content").Grow(1).MinHeight(0).WidthPercent(100).IgnoreInput(!on)
+		if scene.Upright < 1 {
+			// On the way, what it holds is one image (leanDesk).
+			content.CacheScaled()
+		}
+		content.Children(func() {
 			// All of it, on the desk or resting in its block, so it never
 			// changes its layout on the way between. Not upright, the desk
 			// is drawn as one picture of itself (leanDesk), drawn again
@@ -162,7 +167,7 @@ func (s *State) deskEmpty(c *ui.Context, semantic theme.Theme, area ui.Element, 
 	rest := s.deskRest(w, h)
 	inv := max(w, 1) / max(rest.W, 1)
 	visible := max(0, w-rest.X) * inv
-	radius := laneRadius * k * inv
+	radius := deskCorner(k, 1-s.view) * inv
 	hover := components.HoverAmount(area, area.Hovered(), animate)
 	line := components.Blend(semantic.Border.Default, semantic.Accent.Foreground, hover)
 	box := ui.Row(c).Key("desk-empty").Absolute().Top(0).Left(0).Size(w, h).
