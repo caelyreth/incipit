@@ -90,19 +90,28 @@ jobs:
         shell: bash
         run: go tool fetch
 
-      - name: import macos signing identity
+      - name: import macos signing and notary credentials
+        id: macos_creds
         if: matrix.os == 'macos-latest'
         shell: bash
         env:
           APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD || github.run_id }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          kc="$RUNNER_TEMP/incipit-build.keychain-db"
+          has_notary="false"
           if [ -z "$APPLE_CERTIFICATE_P12" ]; then
             echo "APPLE_CERTIFICATE_P12 not set; skipping keychain import"
+            echo "notarize=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          kc="$RUNNER_TEMP/incipit-build.keychain-db"
           echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$kc"
           security set-keychain-settings -lut 21600 "$kc"
@@ -110,7 +119,35 @@ jobs:
           security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$kc"
           security list-keychains -d user -s "$kc" login.keychain-db
+          security default-keychain -d user -s "$kc"
           rm -f "$RUNNER_TEMP/cert.p12"
+
+          if [ -n "$APPLE_API_KEY" ] && [ -n "$APPLE_API_KEY_ID" ]; then
+            key_path="$RUNNER_TEMP/AuthKey.p8"
+            if printf '%s' "$APPLE_API_KEY" | grep -q "BEGIN PRIVATE KEY"; then
+              printf '%s\n' "$APPLE_API_KEY" > "$key_path"
+            else
+              printf '%s' "$APPLE_API_KEY" | base64 --decode > "$key_path"
+            fi
+            chmod 600 "$key_path"
+            notary_args=(--key "$key_path" --key-id "$APPLE_API_KEY_ID" --keychain "$kc")
+            if [ -n "$APPLE_API_ISSUER" ]; then
+              notary_args+=(--issuer "$APPLE_API_ISSUER")
+            fi
+            xcrun notarytool store-credentials "incipit-notarize" "${notary_args[@]}"
+            rm -f "$key_path"
+            has_notary="true"
+          elif [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+            xcrun notarytool store-credentials "incipit-notarize" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --keychain "$kc"
+            has_notary="true"
+          else
+            echo "Notary credentials not set; notarization will be skipped"
+          fi
+          echo "notarize=$has_notary" >> "$GITHUB_OUTPUT"
 
       - name: build packages and updates
         shell: bash
@@ -125,6 +162,9 @@ jobs:
           if [ "${{ matrix.os }}" = "macos-latest" ]; then
             if [ -n "$APPLE_SIGNING_IDENTITY" ]; then
               args+=(-sign "$APPLE_SIGNING_IDENTITY")
+              if [ "${{ steps.macos_creds.outputs.notarize }}" != "true" ]; then
+                args+=(-skip-notarize)
+              fi
             else
               args+=(-skip-notarize)
             fi

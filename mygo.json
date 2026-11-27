@@ -10,7 +10,17 @@
     "dir": "locales",
     "source": "en"
   },
+  "copyright": "Copyright © 2026 Yu (Caelyreth)",
+  "license": "AGPL-3.0-only",
   "macos": {
-    "icon": "assets/profile.icon"
+    "icon": "assets/profile.icon",
+    "notarize": {
+      "keychainProfile": "incipit-notarize"
+    }
+  },
+  "updates": {
+    "publicKey": "e4/9vEg7YHXubs0aHgZYBZ2zv+SiAXIcWgbzNg3N29g=",
+    "feedUrl": "https://incipit.updates.elm.fm",
+    "url": "https://incipit.data.elm.fm"
   }
 }
