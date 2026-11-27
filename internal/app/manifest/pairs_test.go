@@ -381,4 +381,11 @@ func TestAPairInCodeIsNoScopeToLeave(t *testing.T) {
 	}
 	p.typeText("\")")
 	p.want("page(code(f(\"x\")))")
+	// Nor does a guide show where Tab would indent to, or a wash the
+	// pair's inside: an indent is an edit, and code's lines are no scope.
+	p.do(vocab.Break{})
+	p.typeText("    x")
+	if d := p.e.Decorations(1); len(d.Guides) != 0 || len(d.Paints) != 0 {
+		t.Fatalf("decorations in code %+v %+v", d.Guides, d.Paints)
+	}
 }

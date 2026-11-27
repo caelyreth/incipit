@@ -63,9 +63,9 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	policy.Scan[string](p, scanner{kind: span, kinds: kinds}, []policy.FactID{span.Kind()},
 		policy.Where(func(u *policy.Unit) bool { return !source(u.Spec) }))
 	p.Paint(vocab.GroupPairMatch, span.Inside())
-	// In source text, as code, a pair is the language's: it matches and
-	// closes as typed, but it is no scope Tab leaves, whose Tab indents,
-	// and no whole a delete arms.
+	// In source text, as code, a pair is the language's: it closes as
+	// typed, but it is no scope Tab leaves, whose Tab indents, no whole a
+	// delete arms, and no range to wash, which would cover whole lines.
 	sourceRoles := []vocab.AnyRole{vocab.RolePair}
 	if over {
 		sourceRoles = append(sourceRoles, vocab.RoleCloser)
@@ -73,7 +73,6 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	inSource := policy.Facts[pair](p, "source-pair", policy.Provides(bound, sourceRoles...))
 	policy.Scan[string](p, scanner{kind: inSource, kinds: kinds}, []policy.FactID{inSource.Kind()},
 		policy.Where(func(u *policy.Unit) bool { return source(u.Spec) }))
-	p.Paint(vocab.GroupPairMatch, inSource.Inside())
 
 	for _, k := range kinds {
 		// A selection is wrapped in the pair, opener or not auto-closing:

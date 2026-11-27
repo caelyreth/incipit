@@ -124,8 +124,16 @@ func (e *Engine) guides(viewID uint64, v *policy.View, pres []*present.Presentat
 		}
 		guide := present.Guide{Command: g.Command, At: to.Head}
 		if point {
-			if _, exists := e.snap.Node(to.Head.Pos.Node); !exists {
+			_, exists := e.snap.Node(to.Head.Pos.Node)
+			switch {
+			case !exists:
+				// The caret lands in a block the command makes, which stands
+				// after the caret's.
 				guide.After = unitIDFor(e.snap, pres, v.Selection.Head.Pos.Node)
+			case len(res.preview.Steps) > 0:
+				// An edit's caret stands in the text it makes, not in this:
+				// it has no place here to show, as an indent of code's lines.
+				continue
 			}
 		} else {
 			if len(res.preview.Steps) > 0 {
