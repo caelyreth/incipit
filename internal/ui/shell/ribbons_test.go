@@ -195,7 +195,7 @@ func TestRibbonsComeInAtOnceWhereverThePillStands(t *testing.T) {
 		for range 12 {
 			tester.Advance(25 * time.Millisecond)
 			tester.Frame()
-			if state.field.away > 0 {
+			if max(state.field.away[0], state.field.away[1]) > 0 {
 				t.Fatalf("Opening the pill (list %v) should not put its ribbons away: %v.", list, state.field.away)
 			}
 		}

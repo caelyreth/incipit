@@ -109,9 +109,11 @@ type fieldState struct {
 	// arrivals are what was just made, moved or put back, by row or card
 	// id, from when the field first showed each (order.go).
 	arrivals map[string]arrival
-	// away is how far what the pill offers around it is put away, as its
-	// horizon goes past where it all fits.
-	away float32
+	// away is how far what the pill offers on each side of it is put away,
+	// by ribbonSide's sides, as its horizon goes past where that side's
+	// fits: stuck at the window's top, what stands over the pill has no
+	// room, and what stands under it stays.
+	away [2]float32
 	// measured is how tall each card of the settings laid itself out, by
 	// its section, and measures counts the changes.
 	measured map[string]float32

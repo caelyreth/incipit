@@ -507,12 +507,13 @@ func (s *State) ribbon(c *ui.Context, semantic theme.Theme, p ribbonPlace, k flo
 	// It stands where the layout puts it about the pill, and only that
 	// moves it on its spring; the ribbons container carries the pill's
 	// vertical place at once as the field scrolls. Away from the horizon,
-	// all but the query's own conditions are put away.
+	// all but the query's own conditions are put away on the side with no
+	// room for them.
+	above := p.y < 0
 	shown := l.shown * s.field.offered
 	if p.kind != ribbonCondition {
-		shown *= 1 - s.field.away
+		shown *= 1 - s.field.away[map[bool]int{true: 1}[above]]
 	}
-	above := p.y < 0
 	originY := float32(0)
 	if above {
 		originY = 1

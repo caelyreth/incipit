@@ -215,7 +215,7 @@ func TestScrollingLeavesThePillAndItsRibbonsSteady(t *testing.T) {
 			if !state.field.open || state.field.opened == nil {
 				t.Fatal("Scrolling should leave the pill open, its key with it.")
 			}
-			if g := gap(); state.field.away < 0.01 && abs(g-before) > 0.5 {
+			if g := gap(); state.field.away[ribbonSide("tag")] < 0.01 && abs(g-before) > 0.5 {
 				t.Fatalf("The ribbons should go with the pill, but they stand %v from it, not %v.", g, before)
 			}
 			if !slices.Equal(state.field.rest, rest) {

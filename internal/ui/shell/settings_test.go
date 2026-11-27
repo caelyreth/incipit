@@ -401,3 +401,43 @@ func TestKeyFindsSettingsByTheirShortcut(t *testing.T) {
 		t.Fatalf("scope %q, find %#v", scope, find)
 	}
 }
+
+// Scrolled until the pill stands stuck at the window's top, its blur
+// under it, the open pill keeps offering Key, which stands under it where
+// there is room, as a list's bar keeps what it offers.
+func TestTheKeyRibbonStaysAsThePillSticks(t *testing.T) {
+	state, settings, tester := settingsState(t)
+	settings.tall = 3000
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if err := tester.Click("Keymap"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if err := tester.Click("Search"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if _, ok := tester.Find("Key"); !ok {
+		t.Fatalf("The open pill should offer Key: %v", tester.Texts())
+	}
+	for range 20 {
+		tester.Scroll(600, 600, 0, 60)
+		tester.Frame()
+	}
+	settle(tester)
+	if state.field.stuck < 0.99 {
+		t.Fatalf("The pill should stand stuck, but stands %v so.", state.field.stuck)
+	}
+	if !state.field.open {
+		t.Fatal("Scrolling should leave the pill open.")
+	}
+	if away := state.field.away[ribbonSide("key")]; away > 0.01 {
+		t.Fatalf("Key stands where there is room, but is put away %v.", away)
+	}
+	if _, ok := tester.Find("Key"); !ok {
+		t.Fatalf("The stuck pill should still offer Key: %v", tester.Texts())
+	}
+}

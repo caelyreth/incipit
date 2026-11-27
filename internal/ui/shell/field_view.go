@@ -283,7 +283,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	s.field.heldAbove, s.field.heldBelow = rl.heldAbove, rl.heldBelow
 	footY := h - foot - pill.H - rl.heldBelow
 	var origin, free, fieldPy float32
-	away := false
+	var away [2]bool
 	if listed {
 		origin = s.field.base - (s.field.scroll - s.field.over.Offset())
 		fieldPy = s.field.fieldPillY
@@ -295,7 +295,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		origin = horizon
 		free = horizon - pill.H/2
 		bound := h/2 - poise.Y - (s.field.scroll - s.field.over.Offset()) - pill.H/2
-		away = bound < top+rl.above || bound > h-foot-pill.H-rl.below
+		away = [2]bool{bound > h-foot-pill.H-rl.below, bound < top+rl.above}
 		fieldPy = max(top+rl.heldAbove, min(free, footY))
 		s.field.fieldPillY = fieldPy
 	}
@@ -323,9 +323,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		py = s.along(view, "pill-y", s.field.pillY, restY)
 	}
 	s.field.pillY = py
-	s.field.away = map[bool]float32{true: 1}[away]
-	if animate {
-		s.field.away = components.Follow(view, "away", s.field.away, components.MotionQuick)
+	for side, put := range away {
+		s.field.away[side] = map[bool]float32{true: 1}[put]
+		if animate {
+			s.field.away[side] = components.Follow(view, fmt.Sprint("away-", side), s.field.away[side], components.MotionQuick)
+		}
 	}
 	s.field.offered = swapOffered(s.field.swapT)
 	var drawnAbove, drawnBelow float32
@@ -370,8 +372,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	atFoot := s.field.stuckFoot
 	baseEdge, rawExtra := py+pill.H+rl.heldBelow+10*k, max(0, rl.below-rl.heldBelow)
+	// The backdrop reaches over what the pill offers on the side away
+	// from the edge it is stuck at.
+	side := 0
 	if atFoot {
 		baseEdge, rawExtra = h-(py-rl.heldAbove)+10*k, max(0, rl.above-rl.heldAbove)
+		side = 1
 	}
 	baseEdge = max(0, baseEdge)
 	if rawExtra > 0 {
@@ -389,7 +395,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	} else {
 		view.Jump("backdrop-ribbons", ribbonTarget)
 	}
-	ribbonFade = max(0, min(1, ribbonFade)) * s.field.offered * (1 - s.field.away)
+	ribbonFade = max(0, min(1, ribbonFade)) * s.field.offered * (1 - s.field.away[side])
 	ribbonSpan := s.field.backdropSpan
 	if ribbonFade <= 0.001 {
 		ribbonFade = 0
