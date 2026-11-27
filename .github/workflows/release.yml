@@ -251,6 +251,21 @@ jobs:
               printf "Release %s\n" "$tag" > release-notes.md
             fi
           fi
+          node -e '
+            const fs = require("fs");
+            const file = "release-notes.md";
+            const text = fs.readFileSync(file, "utf8");
+            const limit = 120000;
+            if (text.length > limit) {
+              const lines = text.split("\n");
+              const link = [...lines].reverse().find((l) => l.startsWith("##### [View changes on GitHub]"));
+              const suffix = "\n\n> Release notes truncated to fit the 125,000-character GitHub limit." + (link ? "\n\n" + link : "") + "\n";
+              let cut = text.slice(0, limit - suffix.length);
+              const nl = cut.lastIndexOf("\n");
+              if (nl > 0) cut = cut.slice(0, nl);
+              fs.writeFileSync(file, cut + suffix);
+            }
+          '
           pre_flag=""
           if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then
             pre_flag="--prerelease"
