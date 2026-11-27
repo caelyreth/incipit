@@ -474,7 +474,7 @@ func (a *AppState) searchSheets(text string) shell.Found {
 		out.Sheets = append(out.Sheets, found)
 	}
 	f.lines.want(text, wanted)
-	f.found = &found{query: text, stamp: stamp, read: f.lines.generation(), result: out, close: res.Close}
+	f.found = &found{query: text, stamp: stamp, read: read, result: out, close: res.Close}
 	return out
 }
 

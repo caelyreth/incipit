@@ -86,6 +86,20 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: select working xcode for icon composer
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          # Xcode 26.5/26.6 actool crashes with NSPlaceholderArray nil exception on .icon bundles;
+          # macos-26-arm64 pre-installs Xcode 26.4.1 which compiles Icon Composer catalogs cleanly.
+          if xcodebuild -version | grep -qE '^Xcode 26\.[56]'; then
+            if [ -d /Applications/Xcode_26.4.1.app/Contents/Developer ]; then
+              sudo xcode-select -s /Applications/Xcode_26.4.1.app/Contents/Developer
+            fi
+          fi
+          xcodebuild -version
+          xcrun actool --version
+
       - name: fetch and generate assets
         shell: bash
         run: |

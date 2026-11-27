@@ -149,7 +149,7 @@ func isReleaseAsset(name string) bool {
 
 func isChecksumTarget(name string) bool {
 	switch name {
-	case "install.sh", "install.ps1", "PKGBUILD":
+	case "install.sh", "install.ps1":
 		return true
 	}
 	switch {
@@ -166,7 +166,7 @@ func isChecksumTarget(name string) bool {
 }
 
 func isMutableR2File(name string) bool {
-	return name == checksumsName || name == "install.sh" || name == "install.ps1" || name == "PKGBUILD"
+	return name == checksumsName || name == "install.sh" || name == "install.ps1"
 }
 
 type signedManifestEnvelope struct {
@@ -571,7 +571,7 @@ func contentTypeFor(name string) string {
 	case ".sh", ".ps1":
 		return "text/plain; charset=utf-8"
 	default:
-		if name == checksumsName || name == "PKGBUILD" {
+		if name == checksumsName {
 			return "text/plain; charset=utf-8"
 		}
 		return "application/octet-stream"

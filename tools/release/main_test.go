@@ -52,12 +52,18 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(linuxDir, "history-linux-amd64.json"), history, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Duplicate install.sh under arm64 dir must deduplicate cleanly; .app bundle must be skipped.
+	if err := os.WriteFile(filepath.Join(linuxDir, "PKGBUILD"), []byte("pkgname=incipit\narch=('x86_64')\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Duplicate install.sh under arm64 dir must deduplicate cleanly; per-arch PKGBUILD and .app bundle must be skipped.
 	armDir := filepath.Join(inDir, "dist-linux-arm64")
 	if err := os.MkdirAll(armDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(armDir, "install.sh"), installSh, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(armDir, "PKGBUILD"), []byte("pkgname=incipit\narch=('aarch64')\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(filepath.Dir(macDir), "incipit-1.0.0-alpha.1-universal.dmg"), dmg, 0o644); err != nil {
@@ -76,8 +82,10 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 	if err := prepareDraft(inDir, outDir); err != nil {
 		t.Fatalf("prepareDraft: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(outDir, "Info.plist")); err == nil {
-		t.Fatal(".app bundle contents must not be staged")
+	for _, skipped := range []string{"Info.plist", "PKGBUILD"} {
+		if _, err := os.Stat(filepath.Join(outDir, skipped)); err == nil {
+			t.Fatalf("%s must not be staged", skipped)
+		}
 	}
 	sumsRaw, err := os.ReadFile(filepath.Join(outDir, checksumsName))
 	if err != nil {

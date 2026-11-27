@@ -1,9 +1,11 @@
 package window
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -281,6 +283,31 @@ func TestSearchHitsCachedAcrossLineSnippetReads(t *testing.T) {
 	// Reassembling snippets across line-read generations must keep the same cached rawHits pointer.
 	if app.finder.hits != cachedHits {
 		t.Fatal("rawHits cache was evicted and rebuilt on line generation change")
+	}
+}
+
+func TestSearchLineSnippetNotPoisonedByFastWorker(t *testing.T) {
+	app := openNotebookApp(t, t.TempDir())
+	words := make([]string, 30)
+	for i := range words {
+		words[i] = fmt.Sprintf("fastlinekw%d", i)
+	}
+	typeIntoActivePage(t, app, strings.Join(words, " "))
+	settleSearch(app)
+
+	for _, kw := range words {
+		deadline := time.Now().Add(2 * time.Second)
+		var res shell.Found
+		for time.Now().Before(deadline) {
+			res = app.Search(kw)
+			if len(res.Sheets) == 1 && res.Sheets[0].Line != "" {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		if len(res.Sheets) != 1 || res.Sheets[0].Line == "" {
+			t.Fatalf("query %q: expected snippet line to populate, got %+v", kw, res.Sheets)
+		}
 	}
 }
 
