@@ -71,4 +71,4 @@ tool (
 	github.com/egoist/mygo/cmd/mygo
 )
 
-replace github.com/egoist/mygo => github.com/caelyreth/evil-mygo v0.0.0-20261127132628-30969a0f30dd
+replace github.com/egoist/mygo => github.com/caelyreth/evil-mygo v0.0.0-20261127152015-1594c00e5314
