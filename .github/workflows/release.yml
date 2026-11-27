@@ -160,7 +160,11 @@ jobs:
             echo "::error::MYGO_UPDATER_PRIVATE_KEY secret is required for tagged releases"
             exit 1
           fi
-          args=(-platform "${{ matrix.target }}" -version "${{ needs.version.outputs.version }}")
+          ver="${{ needs.version.outputs.version }}"
+          if [ "${GITHUB_REF_TYPE:-}" != "tag" ] && [ -f CHANGELOG.md ] && ! grep -Fqx "## ${ver}" CHANGELOG.md && ! grep -Fqx "## v${ver}" CHANGELOG.md; then
+            printf '\n## %s\n\n- Manual test build.\n' "$ver" >> CHANGELOG.md
+          fi
+          args=(-platform "${{ matrix.target }}" -version "$ver")
           if [ "${{ matrix.os }}" = "macos-latest" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
             args+=(-sign "$APPLE_SIGNING_IDENTITY")
             if [ "${{ steps.macos_creds.outputs.notarize }}" != "true" ]; then
