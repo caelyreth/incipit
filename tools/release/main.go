@@ -71,7 +71,8 @@ func prepareDraft(inDir, outDir string) error {
 		return err
 	}
 	seenSums := map[string]string{}
-	deliverables := map[string]string{}
+	origDeliverables := map[string]string{}
+	stagedDeliverables := map[string]string{}
 
 	err := filepath.WalkDir(inDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -87,30 +88,42 @@ func prepareDraft(inDir, outDir string) error {
 		if !isReleaseAsset(name) {
 			return nil
 		}
+		stageName := stagedAssetName(name)
+		// GitHub Releases rewrites characters outside [A-Za-z0-9._-] (e.g. ~, +)
+		// to '.'. Signed manifests and install scripts embed exact URLs for archives,
+		// deltas, and installers, so reject unrewritable non-package names early while
+		// normalizing .deb/.rpm filenames before hashing into SHA256SUMS.
+		if stageName != name && !isLinuxPackage(name) {
+			return fmt.Errorf("asset %q contains characters GitHub Releases rewrites (outside [A-Za-z0-9._-])", name)
+		}
 		sum, err := fileSHA256Hex(path)
 		if err != nil {
 			return err
 		}
-		if prev, ok := seenSums[name]; ok {
+		if prev, ok := seenSums[stageName]; ok {
 			if prev != sum {
-				return fmt.Errorf("conflicting %s across targets (%s != %s)", name, prev[:12], sum[:12])
+				return fmt.Errorf("conflicting %s across targets (%s != %s)", stageName, prev[:12], sum[:12])
+			}
+			if isChecksumTarget(name) {
+				origDeliverables[name] = sum
 			}
 			return nil
 		}
-		seenSums[name] = sum
-		dst := filepath.Join(outDir, name)
+		seenSums[stageName] = sum
+		dst := filepath.Join(outDir, stageName)
 		if err := copyFile(path, dst, 0o644); err != nil {
 			return err
 		}
 		if isChecksumTarget(name) {
-			deliverables[name] = sum
+			origDeliverables[name] = sum
+			stagedDeliverables[stageName] = sum
 		}
 		return nil
 	})
 	if err != nil {
 		return err
 	}
-	if len(deliverables) == 0 {
+	if len(stagedDeliverables) == 0 {
 		return fmt.Errorf("no release deliverables found under %s", inDir)
 	}
 	// Verify every incoming SHA256SUMS entry against what we staged so subtle
@@ -124,7 +137,7 @@ func prepareDraft(inDir, outDir string) error {
 			return err
 		}
 		for name, want := range parseChecksums(raw) {
-			got, ok := deliverables[name]
+			got, ok := origDeliverables[name]
 			if !ok {
 				return fmt.Errorf("%s lists %q which was not staged", path, name)
 			}
@@ -137,7 +150,28 @@ func prepareDraft(inDir, outDir string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(outDir, checksumsName), formatChecksums(deliverables), 0o644)
+	return os.WriteFile(filepath.Join(outDir, checksumsName), formatChecksums(stagedDeliverables), 0o644)
+}
+
+func isLinuxPackage(name string) bool {
+	return strings.HasSuffix(name, ".deb") || strings.HasSuffix(name, ".rpm")
+}
+
+// stagedAssetName maps filenames containing characters GitHub Releases rewrites
+// (such as '~' in prerelease Debian/RPM versions) to their GitHub-safe form so
+// merged SHA256SUMS matches `gh release download` verbatim during deploy.
+func stagedAssetName(name string) string {
+	var b strings.Builder
+	b.Grow(len(name))
+	for i := 0; i < len(name); i++ {
+		ch := name[i]
+		if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-' {
+			b.WriteByte(ch)
+		} else {
+			b.WriteByte('.')
+		}
+	}
+	return b.String()
 }
 
 func isReleaseAsset(name string) bool {

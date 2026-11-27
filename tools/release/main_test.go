@@ -35,12 +35,20 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 	}
 
 	tarZst := []byte("zstd archive payload")
+	debPkg := []byte("deb package payload")
+	rpmPkg := []byte("rpm package payload")
 	dmg := []byte("dmg image payload")
 	installSh := []byte("#!/bin/sh\necho install\n")
 	manifest := []byte(`{"version":"1.0.0-alpha.1","target":"linux-amd64","channel":"prerelease"}`)
 	history := []byte(`{"version":"1.0.0-alpha.1"}`)
 
 	if err := os.WriteFile(filepath.Join(linuxDir, "incipit-1.0.0-alpha.1-linux-amd64.tar.zst"), tarZst, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(linuxDir, "incipit_1.0.0~alpha.1_amd64.deb"), debPkg, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(linuxDir, "incipit-1.0.0~alpha.1-1.x86_64.rpm"), rpmPkg, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(linuxDir, "install.sh"), installSh, 0o644); err != nil {
@@ -74,7 +82,9 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 	}
 	if err := os.WriteFile(filepath.Join(linuxDir, checksumsName), formatChecksums(map[string]string{
 		"incipit-1.0.0-alpha.1-linux-amd64.tar.zst": shaHex(tarZst),
-		"install.sh": shaHex(installSh),
+		"incipit_1.0.0~alpha.1_amd64.deb":           shaHex(debPkg),
+		"incipit-1.0.0~alpha.1-1.x86_64.rpm":        shaHex(rpmPkg),
+		"install.sh":                                shaHex(installSh),
 	}), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +92,7 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 	if err := prepareDraft(inDir, outDir); err != nil {
 		t.Fatalf("prepareDraft: %v", err)
 	}
-	for _, skipped := range []string{"Info.plist", "PKGBUILD"} {
+	for _, skipped := range []string{"Info.plist", "PKGBUILD", "incipit_1.0.0~alpha.1_amd64.deb", "incipit-1.0.0~alpha.1-1.x86_64.rpm"} {
 		if _, err := os.Stat(filepath.Join(outDir, skipped)); err == nil {
 			t.Fatalf("%s must not be staged", skipped)
 		}
@@ -92,7 +102,13 @@ func TestPrepareDraftFlattensMergesAndVerifiesChecksums(t *testing.T) {
 		t.Fatal(err)
 	}
 	sums := parseChecksums(sumsRaw)
-	for _, want := range []string{"incipit-1.0.0-alpha.1-linux-amd64.tar.zst", "incipit-1.0.0-alpha.1-universal.dmg", "install.sh"} {
+	for _, want := range []string{
+		"incipit-1.0.0-alpha.1-linux-amd64.tar.zst",
+		"incipit-1.0.0-alpha.1-universal.dmg",
+		"incipit_1.0.0.alpha.1_amd64.deb",
+		"incipit-1.0.0.alpha.1-1.x86_64.rpm",
+		"install.sh",
+	} {
 		if sums[want] == "" {
 			t.Fatalf("missing %s in merged SHA256SUMS: %s", want, sumsRaw)
 		}
