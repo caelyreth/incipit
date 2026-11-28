@@ -84,14 +84,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	s.field.listed = listed
 	f := s.results(c.Now())
-	if !s.field.settleAt.IsZero() {
-		c.After(s.field.settleAt.Sub(c.Now()))
-	}
-	// What fits in the row under the pill stands there alone, the field
-	// over it empty: its blocks may stand as tall as the window holds.
-	if len(f.cards) <= m.horizon.Cols {
-		m.tall = m.alone
-	}
 	shapes := s.shapes(c, f, m)
 	heights := make([]float32, len(shapes))
 	for i, sh := range shapes {
@@ -138,14 +130,16 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	top, foot := 48*k, 24*k
 	// At rest, the pill stands at the window's middle, its ribbons with it,
 	// however many stand on either side: only cards standing on one side
-	// more than the other move it, the horizon rising or falling into the
-	// room they leave empty over or under it; and the cards,
+	// more than the other move it, the horizon leaning into the room they
+	// leave empty over or under it, all the way for a little, less for
+	// each step further (lean), so it keeps near the middle; and the cards,
 	// where a ring of columns is taken on one side alone, go across to
 	// stand even about the pill. While the pill is open it keeps still,
 	// under the pointer and the caret, and the field with it, until the
-	// writing in it pauses; but never so far that something of the field
-	// would leave the window or its columns, which brings it in as far as
-	// needs be. Let go of, the pill goes where the field is even.
+	// field answers what is written (follow), cards and horizon moving
+	// together; but never so far that something of the field would leave
+	// the window or its columns, which brings it in as far as needs be.
+	// Let go of, the pill goes where the field leans.
 	first := s.field.rest == nil
 	up, down := max(0, h/2-top-above), max(0, h/2-foot-below)
 	lo, hi := stageExtent(rects)
@@ -160,6 +154,11 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	poise := stagePoint{
 		X: max(-reach-lo, min(reach-hi, s.field.poiseTo.X)),
 		Y: max(-down, min(up, s.field.poiseTo.Y)),
+	}
+	if poise.Y > 0 {
+		poise.Y = lean(poise.Y, h/2-top)
+	} else {
+		poise.Y = -lean(-poise.Y, h/2-foot)
 	}
 	// A list is laid out from the window's top down; only poise.X centers its columns.
 	if listed {
@@ -204,6 +203,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	s.keepPicked()
 	s.keepRowPlaces()
+	// Return pressed on words not answered yet enters what they rank,
+	// now the field has ranked them.
+	if s.field.entered {
+		s.field.entered = false
+		s.enter(s.field.enteredAside)
+	}
 	// Each place, the view with the query it shows, keeps where it was
 	// scrolled to: gone to, a place stands as it was left, or at its home
 	// when new (the field's horizon, the end for filed order and time
@@ -212,7 +217,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// holds changes; at the end of what it reaches, it keeps to the end, as
 	// when the ribbons come over a list's foot.
 	atEnd := (listed || reached > 0) && s.field.scroll >= reached-0.5
-	place := placeKey(listed, s.FieldQuery())
+	place := placeKey(listed, f.query)
 	switch {
 	case s.field.rest == nil:
 		s.field.place = place
@@ -497,4 +502,15 @@ func (s *State) pillBackdrop(c *ui.Context, semantic theme.Theme, w, edge, ribbo
 			b.Top(0)
 		}
 	}
+}
+
+// lean is how far the horizon goes toward a rise of need, room the most
+// it could: all of a little need, less of each step further, never all
+// the room, so the pill keeps near the window's middle and what it would
+// have risen for the rest of stands under the foot, a scroll away.
+func lean(need, room float32) float32 {
+	if need <= 0 || room <= 0 {
+		return 0
+	}
+	return need / (1 + need/room)
 }

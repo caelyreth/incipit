@@ -358,7 +358,7 @@ func (sc settingsCard) view(s *State, c *ui.Context, semantic theme.Theme, box u
 			}
 			s.field.measured[sc.id] = h
 			s.field.measures++
-			if s.field.settleAt.IsZero() {
+			if !s.field.holding {
 				s.field.settled = true
 			}
 			c.AnimationFrame()

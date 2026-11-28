@@ -342,7 +342,8 @@ func (s *State) rewrite(i int) {
 }
 
 // writingQuiet is how long the words written in the pill stand before
-// the field follows them.
+// the field follows them, moving the cards and horizon together in one
+// glide.
 const writingQuiet = 300 * time.Millisecond
 
 // queryAt is all the query stands on but its words: what else the field
@@ -370,7 +371,7 @@ func (s *State) follow(now time.Time) time.Duration {
 	}
 	quiet := now.Sub(f.writtenAt)
 	if live == f.answered || f.takeNext || at != f.answeredAt || f.rerank ||
-		strings.TrimSpace(f.words) == "" || quiet >= writingQuiet {
+		!f.open || quiet >= writingQuiet {
 		f.answered, f.answeredAt, f.holding, f.takeNext = live, at, false, false
 		return 0
 	}
