@@ -67,7 +67,7 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 		return policy.Swallow
 	}
 	flat := in.Flat()
-	return policy.Do(vocab.RefineLines(site.Slot, in, site.From, site.To, func(stretch vocab.Runes, at int) (vocab.Runes, bool) {
+	return policy.Do(vocab.RefineLines(c.Doc().Schema(), site.Slot, in, site.From, site.To, func(stretch vocab.Runes, at int) (vocab.Runes, bool) {
 		return refine(stretch, lineHasCJK(flat, at), opts)
 	})...)
 }

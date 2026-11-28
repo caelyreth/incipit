@@ -333,13 +333,15 @@ func LineAround(text string, from, to int) (int, int) {
 
 // RefineLines rewrites the text of in's lines holding [from, to), the
 // text an edit wrote, through fn, one stretch at a time: a stretch is text
-// between line breaks and inline nodes, at slot offset at. It returns the
+// between line breaks, inline nodes and text s keeps as typed under a
+// literal mark (inline code), at slot offset at; text under a literal
+// mark is not rewritten. It returns the
 // minimal edits of slot that turn each stretch into fn's result, but only
 // those the written text caused: a change fn would have made of the
 // stretch without it, as of a "---" standing on the line already, was
 // there before the edit and stays as it stands. The edits run last first,
 // so each applies to offsets the ones before it left alone.
-func RefineLines(slot doc.SlotRef, in *doc.Inline, from, to int, fn func(stretch Runes, at int) (Runes, bool)) []Edit {
+func RefineLines(s *doc.Schema, slot doc.SlotRef, in *doc.Inline, from, to int, fn func(stretch Runes, at int) (Runes, bool)) []Edit {
 	written, writtenTo := from, to
 	from, to = LineAround(in.Flat(), from, to)
 	var changes []TextChange
@@ -387,7 +389,7 @@ func RefineLines(slot doc.SlotRef, in *doc.Inline, from, to int, fn func(stretch
 		if at >= to {
 			return false
 		}
-		if item.Node != nil {
+		if item.Node != nil || s.Literal(item.Marks) {
 			flush()
 			return true
 		}

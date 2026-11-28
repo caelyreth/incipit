@@ -77,7 +77,7 @@ func rewrite(c *policy.Ctx, site policy.Site, opts options) policy.Result {
 	if from, to := vocab.LineAround(flat, site.From, site.To); from >= to {
 		return policy.Swallow
 	}
-	return policy.Do(vocab.RefineLines(site.Slot, in, site.From, site.To, func(stretch vocab.Runes, at int) (vocab.Runes, bool) {
+	return policy.Do(vocab.RefineLines(c.Doc().Schema(), site.Slot, in, site.From, site.To, func(stretch vocab.Runes, at int) (vocab.Runes, bool) {
 		return rewriteCells(stretch, opts)
 	})...)
 }

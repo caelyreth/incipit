@@ -57,3 +57,18 @@ func holds(p *page, k doc.Kind) bool {
 	})
 	return found
 }
+
+// Typed in inline code, characters stay as typed: no dash, ellipsis,
+// curly quote or full-width punctuation is made of them, while the prose
+// beside the code is still refined.
+func TestInlineCodeKeepsItsCharacters(t *testing.T) {
+	for _, typed := range []string{"a -- b", "w...", "it's", "中,好.", "---"} {
+		p := inCode(t, "q ")
+		p.typeText(typed)
+		p.want("page(paragraph(q <" + typed + ">))")
+	}
+	p := inCode(t, "q ")
+	p.typeText("x`")
+	p.typeText(" it's")
+	p.want("page(paragraph(q <x> it’s))")
+}
