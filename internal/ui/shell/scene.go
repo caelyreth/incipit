@@ -116,31 +116,43 @@ func (s *State) deskRest(w, h float32) stageRect {
 	return stageRect{X: w, W: w, H: h}
 }
 
-// leanDesk stands the desk where the scene says. On the way what it holds is only scaled and moved as one image
-// (CacheScaled), never laid out or painted anew, so it keeps its lines and
-// costs a frame no more than an image does: drawn again only as it
-// shrinks under half the scale it was drawn at, or grows past it, and
+// deskFrame is how the desk is cut away from filling the window: the
+// radius of its corners, and the width and color of its edge, in its own
+// points.
+type deskFrame struct {
+	corner, width float32
+	edge          ui.Color
+}
+
+// leanDesk stands the desk where the scene says, and returns how it is
+// cut (deskView). On the way what it holds is only scaled and moved as one
+// image (CacheScaled), never laid out or painted anew, so it keeps its
+// lines and costs a frame no more than an image does: drawn again only as
+// it shrinks under half the scale it was drawn at, or grows past it, and
 // never for the scale it comes to rest at, so it settles in the lane as it
-// moved there. Its corners and edge are the desk's own, around the image,
-// so their changing on the way never draws it again.
+// moved there. Its corners and edge are cut and drawn inside an image of
+// their own, around that one: a clip moving with the desk would be a mask
+// drawn again on the CPU every frame of the way.
 // Away from the desk, the desk takes no input but a press, which brings
 // it up, or opens a sheet when empty.
-func (s *State) leanDesk(area ui.Element, semantic theme.Theme, look stageLook, upright float32) {
+func (s *State) leanDesk(area ui.Element, semantic theme.Theme, look stageLook, upright float32) deskFrame {
+	var frame deskFrame
 	if upright < 1 {
 		// Its corners and edge are drawn as the tray's and the kept box's
 		// are, in the window's points however small it stands; empty, its
 		// dashed outline is its edge (deskEmpty).
 		k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 		away, inv := 1-upright, 1/max(look.Scale, 0.01)
-		area.TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).
-			Translate(look.Offset.X, look.Offset.Y).Radius(deskCorner(k, away) * inv).Clip()
+		frame.corner, frame.width = deskCorner(k, away)*inv, inv
 		if edge := deskEdge(away); edge > 0 && len(s.Open) > 0 {
 			line := semantic.Border.Default
-			area.Border(inv, line.Alpha(float32(line.A)/255*edge))
+			frame.edge = line.Alpha(float32(line.A) / 255 * edge)
 		}
+		area.TransformOrigin(0.5, 0.5).Scale(look.Scale, look.Scale).
+			Translate(look.Offset.X, look.Offset.Y).Radius(frame.corner)
 	}
 	if s.OnDesk() {
-		return
+		return frame
 	}
 	area.Cursor(ui.CursorPointer).Role(ui.RoleButton)
 	if len(s.Open) == 0 {
@@ -149,13 +161,14 @@ func (s *State) leanDesk(area ui.Element, semantic theme.Theme, look stageLook, 
 			s.Library.NewSheet(s.CurrentGroup(), Last)
 			s.ShowDesk()
 		}
-		return
+		return frame
 	}
 	area.Label(locales.GoToDesk())
 	if area.Clicked() {
 		s.ShowDesk()
 	}
 	area.ContextMenu(s.openSheetsMenu)
+	return frame
 }
 
 // deskCorner is how round the desk's corners are, in the window's points,

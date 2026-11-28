@@ -107,7 +107,7 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 	k := s.Settings.UIFontSize / theme.DefaultUIFontSize
 	gutter := layout.ContentGutter * k
 	area := ui.Column(c).Key("desk").Absolute().Top(0).Left(0).Size(w, h).Background(semantic.Surface.Background)
-	s.leanDesk(area, semantic, scene.Desk, scene.Upright)
+	frame := s.leanDesk(area, semantic, scene.Desk, scene.Upright)
 	on := s.OnDesk()
 	if on {
 		s.followPointer(area)
@@ -116,23 +116,37 @@ func (s *State) deskView(c *ui.Context, semantic theme.Theme, layout theme.Layou
 	}
 	area.Children(func() {
 		content := ui.Column(c).Key("desk-content").Grow(1).MinHeight(0).WidthPercent(100).IgnoreInput(!on)
-		if scene.Upright < 1 {
-			// On the way, what it holds is one image (leanDesk).
-			content.CacheScaled()
+		lean := scene.Upright < 1
+		if lean {
+			// On the way, what it holds is one image (leanDesk), cut to the
+			// desk's corners and edged inside an image of its own: there
+			// the flight's transform is taken off, so the corners clip as
+			// they are drawn, and their changing draws again only the cut,
+			// never what it holds.
+			content.CacheScaled().Radius(frame.corner).Clip()
+			if frame.edge.A > 0 {
+				content.Border(frame.width, frame.edge)
+			}
 		}
 		content.Children(func() {
-			// All of it, on the desk or resting in its block, so it never
-			// changes its layout on the way between. Not upright, the desk
-			// is drawn as one picture of itself (leanDesk), drawn again
-			// whenever anything in it moves: its columns then take their
-			// places at once, the desk's own motion the only one, so a sheet
-			// opened alongside from the field comes up already in its place.
-			s.deskStrip(c, semantic, animate && scene.Upright >= 1)
-			s.deskFoot(c, semantic, gutter, animate)
-			s.statistics(c, semantic, layout, gutter)
-			if len(s.Open) == 0 {
-				s.deskEmpty(c, semantic, area, w, h, k, animate)
+			held := ui.Column(c).Key("desk-held").Grow(1).MinHeight(0).WidthPercent(100)
+			if lean {
+				held.CacheScaled()
 			}
+			held.Children(func() {
+				// All of it, on the desk or resting in its block, so it never
+				// changes its layout on the way between. Not upright, the desk
+				// is drawn as one picture of itself (leanDesk), drawn again
+				// whenever anything in it moves: its columns then take their
+				// places at once, the desk's own motion the only one, so a sheet
+				// opened alongside from the field comes up already in its place.
+				s.deskStrip(c, semantic, animate && scene.Upright >= 1)
+				s.deskFoot(c, semantic, gutter, animate)
+				s.statistics(c, semantic, layout, gutter)
+				if len(s.Open) == 0 {
+					s.deskEmpty(c, semantic, area, w, h, k, animate)
+				}
+			})
 		})
 	})
 }
