@@ -36,7 +36,7 @@ func TagsIn(in *doc.Inline, from, to int) []Tag {
 		if lo >= hi {
 			return at < to
 		}
-		if it.Node != nil || it.Marks.Has(CodeMark) {
+		if it.Node != nil || Schema().Literal(it.Marks) {
 			b.WriteString(strings.Repeat("\x00", hi-lo))
 		} else {
 			b.WriteString(it.Text[lo-at : hi-at])

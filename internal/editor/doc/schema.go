@@ -86,6 +86,10 @@ type MarkSpec struct {
 	Excludes func(MarkKind) bool
 	// Bounded marks do not extend to text typed at their end.
 	Bounded bool
+	// Literal marks keep the text under them as typed, as a literal slot
+	// does: no typed syntax becomes structure in it, and no rewrite
+	// changes its characters (inline code).
+	Literal bool
 }
 
 // Schema is the kinds and marks a document may hold.
@@ -196,6 +200,20 @@ func (s *Schema) IsTextBlock(k Kind) bool {
 func (s *Schema) Mark(m MarkKind) (*MarkSpec, bool) {
 	spec, ok := s.marks[m]
 	return spec, ok
+}
+
+// Literal reports whether text under ms is kept as typed: a mark of it is
+// literal (MarkSpec.Literal).
+func (s *Schema) Literal(ms *MarkSet) bool {
+	if ms == nil {
+		return false
+	}
+	for _, m := range ms.Marks() {
+		if spec, ok := s.marks[m.Kind]; ok && spec.Literal {
+			return true
+		}
+	}
+	return false
 }
 
 // KindName names a kind for messages.

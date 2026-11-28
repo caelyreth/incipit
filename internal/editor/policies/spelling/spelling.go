@@ -324,7 +324,7 @@ func autocorrect(c Checker) policy.RewriteFunc {
 		if it, _, ok := in.ItemAt(w.From); ok {
 			marks = it.Marks
 		}
-		if marks.Has(profile.CodeMark) {
+		if ctx.Doc().Schema().Literal(marks) {
 			return policy.Swallow
 		}
 		until := ctx.Now().Add(correctedDuration)
@@ -427,10 +427,10 @@ func isProseForPrediction(ctx *policy.Ctx, pos doc.Pos) bool {
 	if !ok || pos.Offset <= 0 || pos.Offset > in.Len() {
 		return false
 	}
-	if pend := ctx.Pending(); pend != nil && pend.Marks.Has(profile.CodeMark) {
+	if pend := ctx.Pending(); pend != nil && ctx.Doc().Schema().Literal(pend.Marks) {
 		return false
 	}
-	if it, _, ok := in.ItemAt(pos.Offset - 1); ok && it.Marks.Has(profile.CodeMark) {
+	if it, _, ok := in.ItemAt(pos.Offset - 1); ok && ctx.Doc().Schema().Literal(it.Marks) {
 		return false
 	}
 	flat := in.Flat()

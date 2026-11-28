@@ -37,7 +37,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 	}
 
 	dollar := policy.Typed(string(profile.FormulaSpelling))
-	policy.On(p, "open", dollar, policy.Slot.Own(), openOf(defaultDialect)).When(policy.Takes(profile.Formula))
+	policy.On(p, "open", dollar, policy.Slot.Own(), openOf(defaultDialect)).When(policy.Prose, policy.Takes(profile.Formula))
 	policy.On(p, "math", dollar, policy.Node(profile.Formula).Empty(), toMath)
 
 	p.Command("formulas.toggleDialect", "commands.toggleMathDialect", profile.ToggleMathDialect{}, policy.Offer(profile.FormulaOffers, 0, ""))

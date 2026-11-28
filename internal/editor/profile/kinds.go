@@ -235,7 +235,7 @@ func checkTable(n *doc.Node) error {
 var markSpecs = []doc.MarkSpec{
 	{Kind: Emphasis, Name: "emphasis"},
 	{Kind: Strong, Name: "strong"},
-	{Kind: CodeMark, Name: "code", Bounded: true, Excludes: func(doc.MarkKind) bool { return true }},
+	{Kind: CodeMark, Name: "code", Bounded: true, Literal: true, Excludes: func(doc.MarkKind) bool { return true }},
 	{Kind: Strike, Name: "strike"},
 }
 

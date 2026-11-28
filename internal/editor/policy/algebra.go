@@ -408,6 +408,19 @@ var Rich = Cond{test: func(c *Ctx) bool {
 	return ok && !spec.Blocks && !spec.Literal && spec.Marks != nil
 }}
 
+// Prose holds where the caret writes prose: rich text, and not under a
+// mark that keeps text as typed (MarkSpec.Literal, inline code), by the
+// marks text typed there takes. Typed syntax becomes structure only in
+// prose: in inline code as in a code block, a "$" or a "*" is itself.
+var Prose = Cond{test: func(c *Ctx) bool {
+	pos := c.Head().Pos
+	spec, ok := vocab.SlotSpec(c.r, pos.Ref())
+	if !ok || spec.Blocks || spec.Literal || spec.Marks == nil {
+		return false
+	}
+	return !c.r.Schema().Literal(c.TypedMarks())
+}}
+
 // Takes holds where the caret's inline slot takes inline nodes of kind k.
 func Takes(k doc.Kind) Cond {
 	return Cond{test: func(c *Ctx) bool {

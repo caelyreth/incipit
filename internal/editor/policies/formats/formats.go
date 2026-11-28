@@ -45,7 +45,7 @@ var Policy = policy.Define(ID, func(p *policy.P) {
 // takes: the pending ones, or the marks around it.
 func formatAtCaret(c *policy.Ctx, in profile.Format, _ policy.At[doc.SlotRef]) policy.Result {
 	r := c.Doc()
-	marks := caretMarks(c)
+	marks := c.TypedMarks()
 	if marks == nil {
 		marks = r.Marks().Empty()
 	}
@@ -57,25 +57,11 @@ func formatAtCaret(c *policy.Ctx, in profile.Format, _ policy.At[doc.SlotRef]) p
 	return policy.Result{Pending: marks}
 }
 
-// caretMarks are the marks text typed at the caret takes: the pending
-// ones, or the marks around it.
-func caretMarks(c *policy.Ctx) *doc.MarkSet {
-	if p := c.Pending(); p != nil {
-		return p.Marks
-	}
-	head := c.Head().Pos
-	in, ok := c.Inline(head.Ref())
-	if !ok {
-		return nil
-	}
-	return vocab.InheritedMarks(c.Doc().Schema(), in, head.Offset)
-}
-
 // marked is whether a format is on: in the marks typed at a caret, or
 // over all the selection covers, where toggling it clears it.
 func marked(c *policy.Ctx, in profile.Format) bool {
 	if c.Span().Shape == policy.SpanCaret {
-		marks := caretMarks(c)
+		marks := c.TypedMarks()
 		return marks != nil && marks.Has(in.Mark)
 	}
 	spans := pieceSpans(c)

@@ -142,6 +142,20 @@ func (c *Ctx) Pending() *Pending {
 	return nil
 }
 
+// TypedMarks are the marks text typed at the head takes: the pending
+// ones, or those of the text before it (vocab.InheritedMarks).
+func (c *Ctx) TypedMarks() *doc.MarkSet {
+	if p := c.Pending(); p != nil {
+		return p.Marks
+	}
+	head := c.Head().Pos
+	in, ok := c.Inline(head.Ref())
+	if !ok {
+		return nil
+	}
+	return vocab.InheritedMarks(c.r.Schema(), in, head.Offset)
+}
+
 // Mode is the mode owner keeps for the view, or nil.
 func (c *Ctx) Mode(owner string) any { return c.view.Modes.Of(owner) }
 

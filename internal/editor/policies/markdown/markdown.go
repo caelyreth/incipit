@@ -53,7 +53,8 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 			return u.Owner.Kind() == profile.Paragraph || u.Owner.Kind() == profile.Item
 		}))
 
-	// Closing delimiters, typed past a run's opener.
+	// Closing delimiters, typed past a run's opener, in prose: inline code
+	// keeps its delimiters as typed, but for the backtick that closes it.
 	past := func(s policy.Subject[run]) policy.Place[run] { return policy.Or(s.Within(), s.AtEnd()) }
 	noSpace := policy.Not(policy.PrevChar(vocab.ClassSpace))
 	for _, c := range []byte{'*', '_'} {
@@ -61,15 +62,15 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 			continue
 		}
 		s := string(c)
-		policy.On(p, "close-emphasis-"+s, policy.Typed(s), past(k.em.Key(c)), closeRun(profile.Emphasis, false)).When(noSpace)
+		policy.On(p, "close-emphasis-"+s, policy.Typed(s), past(k.em.Key(c)), closeRun(profile.Emphasis, false)).When(policy.Prose, noSpace)
 		policy.On(p, "close-strong-"+s, policy.Typed(s), k.strong.Key(c).Inside(), closeRun(profile.Strong, true)).
-			When(policy.Behind(k.half.Key(c)))
+			When(policy.Prose, policy.Behind(k.half.Key(c)))
 	}
 	if inline.Code {
 		policy.On(p, "close-code", policy.Typed("`"), past(k.code.Subject), closeRun(profile.CodeMark, false))
 	}
 	if inline.Strike {
-		policy.On(p, "close-strike", policy.Typed("~"), past(k.strike.Subject), closeRun(profile.Strike, false)).When(noSpace)
+		policy.On(p, "close-strike", policy.Typed("~"), past(k.strike.Subject), closeRun(profile.Strike, false)).When(policy.Prose, noSpace)
 	}
 
 	// Opening delimiters: content typed right after an unclosed opener
@@ -77,7 +78,7 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 	// closes as it opens. Notation edits the signs from there.
 	content := policy.TypedClass(vocab.ClassWord | vocab.ClassDigit | vocab.ClassCJK)
 	open := func(name string, mark doc.MarkKind) {
-		policy.On(p, "open-"+name, content, k.open.Key(mark).Behind(), openMark(mark))
+		policy.On(p, "open-"+name, content, k.open.Key(mark).Behind(), openMark(mark)).When(policy.Prose)
 	}
 	if inline.Asterisks || inline.Underscores {
 		open("emphasis", profile.Emphasis)
@@ -90,9 +91,10 @@ var Policy = policy.Define("markdown", func(p *policy.P) {
 		open("strike", profile.Strike)
 	}
 
-	// Block prefixes and fences, right behind the caret.
-	policy.On(p, "block-marker", policy.Typed(" "), mk.Behind(), blockMarker)
-	policy.On(p, "fence", policy.Intent[vocab.Break](), fk.Behind(), fenceBlock)
+	// Block prefixes and fences, right behind the caret, written in prose:
+	// typed in inline code, they are code.
+	policy.On(p, "block-marker", policy.Typed(" "), mk.Behind(), blockMarker).When(policy.Prose)
+	policy.On(p, "fence", policy.Intent[vocab.Break](), fk.Behind(), fenceBlock).When(policy.Prose)
 
 	// The card's demonstration, played by the engine itself.
 	p.Showcase(2600*time.Millisecond,
