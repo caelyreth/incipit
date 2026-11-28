@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -301,5 +302,36 @@ func TestUpdatesLocalizedReleaseNotes(t *testing.T) {
 	tester.Frame()
 	if !tester.HasText("English fallback bullet") {
 		t.Fatalf("expected English fallback release notes in %v", tester.Texts())
+	}
+}
+
+func TestUpdatesReleaseNotesReadTheirMarkdown(t *testing.T) {
+	state := New()
+	state.Data = appsettings.DefaultState().Data()
+	state.Updates = appupdater.Snapshot{
+		Status:         appupdater.StatusAvailable,
+		Availability:   mygo.UpdateAvailable,
+		CurrentVersion: "1.0.0",
+		Channel:        appupdater.ChannelRelease,
+		CanCheck:       true,
+		Available: &appupdater.Release{
+			Version: "1.0.1",
+			Channel: appupdater.ChannelRelease,
+			Notes:   "### 1.0.1\n\n- **Faster:** pages open with `--fast` and *less* waiting.\n\n1. First\n2. Second",
+		},
+	}
+	tester := ui.NewTester(state.cards(appsettings.Updates), 700, 1400)
+	tester.Frame()
+	for _, text := range []string{"1.0.1", "Faster: pages open with --fast and less waiting.", "1.", "2.", "Second"} {
+		if !tester.HasText(text) {
+			t.Errorf("the notes do not read %q: %v", text, tester.Texts())
+		}
+	}
+	for _, raw := range []string{"### 1.0.1", "**Faster:**", "`--fast`", "*less*"} {
+		for _, text := range tester.Texts() {
+			if strings.Contains(text, raw) {
+				t.Errorf("the notes show %q as written: %q", raw, text)
+			}
+		}
 	}
 }

@@ -6,7 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/caelyreth/incipit/internal/app/markdown"
 	appupdater "github.com/caelyreth/incipit/internal/app/updater"
+	"github.com/caelyreth/incipit/internal/editor/doc"
+	"github.com/caelyreth/incipit/internal/editor/profile"
 	"github.com/caelyreth/incipit/internal/ui/components"
 	"github.com/caelyreth/incipit/internal/ui/theme"
 	"github.com/caelyreth/incipit/locales"
@@ -520,47 +523,82 @@ func (s *State) updateNotesRow(
 	})
 }
 
+// renderReleaseNotes sets a release's notes, Markdown, as read by the
+// notebook's own parser: its headings, lists and paragraphs each a line of
+// rich text, their strong, emphasized, struck and code runs styled as the
+// notes spell them; a block of another kind as the text it holds.
 func renderReleaseNotes(c *ui.Context, semantic theme.Theme, raw string, scale float32) {
-	lines := strings.Split(strings.ReplaceAll(raw, "\r\n", "\n"), "\n")
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-		if level, heading, ok := markdownHeading(trimmed); ok {
-			style := theme.TextSmall
-			if level == 1 {
-				style = theme.TextDefault
-			}
-			components.Label(c, heading, style, semantic.Text.Heading).
-				FontWeight(600).WidthPercent(100).MinWidth(0)
-			continue
-		}
-		if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
-			body := strings.TrimSpace(trimmed[2:])
-			ui.Row(c).WidthPercent(100).MinWidth(0).Gap(theme.Space06.DIPs(scale)).Children(func() {
-				components.Label(c, "•", theme.TextSmall, semantic.Text.Muted).Shrink(0)
-				components.Label(c, body, theme.TextSmall, semantic.Text.Default).Grow(1).MinWidth(0)
-			})
-			continue
-		}
-		components.Label(c, trimmed, theme.TextSmall, semantic.Text.Default).WidthPercent(100).MinWidth(0)
+	slice, _ := markdown.Parse(raw)
+	for _, n := range slice.Nodes {
+		releaseNotesBlock(c, semantic, n, scale)
 	}
 }
 
-func markdownHeading(line string) (int, string, bool) {
-	level := 0
-	for level < len(line) && line[level] == '#' {
-		level++
+func releaseNotesBlock(c *ui.Context, semantic theme.Theme, n *doc.Node, scale float32) {
+	switch n.Kind() {
+	case profile.Heading:
+		size := theme.TextSmall
+		if profile.HeadingLevel(n) <= 1 {
+			size = theme.TextDefault
+		}
+		releaseNotesLine(c, semantic, n.Slot(0), size, semantic.Text.Heading, 600).WidthPercent(100).MinWidth(0)
+	case profile.List:
+		for i, item := range n.Slot(0).Children() {
+			marker := "•"
+			if profile.ListStyleOf(n) == profile.Ordered {
+				marker = strconv.Itoa(profile.ListStart(n)+i) + "."
+			}
+			ui.Row(c).WidthPercent(100).MinWidth(0).Gap(theme.Space06.DIPs(scale)).AlignItems(ui.Start).Children(func() {
+				components.Label(c, marker, theme.TextSmall, semantic.Text.Muted).Shrink(0)
+				ui.Column(c).Grow(1).MinWidth(0).Gap(theme.Space06.DIPs(scale)).Children(func() {
+					releaseNotesLine(c, semantic, item.Slot(0), theme.TextSmall, semantic.Text.Default, 0).WidthPercent(100).MinWidth(0)
+					if item.NumSlots() > 1 {
+						for _, child := range item.Slot(1).Children() {
+							releaseNotesBlock(c, semantic, child, scale)
+						}
+					}
+				})
+			})
+		}
+	default:
+		if slots := n.Slots(); len(slots) > 0 && slots[0].IsInline() {
+			releaseNotesLine(c, semantic, slots[0], theme.TextSmall, semantic.Text.Default, 0).WidthPercent(100).MinWidth(0)
+			return
+		}
+		for _, slot := range n.Slots() {
+			for _, child := range slot.Children() {
+				releaseNotesBlock(c, semantic, child, scale)
+			}
+		}
 	}
-	if level == 0 || level > 6 || level >= len(line) || line[level] != ' ' {
-		return 0, "", false
-	}
-	text := strings.TrimSpace(line[level+1:])
-	if text == "" {
-		return 0, "", false
-	}
-	return level, text, true
+}
+
+// releaseNotesLine sets an inline slot of the notes as rich text at size
+// in ink, at weight where its runs are not strong (0 is the face's own).
+func releaseNotesLine(c *ui.Context, semantic theme.Theme, slot doc.Slot, size theme.TextSize, ink ui.Color, weight int) ui.Element {
+	scale := components.UIFontSize(c)
+	var spans []ui.Span
+	slot.Content().Each(func(_ int, it doc.Item) bool {
+		span := ui.Span{Text: it.Text, Font: theme.UIFontFamily, Size: size.Size(scale), Weight: weight, Color: ink}
+		if it.Node != nil {
+			span.Text = it.Node.Text()
+		}
+		if m := it.Marks; m != nil {
+			if m.Has(profile.Strong) {
+				span.Weight = 600
+			}
+			span.Italic = m.Has(profile.Emphasis)
+			span.Strikethrough = m.Has(profile.Strike)
+			if m.Has(profile.CodeMark) {
+				span.Font, span.Background, span.Radius, span.PaddingX = theme.MonoFontFamily, semantic.Tag.Background, 4, 3
+			}
+		}
+		if span.Text != "" {
+			spans = append(spans, span)
+		}
+		return true
+	})
+	return ui.RichText(c, spans...).FixedLineHeight(size.LineHeight(scale))
 }
 
 func (s *State) updatesPreferencesCard(c *ui.Context, semantic theme.Theme, sec Section) {
