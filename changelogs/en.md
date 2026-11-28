@@ -1,3 +1,13 @@
+### 1.0.0-alpha.2
+
+A polish release: smoother theme changes, a tidier Desk, and proper window controls on Windows and Linux.
+
+- **Seamless light and dark switching:** Switching between Starfield and Daybreak now blends the whole window as one. The Desk's toolbar, sheet headers and the Desk lane in the Field no longer lag behind or catch up afterwards, and controls change from dark to light halfway through the blend instead of the moment it starts.
+- **A more consistent Desk:** The Desk now has the same rounded corners as the Tray and Kept, plus a fine border. As it flies between the Field and full screen, its border fades out early and its corners square off gradually, so no seam shows against the window edge. The Tray's empty hint is now centered.
+- **Search suggestions stay in view:** When the search field sits at the bottom of the window, suggestions such as Key move to the side that has room instead of disappearing.
+- **Native window controls on Windows and Linux:** The Close button no longer overlaps the system's window controls, and the gap reserved for the macOS traffic lights now appears only on macOS.
+- **More reliable updates:** If the main update server can't be reached, updates are downloaded from GitHub Releases instead.
+
 ### 1.0.0-alpha.1
 
 Welcome to the first public alpha of Incipit — a quiet, local-first writing workspace built with Go.
