@@ -4,6 +4,8 @@
 
 Quiet, local-first native writing workspace written in Go (`CGO_ENABLED=0` across macOS, Windows, and Linux), storing notebooks in SQLite and rendering directly through [Evil MyGo](https://github.com/caelyreth/evil-mygo) without Electron or webviews.
 
+[Website](https://incipit.elm.fm) &middot; [Download](https://incipit.elm.fm/download) &middot; [Guide](https://incipit.elm.fm/docs) &middot; [FAQ](https://incipit.elm.fm/faq)
+
 > [!WARNING]
 > **Early Alpha:** Incipit is in early-stage testing. Expect breaking changes; keep backups of important writing.
 
