@@ -20,7 +20,7 @@ func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 		z := stageHorizon{Cols: cols, Col: 100, Gap: 10}
 		for n := 2 - cols%2; n <= cols; n += 2 {
 			lo, hi := float32(1e9), float32(-1e9)
-			rects, _ := z.Place(make([]float32, n), nil)
+			rects, _, _ := z.Place(make([]float32, n), nil, nil)
 			for _, r := range rects {
 				lo, hi = min(lo, r.X), max(hi, r.X+r.W)
 			}
@@ -30,16 +30,41 @@ func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 		}
 	}
 	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20}
-	rects, _ := z.Place([]float32{50, 60, 70, 80}, nil)
+	rects, _, slots := z.Place([]float32{50, 60, 70, 80}, nil, nil)
 	if rects[0].Y != 20 || rects[1].Y != 20 || rects[2].Y != 20 || rects[3].Y != -100 {
-		t.Fatalf("The first three should stand side by side under the pill, the fourth over it: %+v", rects)
+		t.Fatalf("With no room under the pill, the first three should stand side by side under it, the fourth over it: %+v", rects)
 	}
-	// A block growing moves none but what stands beyond it in its half.
-	grown, _ := z.Place([]float32{500, 60, 70, 80}, nil)
+	// A block growing, its columns held, moves none but what stands
+	// beyond it in its half.
+	grown, _, _ := z.Place([]float32{500, 60, 70, 80}, nil, slots)
 	for i := 1; i < 4; i++ {
 		if grown[i] != rects[i] {
 			t.Fatalf("Block %d moved as the first grew: %+v to %+v", i, rects[i], grown[i])
 		}
+	}
+}
+
+// Past the first row, a block goes under the pill while it fits there,
+// in the column it stands nearest the pill in, then over it while it
+// fits, then wherever it stands nearest.
+func TestBlocksFillTheRoomUnderThePillFirst(t *testing.T) {
+	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20, RoomBelow: 280, RoomAbove: 280}
+	rects, _, _ := z.Place([]float32{200, 40, 60, 80, 50, 200, 100, 200}, nil, nil)
+	// Across: 200 in the middle, 40 right, 60 left.
+	if rects[3].X != rects[1].X || rects[3].Y != 20+40+10 {
+		t.Fatalf("The fourth should stand under the shortest, not over the pill: %+v.", rects[3])
+	}
+	if rects[4].X != rects[2].X || rects[4].Y != 20+60+10 {
+		t.Fatalf("The fifth should stand under the next shortest: %+v.", rects[4])
+	}
+	if rects[5].Y >= 0 {
+		t.Fatalf("What fits nowhere under the pill should stand over it: %+v.", rects[5])
+	}
+	if rects[6].Y != 20+60+10+50+10 || rects[6].X != rects[2].X {
+		t.Fatalf("What fits under the pill still goes there: %+v.", rects[6])
+	}
+	if rects[7].Y >= 0 || rects[7].X == rects[5].X {
+		t.Fatalf("Over the pill, the next should take the column nearest it: %+v after %+v.", rects[7], rects[5])
 	}
 }
 
@@ -57,27 +82,36 @@ func TestAListFillsItsRowsInReadingOrder(t *testing.T) {
 	}
 }
 
-// Each band stands as a ring past the last: a band starts at the next row
-// of slots, past a ring's room across the half that a nearer band holds,
-// its name there where named.
+// Each band stands as a ring past the last: a band coming into a half a
+// nearer band holds starts past it, the half levelled across and a
+// ring's room left, its name there where named, in each half it takes.
 func TestBandsStandAsRings(t *testing.T) {
 	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20, Ring: 30}
-	// Two in the nearest band, under the pill; the next starts over it,
-	// then comes back under, past the ring.
-	rects, marks := z.Place([]float32{50, 80, 50, 50, 50, 50, 50}, []int{0, 0, 1, 1, 1, 1, 1})
-	if rects[2].Y >= 0 || rects[2].Y != -70 {
+	// Two in the nearest band, under the pill; with no room, the next
+	// starts over it, nearest.
+	rects, marks, _ := z.Place([]float32{50, 80, 50, 50, 50}, []int{0, 0, 1, 1, 1}, nil)
+	if rects[2].Y != -70 {
 		t.Fatalf("The next band should start over the pill: %+v.", rects[2])
-	}
-	if rects[5].Y != 20+80+10+30 || rects[6].Y != rects[5].Y {
-		t.Fatalf("Coming under, the band should stand past the ring, levelled: %+v.", rects)
 	}
 	if len(marks) != 0 {
 		t.Fatalf("Bands not named have no names: %+v.", marks)
 	}
-	z.Named = true
-	rects, marks = z.Place([]float32{50, 50}, []int{0, 1})
+	// With room under the pill, it comes under, past the ring, levelled.
+	z.RoomBelow = 380
+	rects, _, _ = z.Place([]float32{50, 80, 50, 50}, []int{0, 0, 1, 1}, nil)
+	if rects[2].Y != 20+80+10+30 || rects[3].Y != rects[2].Y {
+		t.Fatalf("Coming under, the band should stand past the ring, levelled: %+v.", rects)
+	}
+	z.RoomBelow, z.Named = 0, true
+	rects, marks, _ = z.Place([]float32{50, 50}, []int{0, 1}, nil)
 	if len(marks) != 2 || marks[0].Rect.Y != 20 || rects[0].Y != 50 || marks[1].Rect.Y != -50 || rects[1].Y != -100 {
 		t.Fatalf("Each band's first row should have its name's room: %+v %+v.", rects, marks)
+	}
+	// A band taking both halves is named in each.
+	z.Cols = 1
+	_, marks, _ = z.Place([]float32{50, 50, 50, 50}, []int{0, 1, 1, 1}, nil)
+	if len(marks) != 3 || marks[1].Band != 1 || marks[2].Band != 1 || marks[1].Below == marks[2].Below {
+		t.Fatalf("The second band should be named over the pill and under it: %+v.", marks)
 	}
 }
 
@@ -86,7 +120,7 @@ func TestBandsStandAsRings(t *testing.T) {
 func TestTheScreenOrderReadsAsTheFieldStands(t *testing.T) {
 	z := stageHorizon{Cols: 4, Col: 100, Gap: 10, Above: 20, Below: 20}
 	heights := []float32{50, 50, 50, 50, 50, 50, 50, 50, 50}
-	rects, _ := z.Place(heights, nil)
+	rects, _, _ := z.Place(heights, nil, nil)
 	var got []int
 	for _, i := range stageScreenOrder(rects) {
 		got = append(got, i)

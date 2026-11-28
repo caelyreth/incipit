@@ -203,6 +203,8 @@ type fieldState struct {
 	lists      map[string]bool
 	listsRev   int
 	listedMemo listedMemo
+	// placing is the field's columns as chosen for its query (field_place.go).
+	placing placing
 	// named are the bands' names the field showed last; listed is whether
 	// it last stood as a list.
 	named  map[string]bool

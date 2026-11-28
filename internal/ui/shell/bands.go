@@ -309,12 +309,14 @@ func (s *State) bandNames(c *ui.Context, semantic theme.Theme, f found, marks []
 		}
 		name := f.bands[mk.Band]
 		x, y := mk.Rect.X+m.pad, mk.Rect.Y+(mk.Rect.H-lineH)/2
-		label := ui.Box(c.Key("band-" + name)).Absolute().Height(lineH).IgnoreInput(true).Role(ui.RoleHeading).Label(name)
+		// A band taking both halves is named in each.
+		key := name + map[bool]string{true: "-below", false: "-above"}[mk.Below]
+		label := ui.Box(c.Key("band-" + key)).Absolute().Height(lineH).IgnoreInput(true).Role(ui.RoleHeading).Label(name)
 		shown := float32(1)
-		named[name] = true
+		named[key] = true
 		if animate {
 			// A name new to the field fades in where it stands.
-			if !s.field.named[name] {
+			if !s.field.named[key] {
 				label.Jump("x", x)
 				label.Jump("y", y)
 				label.Jump("shown", 0)

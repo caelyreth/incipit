@@ -6,22 +6,24 @@ import (
 )
 
 // The field stands on either side of its horizon, the band across its
-// middle that holds the pill and that nothing is drawn in. What it shows
-// goes in stageSlots numbered outward from the pill, a row at a time: across
-// the row under it, from the middle outward, then across the row over it
-// (stageSlots), so that what little the field holds stands side by side, as
-// wide as the window lets it, before it takes the other side. Block n
-// takes stageSlot n; past the last, blocks stack outward in the same order, a
-// row under and then a row over. A block's stageSlot so depends only on its
-// rank and how many columns the window holds, never on any block's size:
-// one that grows moves only those stacked beyond it in its own half of its
-// column, and only outward.
+// middle that holds the pill and that nothing is drawn in. A block takes
+// a column on one side of it (a stageSlot), chosen in rank order as the
+// query lands: the first row under the pill goes across from the middle
+// outward (stageSlots), so that what little the field holds stands side
+// by side, as wide as the window lets it; after that each block goes
+// under the pill, in the column it stands nearest the pill in, while it
+// fits in the window under it (RoomBelow), so a short block's column takes
+// the next rather than the far side; then over the pill while it fits
+// there (RoomAbove); then wherever it stands nearest the pill. The columns
+// chosen are held while the query stands (field_place.go): a block that
+// grows moves only those stacked beyond it in its own half of its column,
+// and only outward.
 //
-// Bands (bands.go) stand as rings: a band starts at the next row of slots
-// in either half, the room under it, or over it, taken by a band nearer
-// levelled across the columns and a ring's room left past it, so the band
-// reads as one step further out. Where the bands are named, the ring's
-// room holds the name, and each band's first row has one.
+// Bands (bands.go) stand as rings: a band entering a half that a nearer
+// band holds starts past it, the half levelled across the columns and a
+// ring's room left, so the band reads as one step further out. Where the
+// bands are named, the ring's room holds the name, in each half the band
+// takes.
 
 // stageHorizon is the field's columns, the band they stand on either side of,
 // and the room between what they hold. The band reaches Above over the
@@ -32,17 +34,24 @@ type stageHorizon struct {
 	Col, Gap     float32
 	Above, Below float32
 	// Ring is the room a band starts past, besides the gap; Named is
-	// whether its names stand there, each band's first row then having
-	// one, the nearest's too.
+	// whether its names stand there, each band's first row in each half
+	// then having one, the nearest's too.
 	Ring  float32
 	Named bool
+	// RoomBelow and RoomAbove are how far blocks may reach past the band
+	// in the window, under it and over it, the pill at rest: what a block
+	// is put where it fits in, whatever ribbons stand about the pill as it
+	// is, so the pill opening or closing chooses nothing anew; 0 fits
+	// nothing, and each block goes where it stands nearest the pill.
+	RoomBelow, RoomAbove float32
 }
 
 // stageMark is where a band's name stands: the ring's room it starts past,
-// across the columns, in the half its first card is in.
+// across the columns, in a half it takes, under the pill or over it.
 type stageMark struct {
-	Band int
-	Rect stageRect
+	Band  int
+	Below bool
+	Rect  stageRect
 }
 
 // stageColumns fits a horizon's columns into width w: as many as hold at least
@@ -54,7 +63,7 @@ func stageColumns(w, least, most, gap float32) (cols int, col float32) {
 }
 
 // stageSlot is a place on one side of the horizon in a column: under it, or
-// over it.
+// over it; col below 0 for none yet.
 type stageSlot struct {
 	col   int
 	below bool
@@ -85,69 +94,108 @@ func stageSlots(cols int) []stageSlot {
 	return out
 }
 
-// Place stands blocks of heights in their stageSlots, the horizon's middle at
-// the origin: those below hang from the band, those above stand on it,
-// each band of bands, nil for none, a ring further out than the last.
-// Every block is one column wide.
-func (z stageHorizon) Place(heights []float32, bands []int) ([]stageRect, []stageMark) {
-	order := stageSlots(z.Cols)
+// unslotted is a block not yet given its slot.
+var unslotted = stageSlot{col: -1}
+
+// Place stands blocks of heights, the horizon's middle at the origin:
+// those below hang from the band, those above stand on it, each band of
+// bands, nil for none, a ring further out than the last. Each block takes
+// the slot kept gives it, kept nil or its slot unslotted for one chosen
+// here; slots are those it took. Every block is one column wide.
+func (z stageHorizon) Place(heights []float32, bands []int, kept []stageSlot) (rects []stageRect, marks []stageMark, slots []stageSlot) {
+	// across is the columns from the middle outward.
+	var across []int
+	for _, s := range stageSlots(z.Cols)[:z.Cols] {
+		across = append(across, s.col)
+	}
 	width := float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap
 	left := -width / 2
-	below := make([]float32, z.Cols)
-	above := make([]float32, z.Cols)
-	for i := range below {
-		below[i], above[i] = z.Below, -z.Above
+	// fill is how far each column reaches from the middle in each half,
+	// past the band.
+	fill := map[bool][]float32{true: make([]float32, z.Cols), false: make([]float32, z.Cols)}
+	for i := range z.Cols {
+		fill[true][i], fill[false][i] = z.Below, z.Above
 	}
+	// room is how far each half reaches from the middle, past the band as
+	// it stands now.
+	room := map[bool]float32{true: z.Below + z.RoomBelow, false: z.Above + z.RoomAbove}
 	// The band last stood in each half, under the horizon and over it;
 	// -1 for none yet.
 	held := map[bool]int{true: -1, false: -1}
-	var marks []stageMark
-	out := make([]stageRect, len(heights))
-	p := 0
-	for i, h := range heights {
-		starts := bands != nil && (i == 0 || bands[i] != bands[i-1])
-		if starts && i > 0 {
-			p = (p + z.Cols - 1) / z.Cols * z.Cols
-		}
-		s := order[p%len(order)]
-		p++
-		c := s.col
-		if bands != nil {
-			band := bands[i]
-			// Past a band nearer in its half, the half is levelled and a
-			// ring's room left; a name wants that room where its band starts.
-			if (held[s.below] >= 0 && held[s.below] != band) || starts && z.Named {
-				var room stageRect
-				if s.below {
-					line := slices.Max(below)
-					for j := range below {
-						below[j] = line + z.Ring
-					}
-					room = stageRect{X: left, Y: line, W: width, H: z.Ring}
-				} else {
-					line := slices.Min(above)
-					for j := range above {
-						above[j] = line - z.Ring
-					}
-					room = stageRect{X: left, Y: line - z.Ring, W: width, H: z.Ring}
-				}
-				if starts {
-					marks = append(marks, stageMark{Band: band, Rect: room})
-				}
-			}
-			held[s.below] = band
-		}
-		x := left + float32(c)*(z.Col+z.Gap)
-		if s.below {
-			out[i] = stageRect{X: x, Y: below[c], W: z.Col, H: h}
-			below[c] += h + z.Gap
-		} else {
-			above[c] -= h
-			out[i] = stageRect{X: x, Y: above[c], W: z.Col, H: h}
-			above[c] -= z.Gap
-		}
+	// entering is whether band, coming into half, starts past a ring
+	// there: a nearer band holds it, or the band is named and its name
+	// wants the room.
+	entering := func(half bool, band int) bool {
+		return bands != nil && held[half] != band && (held[half] >= 0 || z.Named)
 	}
-	return out, marks
+	// nearest is the column in half a block stands nearest the pill in,
+	// the first across among the nearest, and how far out it starts.
+	nearest := func(half bool, band int) (int, float32) {
+		if entering(half, band) {
+			return across[0], slices.Max(fill[half]) + z.Ring
+		}
+		col := across[0]
+		for _, c := range across[1:] {
+			if fill[half][c] < fill[half][col] {
+				col = c
+			}
+		}
+		return col, fill[half][col]
+	}
+	rects, slots = make([]stageRect, len(heights)), make([]stageSlot, len(heights))
+	for i, h := range heights {
+		band := -1
+		if bands != nil {
+			band = bands[i]
+		}
+		s := unslotted
+		if i < len(kept) && kept[i].col >= 0 && kept[i].col < z.Cols {
+			s = kept[i]
+		}
+		if s.col < 0 {
+			bc, bs := nearest(true, band)
+			ac, as := nearest(false, band)
+			switch {
+			case i < z.Cols && bands == nil:
+				// The first row goes across under the pill.
+				s = stageSlot{across[i], true}
+			case bs+h <= room[true]:
+				s = stageSlot{bc, true}
+			case as+h <= room[false]:
+				s = stageSlot{ac, false}
+			case bs <= as:
+				s = stageSlot{bc, true}
+			default:
+				s = stageSlot{ac, false}
+			}
+		}
+		slots[i] = s
+		half := s.below
+		if entering(half, band) {
+			line := slices.Max(fill[half])
+			for j := range fill[half] {
+				fill[half][j] = line + z.Ring
+			}
+			if z.Named {
+				room := stageRect{X: left, Y: line, W: width, H: z.Ring}
+				if !half {
+					room.Y = -line - z.Ring
+				}
+				marks = append(marks, stageMark{Band: band, Below: half, Rect: room})
+			}
+		}
+		if bands != nil {
+			held[half] = band
+		}
+		x := left + float32(s.col)*(z.Col+z.Gap)
+		if half {
+			rects[i] = stageRect{X: x, Y: fill[half][s.col], W: z.Col, H: h}
+		} else {
+			rects[i] = stageRect{X: x, Y: -fill[half][s.col] - h, W: z.Col, H: h}
+		}
+		fill[half][s.col] += h + z.Gap
+	}
+	return rects, marks, slots
 }
 
 // stageScreenOrder is the order rects are read in as they stand on the

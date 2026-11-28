@@ -90,8 +90,11 @@ func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
 			state.Settings.DrawnMenus = drawn
 			library.groupTree = map[string][]GroupItem{"": {
 				{ID: "1", Name: "Inbox", Inbox: true},
-				// Made before Novel, which the field so stands furthest out.
+				// Made before Novel, which the field so stands furthest out,
+				// over the pill once those under it fill the room there.
 				{ID: "i", Name: "Ideas"}, {ID: "l", Name: "Letters"}, {ID: "t", Name: "Trips"},
+				{ID: "a", Name: "Atlas"}, {ID: "b", Name: "Ballads"}, {ID: "c", Name: "Clippings"},
+				{ID: "d", Name: "Diary"}, {ID: "e", Name: "Essays"}, {ID: "f", Name: "Fables"},
 				{ID: "2", Name: "Novel"},
 			}}
 			library.extraSheets = 8

@@ -117,9 +117,14 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 		z.Named = true
 		z.Ring = theme.TextXSmall.LineHeight(m.scale) + z.Gap
 	}
-	rects, marks := z.Place(heights, bands)
+	top, foot := 48*k, 24*k
+	var rects []stageRect
+	var marks []stageMark
 	if listed {
-		rects, marks = z.Rows(heights, listWide(f.cards)), nil
+		rects = z.Rows(heights, listWide(f.cards))
+	} else {
+		z.RoomBelow, z.RoomAbove = h/2-foot-m.horizon.Below, h/2-top-m.horizon.Above
+		rects, marks = s.slotted(z, f, heights, bands)
 	}
 	frames := make([]stageFrame, len(rects))
 	for i, r := range rects {
@@ -127,7 +132,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	below, above := stageReach(rects)
 	below, above = max(below, z.Below), max(above, z.Above)
-	top, foot := 48*k, 24*k
 	// At rest, the pill stands at the window's middle, its ribbons with it,
 	// however many stand on either side: only cards standing on one side
 	// more than the other move it, the horizon leaning into the room they
