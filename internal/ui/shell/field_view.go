@@ -84,11 +84,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	s.field.listed = listed
 	f := s.results(c.Now())
-	// What fits in the row under the pill stands there alone, the field
-	// over it empty: its blocks may stand as tall as the window holds.
-	if len(f.cards) <= m.horizon.Cols {
-		m.tall = m.alone
-	}
 	shapes := s.shapes(c, f, m)
 	heights := make([]float32, len(shapes))
 	for i, sh := range shapes {
@@ -133,17 +128,19 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	below, above := stageReach(rects)
 	below, above = max(below, z.Below), max(above, z.Above)
 	top, foot := 48*k, 24*k
-	// At rest, the pill stands near the window's middle, its ribbons with it:
-	// cards standing on one side more than the other shift the horizon into
-	// the empty room, bounded to the middle third of the window ([h/3, 2*h/3])
-	// so the input stays within the user's visual center instead of hugging
-	// the top or bottom edge; and cards where a ring of columns is taken on
-	// one side alone go across to stand even about the pill. While typing is
-	// held by follow() the field stays still, then updates its cards and
-	// shifts the horizon together in one glide once the pause fires.
+	// At rest, the pill stands at the window's middle, its ribbons with it,
+	// however many stand on either side: only cards standing on one side
+	// more than the other move it, the horizon rising or falling into the
+	// room they leave empty over or under it; and the cards,
+	// where a ring of columns is taken on one side alone, go across to
+	// stand even about the pill. While the pill is open it keeps still,
+	// under the pointer and the caret, and the field with it, until the
+	// field answers what is written (follow), cards and horizon moving
+	// together; but never so far that something of the field would leave
+	// the window or its columns, which brings it in as far as needs be.
+	// Let go of, the pill goes where the field is even.
 	first := s.field.rest == nil
-	maxShift := h / 6
-	up, down := max(0, min(h/2-top-above, maxShift)), max(0, min(h/2-foot-below, maxShift))
+	up, down := max(0, h/2-top-above), max(0, h/2-foot-below)
 	lo, hi := stageExtent(rects)
 	reach := (float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
 	if !s.field.open || first || s.field.settled {
@@ -200,6 +197,12 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	s.keepPicked()
 	s.keepRowPlaces()
+	// Return pressed on words not answered yet enters what they rank,
+	// now the field has ranked them.
+	if s.field.entered {
+		s.field.entered = false
+		s.enter(s.field.enteredAside)
+	}
 	// Each place, the view with the query it shows, keeps where it was
 	// scrolled to: gone to, a place stands as it was left, or at its home
 	// when new (the field's horizon, the end for filed order and time

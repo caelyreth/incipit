@@ -95,9 +95,10 @@ func TestTheTrashHeadsNoBlock(t *testing.T) {
 	}
 }
 
-// What fits in the row under the pill stands side by side there, and its
-// blocks, nothing over the pill, may stand as tall as the window holds.
-func TestALoneRowStandsSideBySideAndTall(t *testing.T) {
+// What fits in the row under the pill stands side by side there, its
+// blocks no taller than its half of the field holds, so a long group
+// does not take the pill up to the window's top.
+func TestALoneRowStandsSideBySideInItsHalf(t *testing.T) {
 	state, library, tester := onField(t, 1260, 850)
 	library.extraSheets = 30
 	library.rev++
@@ -115,7 +116,10 @@ func TestALoneRowStandsSideBySideAndTall(t *testing.T) {
 	if novel.Y < 0 || inbox.Y < 0 || novel.Y != inbox.Y {
 		t.Fatalf("Two groups should stand side by side under the pill: %v and %v.", novel, inbox)
 	}
-	if novel.H <= 850/2 {
-		t.Fatalf("Alone in its row, Novel should stand taller than half the window: %v.", novel.H)
+	if novel.H > 850/2 {
+		t.Fatalf("Alone in its row, Novel should keep to its half of the field: %v.", novel.H)
+	}
+	if pill, _ := tester.Find("Search"); pill.Y+pill.H/2 < 850/4 {
+		t.Fatalf("The pill should stay off the window's top: %v.", pill)
 	}
 }

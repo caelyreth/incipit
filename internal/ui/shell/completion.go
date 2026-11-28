@@ -344,7 +344,7 @@ func (s *State) rewrite(i int) {
 // writingQuiet is how long the words written in the pill stand before
 // the field follows them, moving the cards and horizon together in one
 // glide.
-const writingQuiet = 180 * time.Millisecond
+const writingQuiet = 300 * time.Millisecond
 
 // queryAt is all the query stands on but its words: what else the field
 // shows, it shows as it changes.

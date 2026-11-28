@@ -165,21 +165,6 @@ func (s *State) results(now time.Time) found {
 	return f
 }
 
-// flushFollow commits any debounced words in the pill immediately and
-// refreshes ranked rows so Return right after typing activates the match.
-func (s *State) flushFollow() {
-	if !s.field.holding {
-		return
-	}
-	s.field.takeNext = true
-	s.follow(time.Now())
-	f := s.results(time.Now())
-	s.field.ranked = s.field.ranked[:0]
-	for _, cd := range f.cards {
-		s.field.ranked = append(s.field.ranked, cd.rows...)
-	}
-}
-
 // steady is next's cards, those prev shows in the order it shows them,
 // then the rest in next's own; each tier apart.
 func steady(prev, next []card) []card {

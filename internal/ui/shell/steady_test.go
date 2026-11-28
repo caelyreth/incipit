@@ -254,29 +254,26 @@ func TestAKeyToggledFastNeverLeaps(t *testing.T) {
 	}
 }
 
-// With tall results standing only under the pill, the resting horizon stays
-// within the middle third of the window ([h/3, 2*h/3]) rather than hugging
-// the window's top edge.
-func TestHorizonStaysWithinVisualCenterAtRest(t *testing.T) {
-	state, _, tester := onField(t, 1260, 850)
-	state.AppSettings = &fakeSettings{tall: 600}
-	settle(tester)
-	if err := tester.Click("Show settings"); err != nil {
-		t.Fatal(err)
+// Return pressed on words the field has not answered yet enters what they
+// rank first, not what the words before them ranked.
+func TestReturnRightAfterWritingEntersWhatIsWritten(t *testing.T) {
+	state, library, tester := onField(t, 1260, 850)
+	library.order = func(text string) []string {
+		if strings.HasSuffix(text, "ab") {
+			return []string{"8", "7"}
+		}
+		return []string{"7", "8"}
 	}
+	state.Search()
 	settle(tester)
-	// Keymap/Keys renders at tall=600px, which previously pushed the pill to
-	// the top edge (~48px). It should now clamp cleanly at h/3.
-	tester.Type("keys")
+	tester.Type("a")
 	settle(tester)
-	pill, ok := tester.Find("Search")
-	if !ok {
-		t.Fatal("Search pill should be present.")
-	}
-	horizon := pill.Y + pill.H/2
-	wantTopThird := float32(850) / 3
-	if abs(horizon-wantTopThird) > 1.0 {
-		t.Fatalf("Expected resting horizon to clamp at top third (%v) for tall card below, got %v.", wantTopThird, horizon)
+	tester.Type("b")
+	tester.Frame()
+	tester.Key(0, ui.KeyEnter)
+	settle(tester)
+	if !slices.Contains(library.calls, "open found 8 ab") {
+		t.Fatalf("Return should enter what the words written rank first: %v.", library.calls)
 	}
 }
 
@@ -339,7 +336,7 @@ func TestTypingDebouncesAndMovesCardsWithPillTogether(t *testing.T) {
 	settle(tester)
 	finalPill, _ := tester.Find("Search")
 	horizon := finalPill.Y + finalPill.H/2
-	if horizon >= 850/2-5 || horizon < float32(850)/3-0.5 {
-		t.Fatalf("Final resting horizon should rise within [h/3, h/2): got %v (h/3=%v).", horizon, float32(850)/3)
+	if horizon >= 850/2-5 {
+		t.Fatalf("Final resting horizon should rise over the middle: got %v.", horizon)
 	}
 }

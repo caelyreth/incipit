@@ -90,6 +90,10 @@ type fieldState struct {
 	answeredAt        queryAt
 	holding, takeNext bool
 	writtenAt         time.Time
+	// entered is Return pressed on words the field had not answered yet,
+	// enteredAside with Cmd or Alt held: the field answers them, then
+	// enters what they rank first (enter).
+	entered, enteredAside bool
 	// shapes are the cards' shapes, by id and look, for the library and
 	// the measures shapesKey names.
 	shapes    map[shapeID]shape

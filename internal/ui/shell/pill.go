@@ -329,17 +329,12 @@ func (s *State) pillKey(key ui.TextKey) bool {
 		if key.Key == ui.KeyTab {
 			break
 		}
-		s.flushFollow()
-		id := s.field.chosen
-		if id == "" {
-			for _, row := range s.field.ranked {
-				if strings.HasPrefix(row, "sheet:") || strings.HasPrefix(row, "command:") {
-					id = row
-					break
-				}
-			}
+		aside := key.Mods&(ui.Cmd|ui.Alt) != 0
+		if s.field.holding {
+			s.field.takeNext, s.field.entered, s.field.enteredAside = true, true, aside
+			return true
 		}
-		s.activate(id, key.Mods&(ui.Cmd|ui.Alt) != 0)
+		s.enter(aside)
 		return true
 	case ui.KeyDown, ui.KeyUp:
 		if plain && s.offered() {
@@ -371,4 +366,19 @@ func ribbonTransition(animate, above bool, k float32) ui.ElementTransition {
 		Animation: &spring, ExitDuration: components.MotionQuick, ExitEase: ui.EaseOut,
 		Position: true, Colors: true, Enter: gone, Exit: gone,
 	}
+}
+
+// enter opens or runs the row the keys are on, or else the first sheet or
+// command the field ranks; aside, beside what is open.
+func (s *State) enter(aside bool) {
+	id := s.field.chosen
+	if id == "" {
+		for _, row := range s.field.ranked {
+			if strings.HasPrefix(row, "sheet:") || strings.HasPrefix(row, "command:") {
+				id = row
+				break
+			}
+		}
+	}
+	s.activate(id, aside)
 }
