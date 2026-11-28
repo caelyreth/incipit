@@ -14,7 +14,8 @@ import (
 // under the pill, in the column it stands nearest the pill in, while it
 // fits in the window under it (RoomBelow), so a short block's column takes
 // the next rather than the far side; then over the pill while it fits
-// there (RoomAbove); then wherever it stands nearest the pill. The columns
+// there (RoomAbove); then under it again, past what the window holds, so
+// nothing stands over the pill but what the window holds there. The columns
 // chosen are held while the query stands (field_place.go): a block that
 // grows moves only those stacked beyond it in its own half of its column,
 // and only outward.
@@ -42,7 +43,7 @@ type stageHorizon struct {
 	// in the window, under it and over it, the pill at rest: what a block
 	// is put where it fits in, whatever ribbons stand about the pill as it
 	// is, so the pill opening or closing chooses nothing anew; 0 fits
-	// nothing, and each block goes where it stands nearest the pill.
+	// nothing.
 	RoomBelow, RoomAbove float32
 }
 
@@ -163,10 +164,11 @@ func (z stageHorizon) Place(heights []float32, bands []int, kept []stageSlot) (r
 				s = stageSlot{bc, true}
 			case as+h <= room[false]:
 				s = stageSlot{ac, false}
-			case bs <= as:
-				s = stageSlot{bc, true}
 			default:
-				s = stageSlot{ac, false}
+				// Past what the window holds, the field goes on under the
+				// pill, the way it is scrolled: over it stands no more than
+				// the window holds there.
+				s = stageSlot{bc, true}
 			}
 		}
 		slots[i] = s

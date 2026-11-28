@@ -97,7 +97,6 @@ func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
 				{ID: "d", Name: "Diary"}, {ID: "e", Name: "Essays"}, {ID: "f", Name: "Fables"},
 				{ID: "2", Name: "Novel"},
 			}}
-			library.extraSheets = 8
 			library.rev++
 			// Unfocus the search pill first so opening a drawn context menu does not
 			// collapse ribbons and move Novel out of the <40 top band mid-test.
