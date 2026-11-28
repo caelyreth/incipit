@@ -42,8 +42,8 @@ github.com/blevesearch/zapx/v16 v16.3.4 h1:hDAqA8qusZTNbPEL7//w5P65UZ2de6yhSeUaT
 github.com/blevesearch/zapx/v16 v16.3.4/go.mod h1:zqkPPqs9GS9FzVWzCO3Wf1X044yWAV17+4zb+FTiEHg=
 github.com/blevesearch/zapx/v17 v17.2.5 h1:1A3bXvT/8XkEVaUQBfD0jQBAO8kSQEiCwgrRNPKp0TE=
 github.com/blevesearch/zapx/v17 v17.2.5/go.mod h1:8SHp6q+3FNVCqPyRiTFZDSRm1WA2G8Q3zCk8lRBfhT4=
-github.com/caelyreth/evil-mygo v0.0.0-20261128041828-55c306fa4bb0 h1:uv3EJ9zCPkm5dLNkn4YYg1havTyRXKCtUFI5qrfzBOA=
-github.com/caelyreth/evil-mygo v0.0.0-20261128041828-55c306fa4bb0/go.mod h1:XTwX16czdPxJViYrXHv58VyDsyuaDqCRThED6QU9bXY=
+github.com/caelyreth/evil-mygo v0.0.0-20261128150232-5aed3ef8d15b h1:7cLVFegcWUfU7qTQzRlR7qfRtY7v2pt57VLozEvFDaA=
+github.com/caelyreth/evil-mygo v0.0.0-20261128150232-5aed3ef8d15b/go.mod h1:XTwX16czdPxJViYrXHv58VyDsyuaDqCRThED6QU9bXY=
 github.com/caelyreth/untie v0.5.1 h1:DBAb3iy9VYV+x6thEtxOwd8RcKNfoDA/FudOnaMxvbE=
 github.com/caelyreth/untie v0.5.1/go.mod h1:5/Y+ktLaE+mTqFbl4IjAEQMMMjA3eEykEib+/ZIpVDg=
 github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJv2v7Vk=
