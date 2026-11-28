@@ -323,13 +323,15 @@ func (s Settings) MyGoTheme() *ui.Theme {
 }
 
 // MyGoThemeFor is MyGoTheme painted in semantic, such as a theme partway
-// through a Transition, at these settings' scale.
+// through a Transition, at these settings' scale. Every color is
+// semantic's, so the controls blend as it does; it is dark while its
+// background is nearer Starfield's than Daybreak's, turning over halfway
+// through a blend between them, not as it starts.
 func (s Settings) MyGoThemeFor(semantic Theme) *ui.Theme {
 	normalized := s.Normalized()
-	result := ui.DarkTheme()
-	if normalized.Appearance == Daybreak {
-		result = ui.LightTheme()
-	}
+	result := ui.LightTheme()
+	ground := semantic.Surface.Background
+	result.Dark = colorDistance(ground, starfield().background) < colorDistance(ground, daybreak().background)
 	result.Background = semantic.Surface.Background
 	result.Surface = semantic.Element.Background
 	result.SurfaceHover = semantic.Element.Hover
@@ -357,6 +359,12 @@ func (s Settings) MyGoThemeFor(semantic Theme) *ui.Theme {
 	// pointer anywhere sets none off.
 	result.TooltipDelay = 800 * time.Millisecond
 	return result
+}
+
+// colorDistance is how far apart a and b are in sRGB, squared.
+func colorDistance(a, b ui.Color) int {
+	dr, dg, db := int(a.R)-int(b.R), int(a.G)-int(b.G), int(a.B)-int(b.B)
+	return dr*dr + dg*dg + db*db
 }
 
 func paletteFor(appearance Appearance) palette {

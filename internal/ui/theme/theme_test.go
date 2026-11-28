@@ -39,3 +39,23 @@ func TestMyGoThemeCarriesSemanticMaterial(t *testing.T) {
 		t.Fatalf("metrics = font %v spacing %v radius %v", native.FontSize, native.Spacing, native.Radius)
 	}
 }
+
+func TestMyGoThemeTurnsDarkHalfwayThroughABlend(t *testing.T) {
+	t.Parallel()
+	light := DefaultSettings()
+	light.Appearance = Daybreak
+	dark := light
+	dark.Appearance = Starfield
+	// Daybreak's settings painting a blend a third of the way from
+	// Starfield: still dark.
+	blend := light.Semantic()
+	from, to := dark.Semantic().Surface.Background, light.Semantic().Surface.Background
+	blend.Surface.Background = from.Mix(to, 0.3)
+	if !light.MyGoThemeFor(blend).Dark {
+		t.Error("a third of the way to Daybreak, the controls turned light")
+	}
+	blend.Surface.Background = from.Mix(to, 0.7)
+	if dark.MyGoThemeFor(blend).Dark {
+		t.Error("most of the way to Daybreak, the controls stayed dark")
+	}
+}
