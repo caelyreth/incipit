@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/egoist/mygo/ui"
@@ -16,7 +17,8 @@ func foundOf(query string, ids ...string) found {
 
 // The columns are chosen as the query lands, again while what it brings
 // measures itself, and then held: what grows moves only what is beyond it
-// in its column; what leaves leaves its column; a new query chooses anew.
+// in its column; the cards changing choose anew, so one come and gone
+// leaves the field as it stood.
 func TestTheFieldHoldsTheColumnsItChoseForItsQuery(t *testing.T) {
 	s := &State{}
 	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20, RoomBelow: 280, RoomAbove: 280}
@@ -32,25 +34,16 @@ func TestTheFieldHoldsTheColumnsItChoseForItsQuery(t *testing.T) {
 	if grown[3].X != measured[3].X || grown[3].Y != 20+290+10 {
 		t.Fatalf("Grown once it stands, a block should push what is beyond it in its column, not move it: %+v.", grown[3])
 	}
-	gone, _ := s.slotted(z, foundOf("q", "a", "c", "d"), []float32{200, 60, 80}, nil)
-	if gone[0] != measured[0] || gone[1] != measured[2] || gone[2].X != measured[3].X || gone[2].Y != 20 {
-		t.Fatalf("A block leaving should leave its column, the rest keeping theirs: %+v.", gone)
+	// A block come and gone again, the field stands as it did.
+	s.slotted(z, foundOf("q", "n", "a", "b", "c", "d"), []float32{40, 200, 40, 60, 80}, nil)
+	s.slotted(z, foundOf("q", "n", "a", "b", "c", "d"), []float32{40, 200, 40, 60, 80}, nil)
+	back, _ := s.slotted(z, foundOf("q", "a", "b", "c", "d"), short, nil)
+	if !slices.Equal(back, measured) {
+		t.Fatalf("A block come and gone should leave the field as it stood: %+v, not %+v.", back, measured)
 	}
-	s.slotted(z, foundOf("q", "a", "c", "d"), []float32{200, 60, 80}, nil)
 	anew, _ := s.slotted(z, foundOf("r", "d", "c", "a"), []float32{80, 60, 200}, nil)
 	if anew[0].X != 0-50 || anew[0].Y != 20 {
 		t.Fatalf("A new query should choose anew, what ranks first in the middle: %+v.", anew)
-	}
-}
-
-// What stays holds its columns only where nothing is ranked anew and
-// nothing comes in nearer the pill than it.
-func TestWhatStaysHoldsOnlyWhereNothingComesInNearer(t *testing.T) {
-	if !staysAhead([]string{"a", "b", "c"}, []string{"a", "c"}) || !staysAhead([]string{"a", "c"}, []string{"a", "c", "x"}) {
-		t.Fatal("Blocks leaving, or coming in past the rest, should leave the rest be.")
-	}
-	if staysAhead([]string{"a", "c"}, []string{"x", "a", "c"}) || staysAhead([]string{"a", "b"}, []string{"b", "a"}) {
-		t.Fatal("Blocks coming in nearer, or ranked anew, should choose anew.")
 	}
 }
 
