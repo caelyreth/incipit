@@ -30,19 +30,24 @@ func TestBlocksTakeTheirSlotsOutwardFromThePill(t *testing.T) {
 		}
 	}
 	z := stageHorizon{Cols: 3, Col: 100, Gap: 10, Above: 20, Below: 20, RoomAbove: 100}
-	rects, _, slots := z.Place([]float32{50, 60, 70, 80}, nil, nil)
-	if rects[0].Y != 20 || rects[1].Y != 20 || rects[2].Y != 20 || rects[3].Y != -100 {
-		t.Fatalf("With no room under the pill, the first three should stand side by side under it, the fourth over it: %+v", rects)
+	rects, _, slots := z.Place([]float32{50, 60, 70, 80, 80, 80}, nil, nil)
+	if rects[0].Y != 20 || rects[1].Y != 20 || rects[2].Y != 20 || rects[3].Y != -100 || rects[5].Y != -100 {
+		t.Fatalf("With no room under the pill, the first three should stand side by side under it, the next three over it: %+v", rects)
+	}
+	// Fewer than a row left, none starts a row over the pill alone.
+	lone, _, _ := z.Place([]float32{50, 60, 70, 80}, nil, nil)
+	if lone[3].Y < 0 || lone[3].X != rects[0].X {
+		t.Fatalf("One left should go on under the pill, not alone over it: %+v.", lone[3])
 	}
 	// Past the room over the pill too, the field goes on under it.
-	more, _, _ := z.Place([]float32{50, 60, 70, 80, 150}, nil, nil)
-	if more[4].Y < 0 || more[4].X != rects[0].X {
-		t.Fatalf("What fits nowhere should go on under the pill, nearest it: %+v.", more[4])
+	more, _, _ := z.Place([]float32{50, 60, 70, 80, 80, 80, 150}, nil, nil)
+	if more[6].Y < 0 || more[6].X != rects[0].X {
+		t.Fatalf("What fits nowhere should go on under the pill, nearest it: %+v.", more[6])
 	}
 	// A block growing, its columns held, moves none but what stands
 	// beyond it in its half.
-	grown, _, _ := z.Place([]float32{500, 60, 70, 80}, nil, slots)
-	for i := 1; i < 4; i++ {
+	grown, _, _ := z.Place([]float32{500, 60, 70, 80, 80, 80}, nil, slots)
+	for i := 1; i < 6; i++ {
 		if grown[i] != rects[i] {
 			t.Fatalf("Block %d moved as the first grew: %+v to %+v", i, rects[i], grown[i])
 		}
@@ -110,13 +115,12 @@ func TestBandsStandAsRings(t *testing.T) {
 	if rects[2].Y != 20+80+10+30 || rects[3].Y != rects[2].Y {
 		t.Fatalf("Coming under, the band should stand past the ring, levelled: %+v.", rects)
 	}
-	z.RoomBelow, z.Named = 100, true
+	z.RoomBelow, z.Named, z.Cols = 100, true, 1
 	rects, marks, _ = z.Place([]float32{50, 50}, []int{0, 1}, nil)
 	if len(marks) != 2 || marks[0].Rect.Y != 20 || rects[0].Y != 50 || marks[1].Rect.Y != -50 || rects[1].Y != -100 {
 		t.Fatalf("Each band's first row should have its name's room: %+v %+v.", rects, marks)
 	}
 	// A band taking both halves is named in each.
-	z.Cols = 1
 	_, marks, _ = z.Place([]float32{50, 50, 50, 60}, []int{0, 1, 1, 1}, nil)
 	if len(marks) != 3 || marks[1].Band != 1 || marks[2].Band != 1 || marks[1].Below == marks[2].Below {
 		t.Fatalf("The second band should be named over the pill and under it: %+v.", marks)

@@ -14,7 +14,8 @@ import (
 // under the pill, in the column it stands nearest the pill in, while it
 // fits in the window under it (RoomBelow), so a short block's column takes
 // the next rather than the far side; then over the pill while it fits
-// there (RoomAbove); then under it again, past what the window holds, so
+// there (RoomAbove), a row there started only by as many as are left to
+// fill it, so none stands alone over the pill; then under it again, past what the window holds, so
 // nothing stands over the pill but what the window holds there. The columns
 // chosen are held while the query stands (field_place.go): a block that
 // grows moves only those stacked beyond it in its own half of its column,
@@ -144,6 +145,8 @@ func (z stageHorizon) Place(heights []float32, bands []int, kept []stageSlot) (r
 		return col, fill[half][col]
 	}
 	rects, slots = make([]stageRect, len(heights)), make([]stageSlot, len(heights))
+	// over is how many stand over the pill.
+	over := 0
 	for i, h := range heights {
 		band := -1
 		if bands != nil {
@@ -162,7 +165,7 @@ func (z stageHorizon) Place(heights []float32, bands []int, kept []stageSlot) (r
 				s = stageSlot{across[i], true}
 			case bs+h <= room[true]:
 				s = stageSlot{bc, true}
-			case as+h <= room[false]:
+			case as+h <= room[false] && (over > 0 || len(heights)-i >= z.Cols):
 				s = stageSlot{ac, false}
 			default:
 				// Past what the window holds, the field goes on under the
@@ -173,6 +176,9 @@ func (z stageHorizon) Place(heights []float32, bands []int, kept []stageSlot) (r
 		}
 		slots[i] = s
 		half := s.below
+		if !half {
+			over++
+		}
 		if entering(half, band) {
 			line := slices.Max(fill[half])
 			for j := range fill[half] {

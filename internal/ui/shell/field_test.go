@@ -95,6 +95,8 @@ func TestFieldTopBandLetsTopContentStayInteractive(t *testing.T) {
 				{ID: "i", Name: "Ideas"}, {ID: "l", Name: "Letters"}, {ID: "t", Name: "Trips"},
 				{ID: "a", Name: "Atlas"}, {ID: "b", Name: "Ballads"}, {ID: "c", Name: "Clippings"},
 				{ID: "d", Name: "Diary"}, {ID: "e", Name: "Essays"}, {ID: "f", Name: "Fables"},
+				{ID: "g", Name: "Games"}, {ID: "h", Name: "Hymns"}, {ID: "j", Name: "Jokes"},
+				{ID: "k", Name: "Koans"}, {ID: "m", Name: "Maps"}, {ID: "n", Name: "Notes"},
 				{ID: "2", Name: "Novel"},
 			}}
 			library.rev++
