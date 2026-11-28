@@ -366,6 +366,16 @@ func TestHomeButtonClearsFiltersAndRecentersPill(t *testing.T) {
 		t.Fatalf("Home button %v should sit in the top area above settings %v.", home, settings)
 	}
 
+	// With no traffic lights over the lane, as on Windows and Linux, Home
+	// stands at the lane's top, as far in as it stands from the side.
+	tester.SetTitleBar(ui.TitleBar{Height: 32, Right: 138})
+	settle(tester)
+	if bare, _ := tester.Find("Home"); abs(bare.Y-bare.X) > 0.5 {
+		t.Fatalf("Home button %v should stand at the lane's top, as far in as from the side.", bare)
+	}
+	tester.SetTitleBar(ui.TitleBar{Height: 40, Left: 76})
+	settle(tester)
+
 	pillRest, ok := tester.Find("Search")
 	if !ok {
 		t.Fatal("Search pill should be present.")

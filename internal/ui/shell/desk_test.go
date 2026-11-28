@@ -422,7 +422,7 @@ func TestTheSheetHeadPutsBackAtItsStartAndCloseAtItsEnd(t *testing.T) {
 			c.SetTheme(state.Settings.MyGoTheme())
 			ui.Column(c).Fill().Children(func() {
 				state.sheetHead(c, semantic, sheetPage("1", "A place to begin"),
-					size/theme.DefaultUIFontSize, 0, 1, false)
+					size/theme.DefaultUIFontSize, 0, 0, 1, false)
 			})
 		}, 520, 80)
 		tester.SetTitleBar(ui.TitleBar{Height: 64})
@@ -486,5 +486,34 @@ func TestAColumnOpeningIsTravelledToWhereItSettles(t *testing.T) {
 	sp := state.desk.spans[len(state.desk.spans)-1]
 	if end := sp.End() - state.desk.strip.X; end > state.desk.viewport.W+1 {
 		t.Fatalf("The new column ends %v past the window's %v.", end, state.desk.viewport.W)
+	}
+}
+
+// Where the window's buttons stand at the title line's end, as on Windows,
+// a sheet's head keeps its close button clear of them, and its start
+// stays at the column's edge, no room kept for traffic lights there are
+// none of; where the traffic lights stand at its start, as on macOS, the
+// head keeps clear of them and its close button goes to the column's end.
+func TestTheSheetHeadKeepsClearOfTheWindowsControls(t *testing.T) {
+	for _, bar := range []ui.TitleBar{{Height: 32, Right: 138}, {Height: 40, Left: 76}} {
+		state, _, tester := onDesk(t)
+		tester.SetTitleBar(bar)
+		tester.Move(600, 400)
+		settle(tester)
+		close, ok := tester.Find("Close " + state.Open[0].Title)
+		back, ok2 := tester.Find("Back to the Field")
+		if !ok || !ok2 {
+			t.Fatalf("The head should show its buttons: %v", tester.Texts())
+		}
+		w := float32(1260)
+		if close.X+close.W > w-bar.Right-chromeInset+0.5 {
+			t.Fatalf("Under %+v, close %v should keep clear of the window's buttons.", bar, close)
+		}
+		if bar.Right == 0 && close.X+close.W < w-chromeInset-2*close.W {
+			t.Fatalf("Under %+v, close %v should stand at the column's end.", bar, close)
+		}
+		if back.X < bar.Left || bar.Left == 0 && back.X > 2*chromeInset+back.W {
+			t.Fatalf("Under %+v, back %v should stand clear of the lights, and no further in.", bar, back)
+		}
 	}
 }

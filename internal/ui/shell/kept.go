@@ -141,11 +141,15 @@ func (s *State) fieldLaneView(c *ui.Context, semantic theme.Theme, look stageLoo
 		barH := titleLine(c)
 		ui.Box(c).Key("title-band").Absolute().Top(0).Left(0).Right(0).Height(barH).DragWindow()
 		// The lane's buttons stand in one line beside the field's columns:
-		// Home under the title line, the trash under it, and the settings
-		// in the corner at the foot.
+		// Home at the top, under the title line where the window's controls
+		// stand over the lane (the traffic lights), the trash under it, and
+		// the settings in the corner at the foot.
 		size, mid := settingsSize*k, s.fieldMargin(w, h)/2
 		inset := mid - size/2
-		homeTop := max(inset, barH+theme.DefaultLayout.ChromeGutter*k)
+		homeTop := inset
+		if c.TitleBar().Left > 0 {
+			homeTop = max(inset, barH+theme.DefaultLayout.ChromeGutter*k)
+		}
 		trashTop := homeTop + size + 8*k
 		// How the place is shown, apart from which place it is.
 		listTop := trashTop + size + 20*k

@@ -37,7 +37,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, se
 		s.desk.claim = ""
 	}
 	// Its head floats over the page's reading margin (headShown).
-	lead := clearOfLights(c, shown)
+	lead, trail := clearOfControls(c, shown)
 	head := s.headShown(c, col)
 	if animate {
 		head = components.Follow(col, "head-shown", head, components.MotionNormal)
@@ -61,7 +61,7 @@ func (s *State) openColumn(c *ui.Context, semantic theme.Theme, page Page, w, se
 				s.Sheet(c, page, frame)
 			}
 		})
-		s.sheetHead(c, semantic, page, k, lead, head, animate)
+		s.sheetHead(c, semantic, page, k, lead, trail, head, animate)
 	})
 }
 
@@ -96,7 +96,7 @@ func (s *State) headShown(c *ui.Context, col ui.Element) float32 {
 
 // sheetHead is a sheet's head (columnHead): its group's mark and its
 // title, and what closes it, at the type's size k.
-func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lead, shown float32, animate bool) ui.Element {
+func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lead, trail, shown float32, animate bool) ui.Element {
 	group, grouped := s.groupOf(page.ID)
 	ink, muted := groupInk(semantic, group, semantic.Icon.Muted), semantic.Text.Muted
 	info := func() {
@@ -108,7 +108,7 @@ func (s *State) sheetHead(c *ui.Context, semantic theme.Theme, page Page, k, lea
 		})
 	}
 	// It names its sheet, which its tooltip need not.
-	return s.columnHead(c, semantic, "sheet-head", lead, shown, info, chromeButton{
+	return s.columnHead(c, semantic, "sheet-head", lead, trail, shown, info, chromeButton{
 		key: "sheet-close-" + page.Column, label: locales.CloseNamed(page.Title), tooltip: locales.CloseSheet(),
 		binding: s.binding("page.close"), side: components.HintBelow,
 		action: func() { s.CloseColumn(page.Column) },
