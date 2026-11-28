@@ -329,6 +329,7 @@ func (s *State) pillKey(key ui.TextKey) bool {
 		if key.Key == ui.KeyTab {
 			break
 		}
+		s.flushFollow()
 		id := s.field.chosen
 		if id == "" {
 			for _, row := range s.field.ranked {

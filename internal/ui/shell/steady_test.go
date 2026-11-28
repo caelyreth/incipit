@@ -61,7 +61,7 @@ func TestWritingKeepsTheRankUntilItPauses(t *testing.T) {
 	if got := shownBlocks(state); !slices.Equal(got, []string{"group:2", "group:1"}) {
 		t.Fatalf("Written on, the blocks should keep where they stood: %v.", got)
 	}
-	tester.Advance(writingPause)
+	tester.Advance(writingQuiet)
 	tester.Frame()
 	settle(tester)
 	if got := shownBlocks(state); !slices.Equal(got, []string{"group:1", "group:2"}) {
@@ -164,12 +164,12 @@ func TestTheFieldSettlesAsTheWritingPauses(t *testing.T) {
 	}
 	tester.Frame()
 	heldPill, _ := tester.Find("Search")
-	tester.Advance(writingPause / 2)
+	tester.Advance(writingQuiet / 2)
 	tester.Frame()
 	if nowPill, _ := tester.Find("Search"); abs(nowPill.Y-heldPill.Y) > 0.5 {
 		t.Fatalf("While the writing goes on, the pill should hold: %v, now %v.", heldPill, nowPill)
 	}
-	tester.Advance(writingPause)
+	tester.Advance(writingQuiet)
 	settle(tester)
 	if backPill, _ := tester.Find("Search"); abs((backPill.X+backPill.W/2)-(homePill.X+homePill.W/2)) > 0.5 || abs(backPill.Y-homePill.Y) > 0.5 {
 		t.Fatalf("The writing paused, the field should settle as at home: %v, not %v.", homePill, backPill)
@@ -251,5 +251,95 @@ func TestAKeyToggledFastNeverLeaps(t *testing.T) {
 			t.Fatalf("Pressed every %d frames, Inbox moved %v in a frame; a change moves it at most %v.", every, most, pace)
 		}
 		stepMost(60, 0)
+	}
+}
+
+// With tall results standing only under the pill, the resting horizon stays
+// within the middle third of the window ([h/3, 2*h/3]) rather than hugging
+// the window's top edge.
+func TestHorizonStaysWithinVisualCenterAtRest(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	state.AppSettings = &fakeSettings{tall: 600}
+	settle(tester)
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	// Keymap/Keys renders at tall=600px, which previously pushed the pill to
+	// the top edge (~48px). It should now clamp cleanly at h/3.
+	tester.Type("keys")
+	settle(tester)
+	pill, ok := tester.Find("Search")
+	if !ok {
+		t.Fatal("Search pill should be present.")
+	}
+	horizon := pill.Y + pill.H/2
+	wantTopThird := float32(850) / 3
+	if abs(horizon-wantTopThird) > 1.0 {
+		t.Fatalf("Expected resting horizon to clamp at top third (%v) for tall card below, got %v.", wantTopThird, horizon)
+	}
+}
+
+// Typing debounces briefly via follow(), then updates cards and shifts the
+// horizon together in one transition instead of changing cards first and
+// jumping the pill after a second pause. Rapid type-and-delete cancels cleanly.
+func TestTypingDebouncesAndMovesCardsWithPillTogether(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	tester.SetSize(820, 850)
+	state.AppSettings = &fakeSettings{tall: 520, showTheme: true}
+	settle(tester)
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	beforeBlocks := shownBlocks(state)
+	beforePill, _ := tester.Find("Search")
+
+	// Rapid type then backspace within the debounce window cancels cleanly.
+	tester.Type("z")
+	tester.Advance(writingQuiet / 3)
+	tester.Frame()
+	tester.Key(0, ui.KeyBackspace)
+	settle(tester)
+	if got := shownBlocks(state); !slices.Equal(got, beforeBlocks) {
+		t.Fatalf("Cancelling within debounce should leave blocks unchanged: got %v, want %v.", got, beforeBlocks)
+	}
+	if nowPill, _ := tester.Find("Search"); abs(nowPill.Y-beforePill.Y) > 0.5 {
+		t.Fatalf("Cancelling within debounce should leave pill still: %v -> %v.", beforePill, nowPill)
+	}
+
+	// Typing "keys" holds both cards and pill steady while keys arrive.
+	for _, ch := range []string{"k", "e", "y", "s"} {
+		tester.Type(ch)
+		tester.Advance(60 * time.Millisecond)
+		tester.Frame()
+	}
+	if got := shownBlocks(state); !slices.Equal(got, beforeBlocks) {
+		t.Fatalf("While typing is still debounced, blocks should hold: got %v, want %v.", got, beforeBlocks)
+	}
+	if midPill, _ := tester.Find("Search"); abs(midPill.Y-beforePill.Y) > 0.5 {
+		t.Fatalf("While typing is still debounced, pill should hold: %v -> %v.", beforePill, midPill)
+	}
+
+	// Once the debounce fires, cards update and the pill rises together in the
+	// same transition without waiting for a second settle delay.
+	tester.Advance(writingQuiet)
+	tester.Frame()
+	if got := shownBlocks(state); !slices.Equal(got, []string{"settings:Keymap/Keys"}) {
+		t.Fatalf("After debounce, blocks should update to Keys, got %v.", got)
+	}
+	for range 8 {
+		tester.Advance(16 * time.Millisecond)
+		tester.Frame()
+	}
+	movingPill, _ := tester.Find("Search")
+	if movingPill.Y >= beforePill.Y-5 {
+		t.Fatalf("Pill should rise together with the updated cards immediately after debounce: before=%v moving=%v.", beforePill.Y, movingPill.Y)
+	}
+	settle(tester)
+	finalPill, _ := tester.Find("Search")
+	horizon := finalPill.Y + finalPill.H/2
+	if horizon >= 850/2-5 || horizon < float32(850)/3-0.5 {
+		t.Fatalf("Final resting horizon should rise within [h/3, h/2): got %v (h/3=%v).", horizon, float32(850)/3)
 	}
 }

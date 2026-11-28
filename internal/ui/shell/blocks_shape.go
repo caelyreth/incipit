@@ -98,9 +98,10 @@ func (s *State) columnMetrics(w, h, least, most float32) blockMetrics {
 		scale: scale, k: k,
 		col: col - 2*pad, pad: pad, head: head, headGap: headGap, rowGap: 4 * k,
 		// A block is no taller than its half of the field holds, or, alone
-		// in its row, than the window holds about the pill.
+		// in its row, than the lower two thirds of the window hold under the
+		// visual-center horizon.
 		tall:     max(160*k, float32(math.Floor(float64((h/2-band/2-gap-frame)/step)))*step),
-		alone:    max(160*k, float32(math.Floor(float64((h-band-2*gap-frame-(48+24)*k)/step)))*step),
+		alone:    max(160*k, float32(math.Floor(float64((h*2/3-band/2-gap-frame-24*k)/step)))*step),
 		groupRow: 2*theme.Space06.DIPs(scale) + theme.TextSmall.LineHeight(scale),
 		control:  theme.DefaultControls.Scaled(scale).Height,
 		horizon:  stageHorizon{Cols: cols, Col: col, Gap: gap, Above: band / 2, Below: band / 2},

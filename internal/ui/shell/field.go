@@ -78,11 +78,9 @@ type fieldState struct {
 	// pressed (pressesKeys).
 	pressing bool
 	// rerank has found ranked again, as the window comes back to the
-	// field; settleAt is when the field settles as the writing in the pill
-	// pauses, zero while nothing is being written, and settled that it
-	// has, for the field to stand even again.
+	// field, and settled asks the field to rebalance its poise as a new
+	// query lands.
 	rerank, settled bool
-	settleAt        time.Time
 	// answered is the query the field answers (follow), standing on
 	// answeredAt; holding is whether it stands behind words still being
 	// written, seen the query as last seen written, at writtenAt, and

@@ -84,9 +84,6 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	}
 	s.field.listed = listed
 	f := s.results(c.Now())
-	if !s.field.settleAt.IsZero() {
-		c.After(s.field.settleAt.Sub(c.Now()))
-	}
 	// What fits in the row under the pill stands there alone, the field
 	// over it empty: its blocks may stand as tall as the window holds.
 	if len(f.cards) <= m.horizon.Cols {
@@ -136,18 +133,17 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	below, above := stageReach(rects)
 	below, above = max(below, z.Below), max(above, z.Above)
 	top, foot := 48*k, 24*k
-	// At rest, the pill stands at the window's middle, its ribbons with it,
-	// however many stand on either side: only cards standing on one side
-	// more than the other move it, the horizon rising or falling into the
-	// room they leave empty over or under it; and the cards,
-	// where a ring of columns is taken on one side alone, go across to
-	// stand even about the pill. While the pill is open it keeps still,
-	// under the pointer and the caret, and the field with it, until the
-	// writing in it pauses; but never so far that something of the field
-	// would leave the window or its columns, which brings it in as far as
-	// needs be. Let go of, the pill goes where the field is even.
+	// At rest, the pill stands near the window's middle, its ribbons with it:
+	// cards standing on one side more than the other shift the horizon into
+	// the empty room, bounded to the middle third of the window ([h/3, 2*h/3])
+	// so the input stays within the user's visual center instead of hugging
+	// the top or bottom edge; and cards where a ring of columns is taken on
+	// one side alone go across to stand even about the pill. While typing is
+	// held by follow() the field stays still, then updates its cards and
+	// shifts the horizon together in one glide once the pause fires.
 	first := s.field.rest == nil
-	up, down := max(0, h/2-top-above), max(0, h/2-foot-below)
+	maxShift := h / 6
+	up, down := max(0, min(h/2-top-above, maxShift)), max(0, min(h/2-foot-below, maxShift))
 	lo, hi := stageExtent(rects)
 	reach := (float32(z.Cols)*z.Col + float32(z.Cols-1)*z.Gap) / 2
 	if !s.field.open || first || s.field.settled {
@@ -212,7 +208,7 @@ func (s *State) fieldView(c *ui.Context, semantic theme.Theme, look stageLook, x
 	// holds changes; at the end of what it reaches, it keeps to the end, as
 	// when the ribbons come over a list's foot.
 	atEnd := (listed || reached > 0) && s.field.scroll >= reached-0.5
-	place := placeKey(listed, s.FieldQuery())
+	place := placeKey(listed, f.query)
 	switch {
 	case s.field.rest == nil:
 		s.field.place = place

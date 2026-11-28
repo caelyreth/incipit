@@ -123,13 +123,10 @@ func (f *found) add(id string, t tier, kind cardKind) {
 // query, the library, the sheets open or the tray change, as it stands
 // at now.
 //
-// A search's rank holds while its query stands (field-and-desk.md §5.3):
-// what it finds again, as a sheet is written, stands where it stood, and
-// what is written on in the pill keeps what it still finds where it was,
-// what it finds besides after them, until the writing pauses (settleAt);
-// then, or as the window comes back to the field, it is ranked again. A
-// query changed by an action, or one that browses, is ranked as it comes:
-// what is browsed stands as it is filed.
+// A search's rank holds while its query stands across library edits on
+// the desk (field-and-desk.md §5.3). When the query changes—immediately
+// on an action, or once follow() commits paused typing—the new results
+// land ranked and settle the horizon together in one transition.
 func (s *State) results(now time.Time) found {
 	if s.Library == nil {
 		return found{}
@@ -141,11 +138,10 @@ func (s *State) results(now time.Time) found {
 	prev := s.field.found
 	listed := s.listed()
 	if prev.query == text && prev.rev == rev && prev.open == open && prev.held == held && prev.listed == listed && prev.cards != nil {
-		if paused := !s.field.settleAt.IsZero() && !now.Before(s.field.settleAt); s.field.rerank || paused {
+		if s.field.rerank {
 			prev.cards = prev.ranked
 			s.field.found = prev
-			s.field.settled = paused
-			s.field.rerank, s.field.settleAt = false, time.Time{}
+			s.field.rerank = false
 		}
 		return prev
 	}
@@ -158,15 +154,8 @@ func (s *State) results(now time.Time) found {
 	f.ranked = f.cards
 	_, _, browse := s.browsing(query.Parse(text))
 	switch {
-	case prev.cards == nil || s.field.rerank || s.field.next != (change{}):
-		s.field.settleAt = time.Time{}
+	case prev.cards == nil || s.field.rerank || s.field.next != (change{}) || prev.query != text:
 		s.field.settled = true
-	case prev.query != text:
-		// Written on: the field settles once the writing pauses.
-		s.field.settleAt = now.Add(writingPause)
-		if !browse {
-			f.cards = steady(prev.cards, f.ranked)
-		}
 	case !browse:
 		f.cards = steady(prev.cards, f.ranked)
 	}
@@ -176,10 +165,20 @@ func (s *State) results(now time.Time) found {
 	return f
 }
 
-// writingPause is how long the writing in the pill pauses before the
-// field settles: what it finds ranked again, and the field standing even
-// in the window.
-const writingPause = 600 * time.Millisecond
+// flushFollow commits any debounced words in the pill immediately and
+// refreshes ranked rows so Return right after typing activates the match.
+func (s *State) flushFollow() {
+	if !s.field.holding {
+		return
+	}
+	s.field.takeNext = true
+	s.follow(time.Now())
+	f := s.results(time.Now())
+	s.field.ranked = s.field.ranked[:0]
+	for _, cd := range f.cards {
+		s.field.ranked = append(s.field.ranked, cd.rows...)
+	}
+}
 
 // steady is next's cards, those prev shows in the order it shows them,
 // then the rest in next's own; each tier apart.
