@@ -22,6 +22,34 @@ func TestWordsWrittenSearchAndReturnOpensTheFirst(t *testing.T) {
 	}
 }
 
+// The field follows words written in the pill once the writing pauses,
+// not once a key; a ribbon written it follows at once.
+func TestTheFieldFollowsTheWritingAsItPauses(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	step := func(d time.Duration) {
+		tester.Advance(d)
+		tester.Frame()
+	}
+	tester.Type("ch")
+	step(100 * time.Millisecond)
+	tester.Type("ap")
+	step(100 * time.Millisecond)
+	if q := state.field.found.query; q != "" {
+		t.Fatalf("The field should stand while the words are written, but it answers %q.", q)
+	}
+	step(writingQuiet)
+	step(16 * time.Millisecond)
+	if q := state.field.found.query; q != "chap" {
+		t.Fatalf("The field should follow the words as the writing pauses, but it answers %q.", q)
+	}
+
+	tester.Type(" $trash ")
+	step(16 * time.Millisecond)
+	if q := state.field.found.query; q != "$trash chap" {
+		t.Fatalf("A ribbon written should be answered at once, but the field answers %q.", q)
+	}
+}
+
 // A condition written whole, a space after it, becomes a ribbon, and
 // Backspace with nothing written takes it away.
 func TestAConditionWrittenBecomesARibbon(t *testing.T) {

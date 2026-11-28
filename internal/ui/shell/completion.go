@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/caelyreth/incipit/internal/text/query"
 	"github.com/caelyreth/incipit/locales"
@@ -130,7 +131,19 @@ func (s *State) stepSuggestion(by int) {
 // without a filter still being written, whether its suggestions stand or
 // not, so the field never answers half a condition. All the field works
 // out of its query, it works out of this one.
+//
+// While words are being written in the pill, it is the query as the
+// writing last paused (follow): the field moves once for what is
+// written, not once a key.
 func (s *State) wholeQuery() string {
+	if f := &s.field; f.holding && !f.takeNext && f.answeredAt == s.queryAt() {
+		return f.answered
+	}
+	return s.writtenQuery()
+}
+
+// writtenQuery is the query as the pill holds it this moment.
+func (s *State) writtenQuery() string {
 	words := s.field.held
 	if s.field.opened == nil {
 		words = s.unwritten()
@@ -326,4 +339,41 @@ func (s *State) rewrite(i int) {
 	if free {
 		s.setWords(cond.Value)
 	}
+}
+
+// writingQuiet is how long the words written in the pill stand before
+// the field follows them.
+const writingQuiet = 300 * time.Millisecond
+
+// queryAt is all the query stands on but its words: what else the field
+// shows, it shows as it changes.
+type queryAt struct {
+	conds, held      string
+	opened, commands bool
+}
+
+func (s *State) queryAt() queryAt {
+	return queryAt{conds: strings.Join(s.field.conditions, "\x00"), held: s.field.held,
+		opened: s.field.opened != nil, commands: s.commanding()}
+}
+
+// follow keeps the query the field answers behind words being written in
+// the pill until the writing pauses for writingQuiet, reporting how long
+// it still waits, 0 for not. Anything else that changes the query, a
+// ribbon put in or taken away, a query set or the words cleared, the
+// field answers as it comes.
+func (s *State) follow(now time.Time) time.Duration {
+	f := &s.field
+	live, at := s.writtenQuery(), s.queryAt()
+	if live != f.seen {
+		f.seen, f.writtenAt = live, now
+	}
+	quiet := now.Sub(f.writtenAt)
+	if live == f.answered || f.takeNext || at != f.answeredAt || f.rerank ||
+		strings.TrimSpace(f.words) == "" || quiet >= writingQuiet {
+		f.answered, f.answeredAt, f.holding, f.takeNext = live, at, false, false
+		return 0
+	}
+	f.holding = true
+	return writingQuiet - quiet
 }

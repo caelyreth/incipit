@@ -29,6 +29,9 @@ func (s *State) View(c *ui.Context) {
 	if changing {
 		c.AnimationFrame()
 	}
+	if wait := s.follow(c.Now()); wait > 0 {
+		c.After(wait)
+	}
 	w, h := c.Size()
 	layout := theme.DefaultLayout
 	root := ui.Box(c).Fill().Background(semantic.Surface.Background).Clip().Bind(&s.root)

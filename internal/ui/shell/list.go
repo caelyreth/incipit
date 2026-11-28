@@ -62,7 +62,7 @@ func (s *State) sorted() bool {
 // again only as what it reads changes.
 func (s *State) listed() bool {
 	key := listedKey{conds: strings.Join(s.field.conditions, "\x00"), words: s.field.words, held: s.field.held, caret: s.field.caret,
-		opened: s.field.opened != nil, rev: s.field.listsRev}
+		opened: s.field.opened != nil, rev: s.field.listsRev, holding: s.field.holding, answered: s.field.answered}
 	if s.Library != nil {
 		key.library = s.Library.Revision() + 1
 	}
@@ -79,7 +79,11 @@ type listedKey struct {
 	conds, words, held string
 	caret              int
 	opened             bool
-	rev                int
+	// holding and answered are the query the field answers while words
+	// are written (follow).
+	holding  bool
+	answered string
+	rev      int
 	// library is the library's revision, one on, 0 for none.
 	library uint64
 }

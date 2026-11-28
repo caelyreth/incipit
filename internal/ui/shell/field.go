@@ -83,6 +83,15 @@ type fieldState struct {
 	// has, for the field to stand even again.
 	rerank, settled bool
 	settleAt        time.Time
+	// answered is the query the field answers (follow), standing on
+	// answeredAt; holding is whether it stands behind words still being
+	// written, seen the query as last seen written, at writtenAt, and
+	// takeNext whether the next query is answered as it comes, the
+	// words set by an action.
+	answered, seen    string
+	answeredAt        queryAt
+	holding, takeNext bool
+	writtenAt         time.Time
 	// shapes are the cards' shapes, by id and look, for the library and
 	// the measures shapesKey names.
 	shapes    map[shapeID]shape
@@ -282,6 +291,7 @@ func (s *State) takeConditions(text string) bool {
 func (s *State) setWords(words string) {
 	s.field.words = words
 	s.field.edit = &words
+	s.field.takeNext = true
 }
 
 type fieldMode uint8
