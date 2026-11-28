@@ -1,3 +1,5 @@
+<img width="2400" height="800" alt="header" src="https://github.com/user-attachments/assets/760ac5ff-5f79-48c1-a032-e7105120d40f" />
+
 ### Incipit
 
 Quiet, local-first native writing workspace written in Go (`CGO_ENABLED=0` across macOS, Windows, and Linux), storing notebooks in SQLite and rendering directly through [Evil MyGo](https://github.com/caelyreth/evil-mygo) without Electron or webviews.
