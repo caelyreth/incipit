@@ -123,7 +123,7 @@ func (s *State) Verb(id string) VerbState {
 	case VerbViewList:
 		listed := s.listed()
 		return VerbState{Label: map[bool]string{true: locales.ViewAsField(), false: locales.ViewAsList()}[listed],
-			Enabled: s.libraryShown() && !s.inTrash(), Checked: listed}
+			Enabled: s.libraryShown(), Checked: listed}
 	case VerbBack:
 		return VerbState{Label: locales.Back(), Enabled: s.canGo(-1)}
 	case VerbForward:

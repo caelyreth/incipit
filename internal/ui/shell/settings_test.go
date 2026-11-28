@@ -512,3 +512,22 @@ func TestPressingAShortcutFindsItsActions(t *testing.T) {
 		t.Fatal("Key closed, the menu should have its keys back.")
 	}
 }
+
+func TestTheSettingsCannotBeListed(t *testing.T) {
+	state, _, tester := settingsState(t)
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	if state.Verb(VerbViewList).Enabled {
+		t.Fatal("The settings have no list, so the view should not turn.")
+	}
+	if _, ok := tester.Find("View as List"); !ok {
+		t.Fatal("The switch should still stand in the settings, dimmed.")
+	}
+	_ = tester.Click("View as List")
+	settle(tester)
+	if state.listed() || state.field.lists[state.place()] {
+		t.Fatal("A press on the dimmed switch should list nothing.")
+	}
+}

@@ -188,6 +188,14 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 	keeps = keeps && kept.Listed && !s.inTrash()
 	box := ui.Column(c).Key("view-switch").Width(size).Padding(pad).Gap(pad).Radius(size/2).
 		Border(components.Rim, semantic.Border.Variant).Background(semantic.Surface.Page).Role(ui.RoleRadioGroup).Label(locales.View())
+	// Where nothing can be listed, as the settings, it stands dimmed and
+	// takes no press, as the verb it turns says (Verb).
+	open := s.Verb(VerbViewList).Enabled
+	dim := map[bool]float32{true: 1, false: components.DisabledOpacity}[open]
+	if animate {
+		dim = components.Follow(box, "dim", dim, components.MotionQuick)
+	}
+	box.Opacity(dim)
 	face := components.Within(size, pad)
 	// The fill is one circle standing behind the choice shown, sliding to
 	// the other as the view turns, so the switch reads as one thing moving.
@@ -207,7 +215,8 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 			{"view-list", locales.ViewAsList(), components.IconList, listed},
 		} {
 			btn := ui.ButtonBase(c.Key(choice.key)).Size(face, face).Radius(face / 2).Role(ui.RoleRadio).
-				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().Label(choice.label).Selected(choice.on)
+				AlignItems(ui.Center).Justify(ui.Center).FocusRing(false).KeepFocus().Label(choice.label).Selected(choice.on).
+				Disabled(!open)
 			binding := ""
 			if !choice.on {
 				binding = s.binding(VerbViewList)
@@ -220,9 +229,9 @@ func (s *State) viewSwitch(c *ui.Context, semantic theme.Theme, size float32, an
 			components.Hint(c, semantic, btn, hint, binding, components.HintAfter)
 			// How far the fill stands behind this choice.
 			on := max(0, 1-abs32(at-float32(i)))
-			hover := components.HoverAmount(btn, btn.Hovered() && !choice.on, animate)
+			hover := components.HoverAmount(btn, open && btn.Hovered() && !choice.on, animate)
 			btn.Background(components.Blend(semantic.GhostElement.Hover.Alpha(0), semantic.GhostElement.Hover, hover*(1-on)))
-			if btn.Clicked() && !choice.on {
+			if open && btn.Clicked() && !choice.on {
 				s.toggleList()
 			}
 			btn.Children(func() {
