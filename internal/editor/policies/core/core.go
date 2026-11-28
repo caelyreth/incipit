@@ -529,7 +529,7 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 	slice := in.Slice
 	text := slice.Empty()
 	if text {
-		slice = TextSlice(c.Doc().Schema(), in.Text)
+		slice = TextSlice(c.Doc().Schema(), in.Text, nil)
 	}
 	if slice.Empty() {
 		return policy.Swallow
@@ -538,6 +538,10 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 	clear, pos, ok := c.Replacing()
 	if ok {
 		edits = append(edits, clear)
+	}
+	var pending *doc.MarkSet
+	if p := c.Pending(); p != nil {
+		pending = p.Marks
 	}
 	// The caret goes where the pasted content ends.
 	var end *doc.Pos
@@ -554,7 +558,17 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 		if spec, ok := vocab.SlotSpec(tx, at.Ref()); ok && spec.Literal && in.Text != "" {
 			// Literal slots (code, math, formula) keep the clipboard's raw characters
 			// untouched rather than parsed structure.
-			slice = TextSlice(tx.Schema(), in.Text)
+			slice = TextSlice(tx.Schema(), in.Text, nil)
+			text = true
+		} else if marks := literalAt(tx, at, pending); marks != nil {
+			// So does text under a literal mark (inline code): the
+			// clipboard's characters, under the marks text typed there
+			// takes.
+			raw := in.Text
+			if raw == "" {
+				raw = vocab.PlainText(tx.Schema(), in.Slice)
+			}
+			slice = TextSlice(tx.Schema(), raw, marks)
 			text = true
 		}
 		if block, ok := vocab.Block(tx, at); ok && text {
@@ -587,22 +601,41 @@ func paste(c *policy.Ctx, in vocab.Paste, _ policy.At[doc.SlotRef]) policy.Resul
 	return res
 }
 
-// TextSlice is plain text as a slice: one line inline, several lines as
-// paragraphs with open edges, sanitized for the document model.
-func TextSlice(s *doc.Schema, text string) vocab.Slice {
+// literalAt are the marks text written at at takes, pending ones first,
+// where they keep it as typed (doc.MarkSpec.Literal); nil elsewhere.
+func literalAt(tx *doc.Tx, at doc.Pos, pending *doc.MarkSet) *doc.MarkSet {
+	spec, ok := vocab.SlotSpec(tx, at.Ref())
+	if !ok || spec.Blocks || spec.Literal || spec.Marks == nil {
+		return nil
+	}
+	marks := pending
+	if marks == nil {
+		n, _ := tx.Node(at.Node)
+		marks = vocab.InheritedMarks(tx.Schema(), n.Slot(at.Slot).Content(), at.Offset)
+	}
+	if !tx.Schema().Literal(marks) {
+		return nil
+	}
+	return marks
+}
+
+// TextSlice is plain text as a slice, its text under marks: one line
+// inline, several lines as paragraphs with open edges, sanitized for the
+// document model.
+func TextSlice(s *doc.Schema, text string, marks *doc.MarkSet) vocab.Slice {
 	text = sanitizePlainText(text)
 	if text == "" {
 		return vocab.Slice{}
 	}
 	lines := strings.Split(text, "\n")
 	if len(lines) == 1 {
-		return vocab.Slice{Inline: []doc.Item{doc.TextItem(text, nil)}}
+		return vocab.Slice{Inline: []doc.Item{doc.TextItem(text, marks)}}
 	}
 	nodes := make([]*doc.Node, len(lines))
 	for i, l := range lines {
 		nodes[i] = plain(s)
 		if l != "" {
-			nodes[i] = vocab.NewBlock(s, s.Plain(), doc.Attrs{}, doc.TextItem(l, nil))
+			nodes[i] = vocab.NewBlock(s, s.Plain(), doc.Attrs{}, doc.TextItem(l, marks))
 		}
 	}
 	return vocab.Slice{Nodes: nodes, OpenStart: 1, OpenEnd: 1}

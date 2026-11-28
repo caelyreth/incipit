@@ -72,3 +72,18 @@ func TestInlineCodeKeepsItsCharacters(t *testing.T) {
 	p.typeText(" it's")
 	p.want("page(paragraph(q <x> it’s))")
 }
+
+// Pasted where the caret writes inline code, the clipboard's characters
+// are code, as in a code block: in the code's middle, or with code turned
+// on at the caret.
+func TestPastingIntoInlineCodeKeepsTheCode(t *testing.T) {
+	p := open(t)
+	p.typeText("q `abcd`")
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	p.do(vocab.Move{Unit: vocab.ByGrapheme, Dir: vocab.Backward})
+	p.do(vocab.Paste{Text: "*x* $y"})
+	p.want("page(paragraph(q <abc*x* $yd>))")
+	p = inCode(t, "q ")
+	p.do(vocab.Paste{Text: "it's -- $z"})
+	p.want("page(paragraph(q <it's -- $z>))")
+}
