@@ -340,3 +340,39 @@ func TestTypingDebouncesAndMovesCardsWithPillTogether(t *testing.T) {
 		t.Fatalf("Final resting horizon should rise over the middle: got %v.", horizon)
 	}
 }
+
+// The horizon leans toward what the field needs: all of a little need,
+// less of each step further, never all the room.
+func TestTheHorizonLeansLessTheFurtherItIsAsked(t *testing.T) {
+	const room = 400
+	if got := lean(10, room); got < 9.7 {
+		t.Fatalf("A little need should be met nearly whole: %v.", got)
+	}
+	last, step := float32(0), float32(room)
+	for need := float32(100); need <= 4*room; need += 100 {
+		got := lean(need, room)
+		if got <= last || got-last > step || got >= room {
+			t.Fatalf("Each step further should lean less, never all the room: %v after %v for %v.", got, last, need)
+		}
+		last, step = got, got-last
+	}
+}
+
+// A settings section taller than the room under the pill takes it up only
+// part of the way: the pill keeps near the middle, the section's foot a
+// scroll away.
+func TestATallSectionLeavesThePillNearTheMiddle(t *testing.T) {
+	state, _, tester := onField(t, 1260, 850)
+	state.AppSettings = &fakeSettings{tall: 600}
+	settle(tester)
+	if err := tester.Click("Show settings"); err != nil {
+		t.Fatal(err)
+	}
+	settle(tester)
+	tester.Type("keys")
+	settle(tester)
+	pill, _ := tester.Find("Search")
+	if horizon := pill.Y + pill.H/2; horizon < 850/4 || horizon >= 850/2 {
+		t.Fatalf("The pill should rise for the section, but keep near the middle: %v.", horizon)
+	}
+}
