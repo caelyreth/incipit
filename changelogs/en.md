@@ -1,3 +1,11 @@
+### 1.0.0-alpha.3
+
+A small follow-up that smooths the Desk and tidies a few rough edges.
+
+- **Smoother Desk animation:** Moving between the Field and the Desk runs smoothly again. Alpha 2 made the Desk's rounded corners redraw slowly on every frame of the animation, which could make it stutter.
+- **Formatted release notes:** Release notes in Settings › Updates now display bold, italics, inline code, and numbered lists instead of raw Markdown.
+- **Clearer view switch in Settings:** The Field/List switch is dimmed in Settings, where there is nothing to list, and the Trash can be shown as a list from the menu too.
+
 ### 1.0.0-alpha.2
 
 A polish release: smoother theme changes, a tidier Desk, and proper window controls on Windows and Linux.

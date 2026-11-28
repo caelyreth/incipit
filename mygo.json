@@ -2,7 +2,7 @@
   "name": "Incipit",
   "slug": "incipit",
   "identifier": "fm.elm.incipit",
-  "version": "1.0.0-alpha.2",
+  "version": "1.0.0-alpha.3",
   "icon": "assets/icon.png",
   "main": "./cmd/incipit",
   "out": "dist",
