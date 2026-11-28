@@ -1,3 +1,9 @@
+### 1.0.0-alpha.4
+
+A quick fix for typing in search.
+
+- **Calmer search while typing:** The Field now waits for a short pause in your typing before rearranging, instead of reshuffling with every key.
+
 ### 1.0.0-alpha.3
 
 A small follow-up that smooths the Desk and tidies a few rough edges.
